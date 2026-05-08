@@ -1,10 +1,12 @@
 package com.example.todo.security;
 
+import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.security.Keys;
 import org.springframework.stereotype.Service;
 
+import javax.crypto.SecretKey;
 import java.security.Key;
 import java.util.Date;
 import java.util.UUID;
@@ -13,7 +15,7 @@ import java.util.UUID;
 public class JwtService {
 
     private static final String SECRET =
-            "mysecretkeymysecretkeymysecretkey98765432546";  // will be moved to environment variable later
+            "mysecretkeymysecretkeymysecretkey123456"; //will be moved to environment variable later
 
     private final Key key = Keys.hmacShaKeyFor(SECRET.getBytes());
 
@@ -27,5 +29,30 @@ public class JwtService {
                 )
                 .signWith(key, SignatureAlgorithm.HS256)
                 .compact();
+    }
+
+    public String extractUserId(String token) {
+
+        return extractClaims(token)
+                .getSubject();
+    }
+
+    public boolean isTokenValid(String token) {
+
+        try {
+            extractClaims(token);
+            return true;
+        } catch (Exception ex) {
+            return false;
+        }
+    }
+
+    private Claims extractClaims(String token) {
+
+        return Jwts.parser()
+                .verifyWith((SecretKey) key)
+                .build()
+                .parseSignedClaims(token)
+                .getPayload();
     }
 }
