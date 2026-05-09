@@ -3,6 +3,8 @@ package com.example.todo.auth.service;
 import com.example.todo.auth.dto.AuthResponse;
 import com.example.todo.auth.dto.LoginRequest;
 import com.example.todo.auth.dto.RegisterRequest;
+import com.example.todo.exception.BadRequestException;
+import com.example.todo.exception.UnauthorizedException;
 import com.example.todo.security.JwtService;
 import com.example.todo.user.entity.User;
 import com.example.todo.user.repository.UserRepository;
@@ -21,6 +23,16 @@ public class AuthService {
     private final JwtService jwtService;
 
     public AuthResponse register(RegisterRequest request) {
+
+        boolean exists =
+                userRepository.findByEmail(request.getEmail())
+                        .isPresent();
+
+        if (exists) {
+            throw new BadRequestException(
+                    "Email already exists"
+            );
+        }
 
         User user = User.builder()
                 .email(request.getEmail())
@@ -41,7 +53,7 @@ public class AuthService {
     public AuthResponse login(LoginRequest request) {
 
         User user = userRepository.findByEmail(request.getEmail())
-                .orElseThrow(() -> new RuntimeException("Invalid credentials"));
+                .orElseThrow(() -> new UnauthorizedException("Invalid credentials"));
 
         boolean passwordMatches = passwordEncoder.matches(
                 request.getPassword(),
@@ -49,7 +61,9 @@ public class AuthService {
         );
 
         if (!passwordMatches) {
-            throw new RuntimeException("Invalid credentials");
+            throw new UnauthorizedException(
+                    "Invalid credentials"
+            );
         }
 
         String token = jwtService.generateToken(user.getId());
