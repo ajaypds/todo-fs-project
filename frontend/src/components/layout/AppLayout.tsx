@@ -6,22 +6,22 @@ type Props = {
 
 export const AppLayout = ({ children }: Props) => {
   return (
-    <div className="flex h-screen bg-gray-100">
-      <aside className="w-64 bg-white border-r">
+    <div className="flex flex-col md:flex-row h-screen bg-gray-100">
+      <aside className="w-full md:w-64 bg-white border-r">
         <div className="p-4 text-xl font-bold">Todo App</div>
 
-        <nav className="p-2 space-y-2">
-          <div className="p-2 rounded hover:bg-gray-100 cursor-pointer">
+        <nav className="p-2 space-y-1">
+          <button className="w-full text-left p-3 rounded-lg hover:bg-gray-100 transition">
             Inbox
-          </div>
+          </button>
 
-          <div className="p-2 rounded hover:bg-gray-100 cursor-pointer">
+          <button className="w-full text-left p-3 rounded-lg hover:bg-gray-100 transition">
             Today
-          </div>
+          </button>
 
-          <div className="p-2 rounded hover:bg-gray-100 cursor-pointer">
+          <button className="w-full text-left p-3 rounded-lg hover:bg-gray-100 transition">
             Upcoming
-          </div>
+          </button>
         </nav>
       </aside>
 
