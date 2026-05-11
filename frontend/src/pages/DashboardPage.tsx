@@ -8,9 +8,9 @@ import {
 } from "../features/tasks/taskQueries";
 
 import { TaskCard } from "../features/tasks/components/TaskCard";
-
 import { CreateTaskForm } from "../features/tasks/components/CreateTaskForm";
 import type { Task } from "../features/tasks/taskTypes";
+import toast from "react-hot-toast";
 
 export const DashboardPage = () => {
   const { data, isLoading, error } = useTasks();
@@ -47,10 +47,21 @@ export const DashboardPage = () => {
         <div className="mb-6">
           <CreateTaskForm
             onCreate={(title, description) => {
-              createTaskMutation.mutate({
-                title,
-                description,
-              });
+              createTaskMutation.mutate(
+                {
+                  title,
+                  description,
+                },
+                {
+                  onSuccess: () => {
+                    toast.success("Task created");
+                  },
+
+                  onError: () => {
+                    toast.error("Failed to create task");
+                  },
+                },
+              );
             }}
           />
         </div>
@@ -61,16 +72,35 @@ export const DashboardPage = () => {
               key={task.id}
               task={task}
               onToggle={() => {
-                updateTaskMutation.mutate({
-                  taskId: task.id,
+                updateTaskMutation.mutate(
+                  {
+                    taskId: task.id,
 
-                  payload: {
-                    completed: !task.completed,
+                    payload: {
+                      completed: !task.completed,
+                    },
                   },
-                });
+                  {
+                    onSuccess: () => {
+                      toast.success("Task updated");
+                    },
+
+                    onError: () => {
+                      toast.error("Failed to update task");
+                    },
+                  },
+                );
               }}
               onDelete={() => {
-                deleteTaskMutation.mutate(task.id);
+                deleteTaskMutation.mutate(task.id, {
+                  onSuccess: () => {
+                    toast.success("Task deleted");
+                  },
+
+                  onError: () => {
+                    toast.error("Failed to delete task");
+                  },
+                });
               }}
             />
           ))}
