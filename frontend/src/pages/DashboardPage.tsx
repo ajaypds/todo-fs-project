@@ -11,6 +11,7 @@ import { TaskCard } from "../features/tasks/components/TaskCard";
 import { CreateTaskForm } from "../features/tasks/components/CreateTaskForm";
 import type { Task } from "../features/tasks/taskTypes";
 import { EmptyState } from "../components/ui/EmptyState";
+import { TaskSkeleton } from "../components/ui/TaskSkeleton";
 import toast from "react-hot-toast";
 
 export const DashboardPage = () => {
@@ -27,7 +28,11 @@ export const DashboardPage = () => {
   if (isLoading) {
     return (
       <AppLayout>
-        <div>Loading tasks...</div>
+        <div className="max-w-3xl mx-auto space-y-3">
+          <TaskSkeleton />
+          <TaskSkeleton />
+          <TaskSkeleton />
+        </div>
       </AppLayout>
     );
   }
