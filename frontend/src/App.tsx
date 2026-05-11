@@ -1,21 +1,27 @@
-import { useState } from "react";
+import { Routes, Route } from "react-router-dom";
+
+import { LoginPage } from "./pages/LoginPage";
+import { RegisterPage } from "./pages/RegisterPage";
+import { DashboardPage } from "./pages/DashboardPage";
+
+import { ProtectedRoute } from "./routes/ProtectedRoute";
 
 function App() {
-  const [count, setCount] = useState(0);
-
   return (
-    <div id="app">
-      <div className="flex items-center justify-center">
-        <div
-          onClick={() => {
-            setCount(count + 1);
-          }}
-          className="bg-amber-500 w-20 h-10 rounded-md flex items-center justify-center cursor-pointer select-none hover:bg-amber-600 transition-colors active:bg-amber-400"
-        >
-          Count: {count}
-        </div>
-      </div>
-    </div>
+    <Routes>
+      <Route path="/login" element={<LoginPage />} />
+
+      <Route path="/register" element={<RegisterPage />} />
+
+      <Route
+        path="/"
+        element={
+          <ProtectedRoute>
+            <DashboardPage />
+          </ProtectedRoute>
+        }
+      />
+    </Routes>
   );
 }
 

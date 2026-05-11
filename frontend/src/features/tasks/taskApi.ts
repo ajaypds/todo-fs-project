@@ -1,0 +1,32 @@
+import { apiClient } from "../../api/client";
+
+
+export type CreateTaskRequest = {
+    title: string,
+    description?: string,
+    priority?: string
+};
+
+export const getTasks = async () => {
+    const response = await apiClient.get("/tasks");
+
+    return response.data;
+};
+
+export const createTask = async (request: CreateTaskRequest) => {
+
+    const response = await apiClient.post("/tasks", request);
+
+    return response.data;
+};
+
+export const updateTask = async (taskId: string, payload: Record<string, unknown>) => {
+
+    const response = await apiClient.put(`/tasks/${taskId}`, payload);
+
+    return response.data;
+};
+
+export const deleteTask = async (taskId: string) => {
+    await apiClient.delete(`/tasks/${taskId}`);
+};
