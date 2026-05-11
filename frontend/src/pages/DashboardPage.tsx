@@ -10,6 +10,7 @@ import {
 import { TaskCard } from "../features/tasks/components/TaskCard";
 import { CreateTaskForm } from "../features/tasks/components/CreateTaskForm";
 import type { Task } from "../features/tasks/taskTypes";
+import { EmptyState } from "../components/ui/EmptyState";
 import toast from "react-hot-toast";
 
 export const DashboardPage = () => {
@@ -66,45 +67,52 @@ export const DashboardPage = () => {
           />
         </div>
 
-        <div className="space-y-3">
-          {tasks.map((task: Task) => (
-            <TaskCard
-              key={task.id}
-              task={task}
-              onToggle={() => {
-                updateTaskMutation.mutate(
-                  {
-                    taskId: task.id,
+        {tasks.length === 0 ? (
+          <EmptyState
+            title="No tasks yet"
+            description="Create your first task to get started."
+          />
+        ) : (
+          <div className="space-y-3">
+            {tasks.map((task: Task) => (
+              <TaskCard
+                key={task.id}
+                task={task}
+                onToggle={() => {
+                  updateTaskMutation.mutate(
+                    {
+                      taskId: task.id,
 
-                    payload: {
-                      completed: !task.completed,
+                      payload: {
+                        completed: !task.completed,
+                      },
                     },
-                  },
-                  {
+                    {
+                      onSuccess: () => {
+                        toast.success("Task updated");
+                      },
+
+                      onError: () => {
+                        toast.error("Failed to update task");
+                      },
+                    },
+                  );
+                }}
+                onDelete={() => {
+                  deleteTaskMutation.mutate(task.id, {
                     onSuccess: () => {
-                      toast.success("Task updated");
+                      toast.success("Task deleted");
                     },
 
                     onError: () => {
-                      toast.error("Failed to update task");
+                      toast.error("Failed to delete task");
                     },
-                  },
-                );
-              }}
-              onDelete={() => {
-                deleteTaskMutation.mutate(task.id, {
-                  onSuccess: () => {
-                    toast.success("Task deleted");
-                  },
-
-                  onError: () => {
-                    toast.error("Failed to delete task");
-                  },
-                });
-              }}
-            />
-          ))}
-        </div>
+                  });
+                }}
+              />
+            ))}
+          </div>
+        )}
       </div>
     </AppLayout>
   );
