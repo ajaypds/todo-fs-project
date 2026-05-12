@@ -1,4 +1,4 @@
-package com.example.todo.task.entity;
+package com.example.todo.project.entity;
 
 import com.example.todo.user.entity.User;
 import jakarta.persistence.*;
