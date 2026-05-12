@@ -2,6 +2,10 @@ import { Trash2 } from "lucide-react";
 
 import type { Task } from "../taskTypes";
 
+import { PriorityBadge } from "../../../components/ui/PriorityBadge";
+
+import { formatDate } from "../../../utils/date";
+
 type Props = {
   task: Task;
 
@@ -34,6 +38,15 @@ export const TaskCard = ({ task, onToggle, onDelete }: Props) => {
             {task.description && (
               <p className="text-sm text-gray-500 mt-1">{task.description}</p>
             )}
+            <div className="flex items-center gap-2 mt-3">
+              <PriorityBadge priority={task.priority} />
+
+              {task.dueDate && (
+                <span className="text-xs text-gray-500">
+                  Due {formatDate(task.dueDate)}
+                </span>
+              )}
+            </div>
           </div>
         </div>
 
