@@ -9,10 +9,10 @@ import {
 
 import { TaskCard } from "../features/tasks/components/TaskCard";
 import { CreateTaskForm } from "../features/tasks/components/CreateTaskForm";
-import type { Task } from "../features/tasks/taskTypes";
 import { EmptyState } from "../components/ui/EmptyState";
 import { TaskSkeleton } from "../components/ui/TaskSkeleton";
 import toast from "react-hot-toast";
+import { useMemo, useState } from "react";
 
 export const DashboardPage = () => {
   const { data, isLoading, error } = useTasks();
@@ -22,8 +22,17 @@ export const DashboardPage = () => {
   const updateTaskMutation = useUpdateTask();
 
   const deleteTaskMutation = useDeleteTask();
+  const [search, setSearch] = useState("");
 
-  const tasks = data?.content ?? [];
+  const tasks = useMemo(() => {
+    return data?.content ?? [];
+  }, [data]);
+
+  const filteredTasks = useMemo(() => {
+    return tasks.filter((task) =>
+      task.title.toLowerCase().includes(search.toLowerCase()),
+    );
+  }, [tasks, search]);
 
   if (isLoading) {
     return (
@@ -52,23 +61,27 @@ export const DashboardPage = () => {
 
         <div className="mb-6">
           <CreateTaskForm
-            onCreate={(title, description) => {
-              createTaskMutation.mutate(
-                {
-                  title,
-                  description,
+            onCreate={(payload) => {
+              //   createTaskMutation.mutate(payload);
+              createTaskMutation.mutate(payload, {
+                onSuccess: () => {
+                  toast.success("Task created");
                 },
-                {
-                  onSuccess: () => {
-                    toast.success("Task created");
-                  },
 
-                  onError: () => {
-                    toast.error("Failed to create task");
-                  },
+                onError: () => {
+                  toast.error("Failed to create task");
                 },
-              );
+              });
             }}
+          />
+        </div>
+
+        <div className="mb-4">
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search tasks..."
+            className="w-full border rounded-lg p-3 bg-white"
           />
         </div>
 
@@ -79,7 +92,7 @@ export const DashboardPage = () => {
           />
         ) : (
           <div className="space-y-3">
-            {tasks.map((task: Task) => (
+            {filteredTasks.map((task) => (
               <TaskCard
                 key={task.id}
                 task={task}
