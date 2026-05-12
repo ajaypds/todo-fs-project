@@ -1,6 +1,8 @@
 package com.example.todo.task.service;
 
 import com.example.todo.exception.ResourceNotFoundException;
+import com.example.todo.project.entity.Project;
+import com.example.todo.project.repository.ProjectRepository;
 import com.example.todo.task.dto.CreateTaskRequest;
 import com.example.todo.task.dto.TaskResponse;
 import com.example.todo.task.dto.UpdateTaskRequest;
@@ -22,6 +24,7 @@ public class TaskService {
 
     private final TaskRepository taskRepository;
     private final UserRepository userRepository;
+    private final ProjectRepository projectRepository;
 
     public TaskResponse createTask(
             UUID userId,
@@ -32,6 +35,26 @@ public class TaskService {
                 .orElseThrow(() ->
                         new ResourceNotFoundException("User not found")
                 );
+
+        Project project = null;
+
+        if (request.getProjectId() != null) {
+
+            project = projectRepository.findById(request.getProjectId())
+                    .orElseThrow(() ->
+                    new ResourceNotFoundException(
+                            "Project not found"
+                    )
+            );
+
+            if (!project.getUser().getId()
+                    .equals(userId)) {
+
+                throw new ResourceNotFoundException(
+                        "Project not found"
+                );
+            }
+        }
 
         Task task = Task.builder()
                 .user(user)
@@ -46,6 +69,7 @@ public class TaskService {
                 .dueDate(request.getDueDate())
                 .createdAt(LocalDateTime.now())
                 .updatedAt(LocalDateTime.now())
+                .project(project)
                 .build();
 
         taskRepository.save(task);
@@ -143,6 +167,7 @@ public class TaskService {
                 .dueDate(task.getDueDate())
                 .createdAt(task.getCreatedAt())
                 .updatedAt(task.getUpdatedAt())
+                .projectId(task.getProject() != null ? task.getProject().getId() : null)
                 .build();
     }
 }
