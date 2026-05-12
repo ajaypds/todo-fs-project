@@ -1,13 +1,19 @@
 import { apiClient } from "../../api/client";
+import type { Task } from "./taskTypes";
+
+import type { PageResponse } from "../../types/pagination";
 
 
 export type CreateTaskRequest = {
-    title: string,
-    description?: string,
-    priority?: string
+    title: string;
+    description?: string;
+    priority?: number;
+    dueDate?: string;
 };
 
-export const getTasks = async () => {
+export const getTasks = async (): Promise<
+    PageResponse<Task>
+> => {
     const response = await apiClient.get("/tasks");
 
     return response.data;
