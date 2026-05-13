@@ -36,3 +36,13 @@ export const updateTask = async (taskId: string, payload: Record<string, unknown
 export const deleteTask = async (taskId: string) => {
     await apiClient.delete(`/tasks/${taskId}`);
 };
+
+export const reorderTasks = async (taskIds: string[]) => {
+
+    await apiClient.post(
+        "/tasks/reorder",
+        {
+            taskIds,
+        }
+    );
+};

@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { getTasks, createTask, updateTask, deleteTask } from "./taskApi";
+import { getTasks, createTask, updateTask, deleteTask, reorderTasks } from "./taskApi";
 import type { Task } from "./taskTypes";
 
 import type { PageResponse } from "../../types/pagination";
@@ -114,6 +114,24 @@ export const useDeleteTask = () => {
         mutationFn: deleteTask,
 
         onSuccess: () => {
+            queryClient.invalidateQueries({
+                queryKey: ["tasks"],
+            });
+        },
+    });
+};
+
+export const useReorderTasks = () => {
+
+    const queryClient =
+        useQueryClient();
+
+    return useMutation({
+
+        mutationFn: reorderTasks,
+
+        onSuccess: () => {
+
             queryClient.invalidateQueries({
                 queryKey: ["tasks"],
             });
