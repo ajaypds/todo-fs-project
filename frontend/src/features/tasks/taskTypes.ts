@@ -14,4 +14,6 @@ export type Task = {
     createdAt: string;
 
     updatedAt: string;
+
+    projectId: string;
 };
