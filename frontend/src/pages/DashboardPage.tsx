@@ -19,6 +19,9 @@ import {
 } from "../features/projects/projectQueries";
 import { CreateProjectForm } from "../features/projects/components/CreateProjectForm";
 import { useProjectStore } from "../store/projectStore";
+import { Modal } from "../components/ui/Modal";
+import { EditTaskForm } from "../features/tasks/components/EditTaskForm";
+import type { Task } from "../features/tasks/taskTypes";
 
 export const DashboardPage = () => {
   const { data, isLoading, error } = useTasks();
@@ -33,6 +36,7 @@ export const DashboardPage = () => {
   const createProjectMutation = useCreateProject();
   const selectedProjectId = useProjectStore((state) => state.selectedProjectId);
   const { data: projects = [] } = useProjects();
+  const [editingTask, setEditingTask] = useState<Task | null>(null);
 
   const tasks = useMemo(() => {
     return data?.content ?? [];
@@ -138,6 +142,9 @@ export const DashboardPage = () => {
                     },
                   );
                 }}
+                onEdit={() => {
+                  setEditingTask(task);
+                }}
                 onDelete={() => {
                   deleteTaskMutation.mutate(task.id, {
                     onSuccess: () => {
@@ -154,6 +161,38 @@ export const DashboardPage = () => {
           </div>
         )}
       </div>
+      <Modal
+        open={!!editingTask}
+        title="Edit Task"
+        onClose={() => setEditingTask(null)}
+      >
+        {editingTask && (
+          <EditTaskForm
+            task={editingTask}
+            onSave={(payload) => {
+              updateTaskMutation.mutate(
+                {
+                  taskId: editingTask.id,
+
+                  payload,
+                },
+
+                {
+                  onSuccess: () => {
+                    toast.success("Task updated");
+
+                    setEditingTask(null);
+                  },
+
+                  onError: () => {
+                    toast.error("Failed to update task");
+                  },
+                },
+              );
+            }}
+          />
+        )}
+      </Modal>
     </AppLayout>
   );
 };
