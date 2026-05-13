@@ -5,9 +5,11 @@ import {
   useCreateTask,
   useUpdateTask,
   useDeleteTask,
+  useReorderTasks,
 } from "../features/tasks/taskQueries";
+import type { PageResponse } from "../types/pagination";
 
-import { TaskCard } from "../features/tasks/components/TaskCard";
+// import { TaskCard } from "../features/tasks/components/TaskCard";
 import { CreateTaskForm } from "../features/tasks/components/CreateTaskForm";
 import { EmptyState } from "../components/ui/EmptyState";
 import { TaskSkeleton } from "../components/ui/TaskSkeleton";
@@ -22,6 +24,15 @@ import { useProjectStore } from "../store/projectStore";
 import { Modal } from "../components/ui/Modal";
 import { EditTaskForm } from "../features/tasks/components/EditTaskForm";
 import type { Task } from "../features/tasks/taskTypes";
+import { DndContext, closestCenter } from "@dnd-kit/core";
+import {
+  arrayMove,
+  SortableContext,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import type { DragEndEvent } from "@dnd-kit/core";
+import { SortableTaskCard } from "../features/tasks/components/SortableTaskCard";
+import { useQueryClient } from "@tanstack/react-query";
 
 export const DashboardPage = () => {
   const { data, isLoading, error } = useTasks();
@@ -42,6 +53,9 @@ export const DashboardPage = () => {
     return data?.content ?? [];
   }, [data]);
 
+  const reorderTasksMutation = useReorderTasks();
+  const queryClient = useQueryClient();
+
   const filteredTasks = useMemo(() => {
     return tasks.filter((task) => {
       const matchesSearch = task.title
@@ -54,6 +68,36 @@ export const DashboardPage = () => {
       return matchesSearch && matchesProject;
     });
   }, [tasks, search, selectedProjectId]);
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+
+    if (!over || active.id === over.id) {
+      return;
+    }
+
+    const oldIndex = filteredTasks.findIndex((task) => task.id === active.id);
+
+    const newIndex = filteredTasks.findIndex((task) => task.id === over.id);
+
+    const reorderedTasks = arrayMove(filteredTasks, oldIndex, newIndex);
+
+    queryClient.setQueryData(
+      ["tasks"],
+      (old: PageResponse<Task> | undefined) => {
+        if (!old) {
+          return old;
+        }
+
+        return {
+          ...old,
+          content: reorderedTasks,
+        };
+      },
+    );
+
+    reorderTasksMutation.mutate(reorderedTasks.map((task) => task.id));
+  };
 
   if (isLoading) {
     return (
@@ -117,48 +161,58 @@ export const DashboardPage = () => {
             description="Create your first task to get started."
           />
         ) : (
-          <div className="space-y-3">
-            {filteredTasks.map((task) => (
-              <TaskCard
-                key={task.id}
-                task={task}
-                onToggle={() => {
-                  updateTaskMutation.mutate(
-                    {
-                      taskId: task.id,
+          <DndContext
+            collisionDetection={closestCenter}
+            onDragEnd={handleDragEnd}
+          >
+            <SortableContext
+              items={filteredTasks.map((task) => task.id)}
+              strategy={verticalListSortingStrategy}
+            >
+              <div className="space-y-3">
+                {filteredTasks.map((task) => (
+                  <SortableTaskCard
+                    key={task.id}
+                    task={task}
+                    onToggle={() => {
+                      updateTaskMutation.mutate(
+                        {
+                          taskId: task.id,
 
-                      payload: {
-                        completed: !task.completed,
-                      },
-                    },
-                    {
-                      onSuccess: () => {
-                        toast.success("Task updated");
-                      },
+                          payload: {
+                            completed: !task.completed,
+                          },
+                        },
+                        {
+                          onSuccess: () => {
+                            toast.success("Task updated");
+                          },
 
-                      onError: () => {
-                        toast.error("Failed to update task");
-                      },
-                    },
-                  );
-                }}
-                onEdit={() => {
-                  setEditingTask(task);
-                }}
-                onDelete={() => {
-                  deleteTaskMutation.mutate(task.id, {
-                    onSuccess: () => {
-                      toast.success("Task deleted");
-                    },
+                          onError: () => {
+                            toast.error("Failed to update task");
+                          },
+                        },
+                      );
+                    }}
+                    onEdit={() => {
+                      setEditingTask(task);
+                    }}
+                    onDelete={() => {
+                      deleteTaskMutation.mutate(task.id, {
+                        onSuccess: () => {
+                          toast.success("Task deleted");
+                        },
 
-                    onError: () => {
-                      toast.error("Failed to delete task");
-                    },
-                  });
-                }}
-              />
-            ))}
-          </div>
+                        onError: () => {
+                          toast.error("Failed to delete task");
+                        },
+                      });
+                    }}
+                  />
+                ))}
+              </div>
+            </SortableContext>
+          </DndContext>
         )}
       </div>
       <Modal
