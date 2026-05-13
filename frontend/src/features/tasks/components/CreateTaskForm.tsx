@@ -1,15 +1,18 @@
 import { useState } from "react";
+import type { Project } from "../../projects/projectTypes";
 
 type Props = {
+  projects: Project[];
   onCreate: (payload: {
     title: string;
     description: string;
     priority: number;
     dueDate?: string;
+    projectId?: string;
   }) => void;
 };
 
-export const CreateTaskForm = ({ onCreate }: Props) => {
+export const CreateTaskForm = ({ onCreate, projects }: Props) => {
   const [title, setTitle] = useState("");
 
   const [description, setDescription] = useState("");
@@ -17,6 +20,7 @@ export const CreateTaskForm = ({ onCreate }: Props) => {
   const [priority, setPriority] = useState(4);
 
   const [dueDate, setDueDate] = useState("");
+  const [projectId, setProjectId] = useState("");
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -30,6 +34,7 @@ export const CreateTaskForm = ({ onCreate }: Props) => {
       description,
       priority,
       dueDate: dueDate ? `${dueDate}T00:00:00` : undefined,
+      projectId: projectId || undefined,
     });
 
     setTitle("");
@@ -70,6 +75,20 @@ export const CreateTaskForm = ({ onCreate }: Props) => {
           <option value={4}>Priority 4</option>
         </select>
       </div>
+
+      <select
+        value={projectId}
+        onChange={(e) => setProjectId(e.target.value)}
+        className="w-full border rounded p-3 mb-3"
+      >
+        <option value="">No Project</option>
+
+        {projects.map((project) => (
+          <option key={project.id} value={project.id}>
+            {project.name}
+          </option>
+        ))}
+      </select>
 
       <div className="mb-3">
         <input
