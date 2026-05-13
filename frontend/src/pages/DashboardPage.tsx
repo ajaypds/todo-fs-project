@@ -13,6 +13,12 @@ import { EmptyState } from "../components/ui/EmptyState";
 import { TaskSkeleton } from "../components/ui/TaskSkeleton";
 import toast from "react-hot-toast";
 import { useMemo, useState } from "react";
+import {
+  useCreateProject,
+  useProjects,
+} from "../features/projects/projectQueries";
+import { CreateProjectForm } from "../features/projects/components/CreateProjectForm";
+import { useProjectStore } from "../store/projectStore";
 
 export const DashboardPage = () => {
   const { data, isLoading, error } = useTasks();
@@ -24,15 +30,26 @@ export const DashboardPage = () => {
   const deleteTaskMutation = useDeleteTask();
   const [search, setSearch] = useState("");
 
+  const createProjectMutation = useCreateProject();
+  const selectedProjectId = useProjectStore((state) => state.selectedProjectId);
+  const { data: projects = [] } = useProjects();
+
   const tasks = useMemo(() => {
     return data?.content ?? [];
   }, [data]);
 
   const filteredTasks = useMemo(() => {
-    return tasks.filter((task) =>
-      task.title.toLowerCase().includes(search.toLowerCase()),
-    );
-  }, [tasks, search]);
+    return tasks.filter((task) => {
+      const matchesSearch = task.title
+        .toLowerCase()
+        .includes(search.toLowerCase());
+
+      const matchesProject =
+        !selectedProjectId || task.projectId === selectedProjectId;
+
+      return matchesSearch && matchesProject;
+    });
+  }, [tasks, search, selectedProjectId]);
 
   if (isLoading) {
     return (
@@ -60,9 +77,14 @@ export const DashboardPage = () => {
         <h1 className="text-3xl font-bold mb-6">Inbox</h1>
 
         <div className="mb-6">
-          <CreateTaskForm
+          <CreateProjectForm
             onCreate={(payload) => {
-              //   createTaskMutation.mutate(payload);
+              createProjectMutation.mutate(payload);
+            }}
+          />
+          <CreateTaskForm
+            projects={projects}
+            onCreate={(payload) => {
               createTaskMutation.mutate(payload, {
                 onSuccess: () => {
                   toast.success("Task created");
