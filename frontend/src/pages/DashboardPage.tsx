@@ -5,14 +5,34 @@ import {
   useCreateTask,
   useUpdateTask,
   useDeleteTask,
+  useReorderTasks,
 } from "../features/tasks/taskQueries";
+import type { PageResponse } from "../types/pagination";
 
-import { TaskCard } from "../features/tasks/components/TaskCard";
+// import { TaskCard } from "../features/tasks/components/TaskCard";
 import { CreateTaskForm } from "../features/tasks/components/CreateTaskForm";
-import type { Task } from "../features/tasks/taskTypes";
 import { EmptyState } from "../components/ui/EmptyState";
 import { TaskSkeleton } from "../components/ui/TaskSkeleton";
 import toast from "react-hot-toast";
+import { useMemo, useState } from "react";
+import {
+  useCreateProject,
+  useProjects,
+} from "../features/projects/projectQueries";
+import { CreateProjectForm } from "../features/projects/components/CreateProjectForm";
+import { useProjectStore } from "../store/projectStore";
+import { Modal } from "../components/ui/Modal";
+import { EditTaskForm } from "../features/tasks/components/EditTaskForm";
+import type { Task } from "../features/tasks/taskTypes";
+import { DndContext, closestCenter } from "@dnd-kit/core";
+import {
+  arrayMove,
+  SortableContext,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import type { DragEndEvent } from "@dnd-kit/core";
+import { SortableTaskCard } from "../features/tasks/components/SortableTaskCard";
+import { useQueryClient } from "@tanstack/react-query";
 
 export const DashboardPage = () => {
   const { data, isLoading, error } = useTasks();
@@ -22,8 +42,62 @@ export const DashboardPage = () => {
   const updateTaskMutation = useUpdateTask();
 
   const deleteTaskMutation = useDeleteTask();
+  const [search, setSearch] = useState("");
 
-  const tasks = data?.content ?? [];
+  const createProjectMutation = useCreateProject();
+  const selectedProjectId = useProjectStore((state) => state.selectedProjectId);
+  const { data: projects = [] } = useProjects();
+  const [editingTask, setEditingTask] = useState<Task | null>(null);
+
+  const tasks = useMemo(() => {
+    return data?.content ?? [];
+  }, [data]);
+
+  const reorderTasksMutation = useReorderTasks();
+  const queryClient = useQueryClient();
+
+  const filteredTasks = useMemo(() => {
+    return tasks.filter((task) => {
+      const matchesSearch = task.title
+        .toLowerCase()
+        .includes(search.toLowerCase());
+
+      const matchesProject =
+        !selectedProjectId || task.projectId === selectedProjectId;
+
+      return matchesSearch && matchesProject;
+    });
+  }, [tasks, search, selectedProjectId]);
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+
+    if (!over || active.id === over.id) {
+      return;
+    }
+
+    const oldIndex = filteredTasks.findIndex((task) => task.id === active.id);
+
+    const newIndex = filteredTasks.findIndex((task) => task.id === over.id);
+
+    const reorderedTasks = arrayMove(filteredTasks, oldIndex, newIndex);
+
+    queryClient.setQueryData(
+      ["tasks"],
+      (old: PageResponse<Task> | undefined) => {
+        if (!old) {
+          return old;
+        }
+
+        return {
+          ...old,
+          content: reorderedTasks,
+        };
+      },
+    );
+
+    reorderTasksMutation.mutate(reorderedTasks.map((task) => task.id));
+  };
 
   if (isLoading) {
     return (
@@ -51,24 +125,33 @@ export const DashboardPage = () => {
         <h1 className="text-3xl font-bold mb-6">Inbox</h1>
 
         <div className="mb-6">
-          <CreateTaskForm
-            onCreate={(title, description) => {
-              createTaskMutation.mutate(
-                {
-                  title,
-                  description,
-                },
-                {
-                  onSuccess: () => {
-                    toast.success("Task created");
-                  },
-
-                  onError: () => {
-                    toast.error("Failed to create task");
-                  },
-                },
-              );
+          <CreateProjectForm
+            onCreate={(payload) => {
+              createProjectMutation.mutate(payload);
             }}
+          />
+          <CreateTaskForm
+            projects={projects}
+            onCreate={(payload) => {
+              createTaskMutation.mutate(payload, {
+                onSuccess: () => {
+                  toast.success("Task created");
+                },
+
+                onError: () => {
+                  toast.error("Failed to create task");
+                },
+              });
+            }}
+          />
+        </div>
+
+        <div className="mb-4">
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search tasks..."
+            className="w-full border rounded-lg p-3 bg-white"
           />
         </div>
 
@@ -78,47 +161,92 @@ export const DashboardPage = () => {
             description="Create your first task to get started."
           />
         ) : (
-          <div className="space-y-3">
-            {tasks.map((task: Task) => (
-              <TaskCard
-                key={task.id}
-                task={task}
-                onToggle={() => {
-                  updateTaskMutation.mutate(
-                    {
-                      taskId: task.id,
+          <DndContext
+            collisionDetection={closestCenter}
+            onDragEnd={handleDragEnd}
+          >
+            <SortableContext
+              items={filteredTasks.map((task) => task.id)}
+              strategy={verticalListSortingStrategy}
+            >
+              <div className="space-y-3">
+                {filteredTasks.map((task) => (
+                  <SortableTaskCard
+                    key={task.id}
+                    task={task}
+                    onToggle={() => {
+                      updateTaskMutation.mutate(
+                        {
+                          taskId: task.id,
 
-                      payload: {
-                        completed: !task.completed,
-                      },
-                    },
-                    {
-                      onSuccess: () => {
-                        toast.success("Task updated");
-                      },
+                          payload: {
+                            completed: !task.completed,
+                          },
+                        },
+                        {
+                          onSuccess: () => {
+                            toast.success("Task updated");
+                          },
 
-                      onError: () => {
-                        toast.error("Failed to update task");
-                      },
-                    },
-                  );
-                }}
-                onDelete={() => {
-                  deleteTaskMutation.mutate(task.id, {
-                    onSuccess: () => {
-                      toast.success("Task deleted");
-                    },
+                          onError: () => {
+                            toast.error("Failed to update task");
+                          },
+                        },
+                      );
+                    }}
+                    onEdit={() => {
+                      setEditingTask(task);
+                    }}
+                    onDelete={() => {
+                      deleteTaskMutation.mutate(task.id, {
+                        onSuccess: () => {
+                          toast.success("Task deleted");
+                        },
 
-                    onError: () => {
-                      toast.error("Failed to delete task");
-                    },
-                  });
-                }}
-              />
-            ))}
-          </div>
+                        onError: () => {
+                          toast.error("Failed to delete task");
+                        },
+                      });
+                    }}
+                  />
+                ))}
+              </div>
+            </SortableContext>
+          </DndContext>
         )}
       </div>
+      <Modal
+        open={!!editingTask}
+        title="Edit Task"
+        onClose={() => setEditingTask(null)}
+      >
+        {editingTask && (
+          <EditTaskForm
+            task={editingTask}
+            onSave={(payload) => {
+              updateTaskMutation.mutate(
+                {
+                  taskId: editingTask.id,
+
+                  payload,
+                },
+
+                {
+                  onSuccess: () => {
+                    toast.success("Task updated");
+
+                    setEditingTask(null);
+                  },
+
+                  onError: () => {
+                    toast.error("Failed to update task");
+                  },
+                },
+              );
+            }}
+          />
+        )}
+      </Modal>
     </AppLayout>
   );
 };

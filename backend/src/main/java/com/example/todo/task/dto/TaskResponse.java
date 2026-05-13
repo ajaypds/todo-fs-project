@@ -22,7 +22,11 @@ public class TaskResponse {
 
     private LocalDateTime dueDate;
 
+    private UUID projectId;
+
     private LocalDateTime createdAt;
 
     private LocalDateTime updatedAt;
+
+    private Integer position;
 }

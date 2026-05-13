@@ -1,13 +1,19 @@
 import { apiClient } from "../../api/client";
+import type { Task } from "./taskTypes";
+
+import type { PageResponse } from "../../types/pagination";
 
 
 export type CreateTaskRequest = {
-    title: string,
-    description?: string,
-    priority?: string
+    title: string;
+    description?: string;
+    priority?: number;
+    dueDate?: string;
 };
 
-export const getTasks = async () => {
+export const getTasks = async (): Promise<
+    PageResponse<Task>
+> => {
     const response = await apiClient.get("/tasks");
 
     return response.data;
@@ -29,4 +35,14 @@ export const updateTask = async (taskId: string, payload: Record<string, unknown
 
 export const deleteTask = async (taskId: string) => {
     await apiClient.delete(`/tasks/${taskId}`);
+};
+
+export const reorderTasks = async (taskIds: string[]) => {
+
+    await apiClient.post(
+        "/tasks/reorder",
+        {
+            taskIds,
+        }
+    );
 };

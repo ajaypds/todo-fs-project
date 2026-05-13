@@ -4,7 +4,7 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 import com.example.todo.user.entity.User;
-
+import com.example.todo.project.entity.Project;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -49,6 +49,13 @@ public class Task {
     private Integer priority;
 
     private LocalDateTime dueDate;
+
+    @Column(nullable = false)
+    private Integer position;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn
+    private Project project;
 
     @Column(nullable = false)
     private LocalDateTime createdAt;

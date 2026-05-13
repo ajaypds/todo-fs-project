@@ -1,4 +1,5 @@
 import { type ReactNode } from "react";
+import { ProjectSidebar } from "../../features/projects/components/ProjectSidebar";
 
 type Props = {
   children: ReactNode;
@@ -23,6 +24,7 @@ export const AppLayout = ({ children }: Props) => {
             Upcoming
           </button>
         </nav>
+        <ProjectSidebar />
       </aside>
 
       <main className="flex-1 overflow-auto p-6">{children}</main>
