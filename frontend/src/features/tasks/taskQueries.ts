@@ -123,8 +123,7 @@ export const useDeleteTask = () => {
 
 export const useReorderTasks = () => {
 
-    const queryClient =
-        useQueryClient();
+    const queryClient = useQueryClient();
 
     return useMutation({
 
