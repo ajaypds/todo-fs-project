@@ -50,6 +50,9 @@ public class Task {
 
     private LocalDateTime dueDate;
 
+    @Column(nullable = false)
+    private Integer position;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn
     private Project project;
