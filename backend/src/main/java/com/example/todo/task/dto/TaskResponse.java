@@ -27,4 +27,6 @@ public class TaskResponse {
     private LocalDateTime createdAt;
 
     private LocalDateTime updatedAt;
+
+    private Integer position;
 }
