@@ -4,6 +4,7 @@ import com.example.todo.exception.ResourceNotFoundException;
 import com.example.todo.project.entity.Project;
 import com.example.todo.project.repository.ProjectRepository;
 import com.example.todo.task.dto.CreateTaskRequest;
+import com.example.todo.task.dto.ReorderTasksRequest;
 import com.example.todo.task.dto.TaskResponse;
 import com.example.todo.task.dto.UpdateTaskRequest;
 import com.example.todo.task.entity.Task;
@@ -16,6 +17,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -37,6 +39,8 @@ public class TaskService {
                 );
 
         Project project = null;
+
+        int position = (int) taskRepository.count();
 
         if (request.getProjectId() != null) {
 
@@ -70,6 +74,7 @@ public class TaskService {
                 .createdAt(LocalDateTime.now())
                 .updatedAt(LocalDateTime.now())
                 .project(project)
+                .position(position)
                 .build();
 
         taskRepository.save(task);
@@ -88,7 +93,7 @@ public class TaskService {
                         new ResourceNotFoundException("User not found")
                 );
 
-        return taskRepository.findByUser(
+        return taskRepository.findByUserOrderByPositionAsc(
                 user,
                 PageRequest.of(page, size)
         ).map(this::mapToResponse);
@@ -156,6 +161,49 @@ public class TaskService {
         return task;
     }
 
+    public void reorderTasks(
+            UUID userId,
+            ReorderTasksRequest request
+    ) {
+
+        List<Task> tasks =
+                taskRepository.findAllById(
+                        request.getTaskIds()
+                );
+
+        for (Task task : tasks) {
+
+            if (!task.getUser()
+                    .getId()
+                    .equals(userId)) {
+
+                throw new ResourceNotFoundException(
+                        "Task not found"
+                );
+            }
+        }
+
+        for (int i = 0;
+             i < request.getTaskIds().size();
+             i++) {
+
+            UUID taskId =
+                    request.getTaskIds().get(i);
+
+            Task task = tasks.stream()
+                    .filter(t ->
+                            t.getId()
+                                    .equals(taskId)
+                    )
+                    .findFirst()
+                    .orElseThrow();
+
+            task.setPosition(i);
+        }
+
+        taskRepository.saveAll(tasks);
+    }
+
     private TaskResponse mapToResponse(Task task) {
 
         return TaskResponse.builder()
@@ -168,6 +216,7 @@ public class TaskService {
                 .createdAt(task.getCreatedAt())
                 .updatedAt(task.getUpdatedAt())
                 .projectId(task.getProject() != null ? task.getProject().getId() : null)
+                .position(task.getPosition())
                 .build();
     }
 }

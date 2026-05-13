@@ -2,6 +2,7 @@ package com.example.todo.task.controller;
 
 import com.example.todo.security.CustomUserDetails;
 import com.example.todo.task.dto.CreateTaskRequest;
+import com.example.todo.task.dto.ReorderTasksRequest;
 import com.example.todo.task.dto.TaskResponse;
 import com.example.todo.task.dto.UpdateTaskRequest;
 import com.example.todo.task.service.TaskService;
@@ -85,6 +86,22 @@ public class TaskController {
         taskService.deleteTask(
                 userDetails.getUserId(),
                 taskId
+        );
+    }
+
+    @PostMapping("/reorder")
+    public void reorderTasks(
+
+            @AuthenticationPrincipal
+            CustomUserDetails userDetails,
+
+            @RequestBody
+            ReorderTasksRequest request
+    ) {
+
+        taskService.reorderTasks(
+                userDetails.getUserId(),
+                request
         );
     }
 }
