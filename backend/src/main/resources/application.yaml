@@ -16,9 +16,13 @@ spring:
         format_sql: true
         jdbc:
           time_zone: UTC
-
   flyway:
     enabled: true
+
+jwt:
+  secret: KBDVKDFVGUBUYNDINDUY33433472R67HBJHDBJBHBKB
+  expiration: 900000
+  refresh-expiration: 604800000
 
 server:
   port: 8080
