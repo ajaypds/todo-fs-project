@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
   postgres:
     image: postgres:16
@@ -12,6 +10,35 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+
+  backend:
+    build:
+      context: ./backend
+    container_name: todo-backend
+
+    depends_on:
+      - postgres
+
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/todoapp
+      DB_USERNAME: postgres
+      DB_PASSWORD: postgres
+      JWT_SECRET: KBDVKDFVGUBUYNDINDUY33433472R67HBJHDBJBHBKB
+
+    ports:
+      - "8080:8080"
+
+  frontend:
+    build:
+      context: ./frontend
+
+    container_name: todo-frontend
+
+    depends_on:
+      - backend
+
+    ports:
+      - "3000:80"
 
 volumes:
   postgres_data:
