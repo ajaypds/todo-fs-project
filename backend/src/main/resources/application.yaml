@@ -3,9 +3,9 @@ spring:
     name: todo
 
   datasource:
-    url: jdbc:postgresql://localhost:5432/todoapp
-    username: postgres
-    password: postgres
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
 
   jpa:
     hibernate:
@@ -20,9 +20,15 @@ spring:
     enabled: true
 
 jwt:
-  secret: KBDVKDFVGUBUYNDINDUY33433472R67HBJHDBJBHBKB
+  secret: ${JWT_SECRET}
   expiration: 900000
   refresh-expiration: 604800000
 
 server:
   port: 8080
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
