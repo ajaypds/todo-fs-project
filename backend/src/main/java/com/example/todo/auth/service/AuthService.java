@@ -3,6 +3,8 @@ package com.example.todo.auth.service;
 import com.example.todo.auth.dto.AuthResponse;
 import com.example.todo.auth.dto.LoginRequest;
 import com.example.todo.auth.dto.RegisterRequest;
+import com.example.todo.auth.entity.RefreshToken;
+import com.example.todo.auth.repository.RefreshTokenRepository;
 import com.example.todo.exception.BadRequestException;
 import com.example.todo.exception.UnauthorizedException;
 import com.example.todo.security.JwtService;
@@ -21,17 +23,14 @@ public class AuthService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
+    private final RefreshTokenRepository refreshTokenRepository;
 
     public AuthResponse register(RegisterRequest request) {
 
-        boolean exists =
-                userRepository.findByEmail(request.getEmail())
-                        .isPresent();
+        boolean exists = userRepository.findByEmail(request.getEmail()).isPresent();
 
         if (exists) {
-            throw new BadRequestException(
-                    "Email already exists"
-            );
+            throw new BadRequestException("Email already exists");
         }
 
         User user = User.builder()
@@ -61,15 +60,49 @@ public class AuthService {
         );
 
         if (!passwordMatches) {
-            throw new UnauthorizedException(
-                    "Invalid credentials"
-            );
+            throw new UnauthorizedException("Invalid credentials");
         }
 
         String token = jwtService.generateToken(user.getId());
+        String refreshToken = jwtService.generateRefreshToken(user);
+
+        refreshTokenRepository.save(
+            RefreshToken.builder()
+                    .token(refreshToken)
+                    .user(user)
+                    .expiresAt(LocalDateTime.now().plusDays(7))
+                    .revoked(false)
+                    .build()
+        );
 
         return AuthResponse.builder()
                 .token(token)
+                .refreshToken(refreshToken)
+                .build();
+    }
+
+    public AuthResponse refresh(String refreshToken) {
+
+        RefreshToken storedToken = refreshTokenRepository
+                        .findByToken(refreshToken)
+                        .orElseThrow(() -> new UnauthorizedException("Invalid refresh token"));
+
+        if (storedToken.isRevoked()) {
+            throw new UnauthorizedException("Refresh token revoked");
+        }
+
+        if (storedToken.getExpiresAt().isBefore(LocalDateTime.now())) {
+
+            throw new UnauthorizedException("Refresh token expired");
+        }
+
+        User user = storedToken.getUser();
+
+        String newAccessToken = jwtService.generateToken(user.getId());
+
+        return AuthResponse.builder()
+                .token(newAccessToken)
+                .refreshToken(refreshToken)
                 .build();
     }
 }
