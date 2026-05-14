@@ -2,6 +2,7 @@ package com.example.todo.auth.controller;
 
 import com.example.todo.auth.dto.AuthResponse;
 import com.example.todo.auth.dto.LoginRequest;
+import com.example.todo.auth.dto.RefreshRequest;
 import com.example.todo.auth.dto.RegisterRequest;
 import com.example.todo.auth.service.AuthService;
 import jakarta.validation.Valid;
@@ -27,5 +28,16 @@ public class AuthController {
             @Valid @RequestBody LoginRequest request
     ) {
         return authService.login(request);
+    }
+
+    @PostMapping("/refresh")
+    public AuthResponse refreshToken(
+            @RequestBody
+            RefreshRequest request
+    ) {
+
+        return authService.refresh(
+                request.getRefreshToken()
+        );
     }
 }
