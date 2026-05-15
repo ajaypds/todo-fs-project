@@ -1,0 +1,28 @@
+name: Backend CI
+
+on:
+  push:
+    paths:
+      - "backend/**"
+
+  pull_request:
+    paths:
+      - "backend/**"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Build Backend
+        working-directory: backend
+        run: ./mvnw clean verify
