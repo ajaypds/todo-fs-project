@@ -12,8 +12,9 @@ services:
       - postgres_data:/var/lib/postgresql/data
 
   backend:
-    build:
-      context: ./backend
+    # build:
+    #   context: ./backend
+    image: ghcr.io/ajaypds/todo-backend:latest
     container_name: todo-backend
 
     depends_on:
@@ -35,9 +36,9 @@ services:
       retries: 5
 
   frontend:
-    build:
-      context: ./frontend
-
+    # build:
+    #   context: ./frontend
+    image: ghcr.io/ajaypds/todo-frontend:latest
     container_name: todo-frontend
 
     depends_on:
