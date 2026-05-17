@@ -10,6 +10,7 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
 
   backend:
     # build:
@@ -28,6 +29,7 @@ services:
 
     ports:
       - "8080:8080"
+    restart: unless-stopped
 
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
@@ -46,6 +48,7 @@ services:
 
     ports:
       - "3000:80"
+    restart: unless-stopped
 
 volumes:
   postgres_data:
