@@ -7,20 +7,20 @@ type Props = {
 
 export const AppLayout = ({ children }: Props) => {
   return (
-    <div className="flex flex-col md:flex-row h-screen bg-gray-100">
-      <aside className="w-full md:w-64 bg-white border-r">
-        <div className="p-4 text-xl font-bold">Todo App</div>
+    <div className="flex h-screen bg-background text-foreground">
+      <aside className="w-72 border-r border-border bg-white/80 backdrop-blur-xl px-4 py-6">
+        <h1 className="text-2xl font-bold tracking-tight mb-8">TodoFlow</h1>
 
         <nav className="p-2 space-y-1">
-          <button className="w-full text-left p-3 rounded-lg hover:bg-gray-100 transition">
+          <button className="w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium hover:bg-secondary transition-all">
             Inbox
           </button>
 
-          <button className="w-full text-left p-3 rounded-lg hover:bg-gray-100 transition">
+          <button className="w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium hover:bg-secondary transition-all">
             Today
           </button>
 
-          <button className="w-full text-left p-3 rounded-lg hover:bg-gray-100 transition">
+          <button className="w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium hover:bg-secondary transition-all">
             Upcoming
           </button>
         </nav>

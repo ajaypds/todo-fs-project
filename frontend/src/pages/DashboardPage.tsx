@@ -24,7 +24,8 @@ import { useProjectStore } from "../store/projectStore";
 import { Modal } from "../components/ui/Modal";
 import { EditTaskForm } from "../features/tasks/components/EditTaskForm";
 import type { Task } from "../features/tasks/taskTypes";
-import { DndContext, closestCenter } from "@dnd-kit/core";
+import type { DragStartEvent } from "@dnd-kit/core";
+import { DndContext, closestCenter, DragOverlay } from "@dnd-kit/core";
 import {
   arrayMove,
   SortableContext,
@@ -33,6 +34,7 @@ import {
 import type { DragEndEvent } from "@dnd-kit/core";
 import { SortableTaskCard } from "../features/tasks/components/SortableTaskCard";
 import { useQueryClient } from "@tanstack/react-query";
+import { TaskCard } from "../features/tasks/components/TaskCard";
 
 export const DashboardPage = () => {
   const { data, isLoading, error } = useTasks();
@@ -48,10 +50,15 @@ export const DashboardPage = () => {
   const selectedProjectId = useProjectStore((state) => state.selectedProjectId);
   const { data: projects = [] } = useProjects();
   const [editingTask, setEditingTask] = useState<Task | null>(null);
+  const [activeId, setActiveId] = useState<string | null>(null);
 
   const tasks = useMemo(() => {
     return data?.content ?? [];
   }, [data]);
+
+  const handleDragStart = (event: DragStartEvent) => {
+    setActiveId(event.active.id as string);
+  };
 
   const reorderTasksMutation = useReorderTasks();
   const queryClient = useQueryClient();
@@ -70,6 +77,7 @@ export const DashboardPage = () => {
   }, [tasks, search, selectedProjectId]);
 
   const handleDragEnd = (event: DragEndEvent) => {
+    setActiveId(null);
     const { active, over } = event;
 
     if (!over || active.id === over.id) {
@@ -118,10 +126,11 @@ export const DashboardPage = () => {
       </AppLayout>
     );
   }
+  const activeTask = filteredTasks.find((task) => task.id === activeId);
 
   return (
     <AppLayout>
-      <div className="max-w-3xl mx-auto">
+      <div className="max-w-4xl mx-auto px-6 py-8">
         <h1 className="text-3xl font-bold mb-6">Inbox</h1>
 
         <div className="mb-6">
@@ -163,6 +172,7 @@ export const DashboardPage = () => {
         ) : (
           <DndContext
             collisionDetection={closestCenter}
+            onDragStart={handleDragStart}
             onDragEnd={handleDragEnd}
           >
             <SortableContext
@@ -212,6 +222,17 @@ export const DashboardPage = () => {
                 ))}
               </div>
             </SortableContext>
+            <DragOverlay>
+              {activeTask ? (
+                <TaskCard
+                  task={activeTask}
+                  onToggle={() => {}}
+                  onDelete={() => {}}
+                  onEdit={() => {}}
+                  className="cursor-grabbing opacity-80"
+                />
+              ) : null}
+            </DragOverlay>
           </DndContext>
         )}
       </div>
