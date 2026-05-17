@@ -28,10 +28,6 @@ jobs:
           distribution: temurin
           java-version: 21
 
-      - name: Update permission
-        working-drectory: backend
-        run: chmod +x ./mvnw
-
       - name: Build Backend
         working-directory: backend
         run: ./mvnw clean verify
