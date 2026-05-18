@@ -48,7 +48,7 @@ export const CreateTaskForm = ({ onCreate, projects }: Props) => {
 
   return (
     // <Card>
-    <form onSubmit={handleSubmit} className="bg-background p-4 rounded-lg">
+    <form onSubmit={handleSubmit} className="bg-background py-4 rounded-lg">
       <Input
         value={title}
         onChange={(e) => setTitle(e.target.value)}
