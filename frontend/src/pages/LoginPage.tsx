@@ -15,7 +15,7 @@ type FormValues = z.infer<typeof schema>;
 export const LoginPage = () => {
   const navigate = useNavigate();
 
-  const setToken = useAuthStore((state) => state.setToken);
+  const setAuth = useAuthStore((state) => state.setAuth);
 
   const {
     register,
@@ -29,7 +29,7 @@ export const LoginPage = () => {
     try {
       const response = await login(values);
 
-      setToken(response.token);
+      setAuth(response.token, response.refreshToken);
 
       navigate("/");
     } catch (error) {
