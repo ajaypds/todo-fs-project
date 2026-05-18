@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { Input } from "../../../components/ui/Input";
+import { Button } from "../../../components/ui/Button";
 
 type Props = {
   onCreate: (payload: { name: string; color: string }) => void;
@@ -34,28 +36,24 @@ export const CreateProjectForm = ({ onCreate }: Props) => {
   };
 
   return (
-    <form
-      onSubmit={handleSubmit}
-      className="bg-white rounded-lg border p-4 mb-6"
-    >
+    <form onSubmit={handleSubmit} className="bg-background rounded-lg p-4 mb-6">
       <h2 className="font-semibold mb-4">Create Project</h2>
 
-      <input
+      <Input
         value={name}
         onChange={(e) => setName(e.target.value)}
         placeholder="Project name"
-        className="w-full border rounded p-3 mb-4"
+        className="w-full border p-3 mb-4"
       />
 
       <div className="flex gap-2 mb-4">
         {colors.map((item) => (
-          <button
+          <Button
             key={item}
             type="button"
             onClick={() => setColor(item)}
             className={`
               w-8 h-8 rounded-full border-2
-
               ${color === item ? "border-black" : "border-transparent"}
             `}
             style={{
@@ -65,9 +63,9 @@ export const CreateProjectForm = ({ onCreate }: Props) => {
         ))}
       </div>
 
-      <button type="submit" className="bg-black text-white px-4 py-2 rounded">
+      <Button type="submit" variant="primary" className="px-4 py-2">
         Create Project
-      </button>
+      </Button>
     </form>
   );
 };

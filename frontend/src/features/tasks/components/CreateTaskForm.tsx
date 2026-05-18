@@ -1,5 +1,10 @@
 import { useState } from "react";
 import type { Project } from "../../projects/projectTypes";
+import { Input } from "../../../components/ui/Input";
+import { Textarea } from "../../../components/ui/Textarea";
+import { Button } from "../../../components/ui/Button";
+import { Select } from "../../../components/ui/Select";
+// import { Card } from "../../../components/ui/Card";
 
 type Props = {
   projects: Project[];
@@ -42,26 +47,24 @@ export const CreateTaskForm = ({ onCreate, projects }: Props) => {
   };
 
   return (
-    <form
-      onSubmit={handleSubmit}
-      className="bg-white p-4 rounded-lg shadow-sm border"
-    >
-      <input
+    // <Card>
+    <form onSubmit={handleSubmit} className="bg-background p-4 rounded-lg">
+      <Input
         value={title}
         onChange={(e) => setTitle(e.target.value)}
         placeholder="Task title"
-        className="w-full border rounded p-3 mb-3"
+        className="w-full p-3 mb-3"
       />
 
-      <textarea
+      <Textarea
         value={description}
         onChange={(e) => setDescription(e.target.value)}
         placeholder="Description"
-        className="w-full border rounded p-3 mb-3"
+        className="w-full p-3 mb-3"
       />
 
       <div className="mb-3">
-        <select
+        <Select
           value={priority}
           onChange={(e) => setPriority(Number(e.target.value))}
           className="w-full border rounded p-3"
@@ -73,10 +76,10 @@ export const CreateTaskForm = ({ onCreate, projects }: Props) => {
           <option value={3}>Priority 3</option>
 
           <option value={4}>Priority 4</option>
-        </select>
+        </Select>
       </div>
 
-      <select
+      <Select
         value={projectId}
         onChange={(e) => setProjectId(e.target.value)}
         className="w-full border rounded p-3 mb-3"
@@ -88,20 +91,21 @@ export const CreateTaskForm = ({ onCreate, projects }: Props) => {
             {project.name}
           </option>
         ))}
-      </select>
+      </Select>
 
       <div className="mb-3">
-        <input
+        <Input
           type="date"
           value={dueDate}
           onChange={(e) => setDueDate(e.target.value)}
-          className="w-full border rounded p-3"
+          className="w-full p-3"
         />
       </div>
 
-      <button type="submit" className="bg-black text-white px-4 py-2 rounded">
+      <Button type="submit" variant="primary" className="px-4 py-2">
         Add Task
-      </button>
+      </Button>
     </form>
+    // </Card>
   );
 };

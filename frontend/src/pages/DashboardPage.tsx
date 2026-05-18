@@ -35,6 +35,7 @@ import type { DragEndEvent } from "@dnd-kit/core";
 import { SortableTaskCard } from "../features/tasks/components/SortableTaskCard";
 import { useQueryClient } from "@tanstack/react-query";
 import { TaskCard } from "../features/tasks/components/TaskCard";
+import { Input } from "../components/ui/Input";
 
 export const DashboardPage = () => {
   const { data, isLoading, error } = useTasks();
@@ -156,11 +157,11 @@ export const DashboardPage = () => {
         </div>
 
         <div className="mb-4">
-          <input
+          <Input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search tasks..."
-            className="w-full border rounded-lg p-3 bg-white"
+            // className="w-full border rounded-lg p-3"
           />
         </div>
 

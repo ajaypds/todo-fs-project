@@ -20,13 +20,14 @@ export const Button = ({ className, variant = "primary", ...props }: Props) => {
           duration-200
           ease-smooth
           focus:outline-none
+          hover:cursor-pointer
         `,
 
         variant === "primary" &&
           `
             bg-primary
-            text-white
-            hover:opacity-90
+            text-background
+            hover:opacity-80
             shadow-soft
           `,
 
@@ -34,7 +35,8 @@ export const Button = ({ className, variant = "primary", ...props }: Props) => {
           `
             bg-secondary
             text-foreground
-            hover:bg-gray-200
+            hover:opacity-80
+            shadow-soft
           `,
 
         variant === "ghost" &&
