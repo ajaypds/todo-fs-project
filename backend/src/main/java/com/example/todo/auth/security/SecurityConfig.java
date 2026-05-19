@@ -1,4 +1,4 @@
-package com.example.todo.security;
+package com.example.todo.auth.security;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;

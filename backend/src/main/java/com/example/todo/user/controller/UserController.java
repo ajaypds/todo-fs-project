@@ -1,6 +1,6 @@
 package com.example.todo.user.controller;
 
-import com.example.todo.security.CustomUserDetails;
+import com.example.todo.auth.security.CustomUserDetails;
 import com.example.todo.user.dto.UserResponse;
 import com.example.todo.user.entity.User;
 import com.example.todo.user.repository.UserRepository;

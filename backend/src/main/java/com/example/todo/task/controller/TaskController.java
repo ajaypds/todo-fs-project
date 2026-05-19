@@ -1,6 +1,6 @@
 package com.example.todo.task.controller;
 
-import com.example.todo.security.CustomUserDetails;
+import com.example.todo.auth.security.CustomUserDetails;
 import com.example.todo.task.dto.CreateTaskRequest;
 import com.example.todo.task.dto.ReorderTasksRequest;
 import com.example.todo.task.dto.TaskResponse;

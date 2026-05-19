@@ -1,4 +1,4 @@
-package com.example.todo.security;
+package com.example.todo.auth.security;
 
 import com.example.todo.user.entity.User;
 import com.example.todo.user.repository.UserRepository;
