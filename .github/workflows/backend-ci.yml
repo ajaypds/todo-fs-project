@@ -17,8 +17,22 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: ${{ secrets.POSTGRES_DB }}
+          POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
     env:
-      DB_URL: ${{ secrets.DB_URL }}
+      DB_URL: jdbc:postgresql://localhost:5432/${{ secrets.POSTGRES_DB }}
       DB_USERNAME: ${{ secrets.DB_USERNAME }}
       DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
       JWT_SECRET: ${{ secrets.JWT_SECRET }}
@@ -32,6 +46,10 @@ jobs:
         with:
           distribution: temurin
           java-version: 21
+
+      - name: Grant execute permission to mvnw
+        working-directory: backend
+        run: chmod +x mvnw
 
       - name: Build Backend
         working-directory: backend

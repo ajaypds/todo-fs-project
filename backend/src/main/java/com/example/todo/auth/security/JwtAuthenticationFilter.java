@@ -1,4 +1,4 @@
-package com.example.todo.security;
+package com.example.todo.auth.security;
 
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;

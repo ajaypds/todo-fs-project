@@ -5,7 +5,7 @@ import com.example.todo.project.dto.ProjectResponse;
 
 import com.example.todo.project.service.ProjectService;
 
-import com.example.todo.security.CustomUserDetails;
+import com.example.todo.auth.security.CustomUserDetails;
 
 import jakarta.validation.Valid;
 

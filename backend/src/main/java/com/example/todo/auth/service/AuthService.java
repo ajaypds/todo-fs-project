@@ -7,7 +7,7 @@ import com.example.todo.auth.entity.RefreshToken;
 import com.example.todo.auth.repository.RefreshTokenRepository;
 import com.example.todo.exception.BadRequestException;
 import com.example.todo.exception.UnauthorizedException;
-import com.example.todo.security.JwtService;
+import com.example.todo.auth.security.JwtService;
 import com.example.todo.user.entity.User;
 import com.example.todo.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;

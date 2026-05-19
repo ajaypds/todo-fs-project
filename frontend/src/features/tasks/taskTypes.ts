@@ -1,3 +1,5 @@
+import type { Label } from "../labels/labelTypes";
+
 export type Task = {
     id: string;
 
@@ -16,4 +18,7 @@ export type Task = {
     updatedAt: string;
 
     projectId: string;
+
+    labels: Label[];
+
 };
