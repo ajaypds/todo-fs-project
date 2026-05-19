@@ -8,6 +8,7 @@ import { formatDate } from "../../../utils/date";
 import { Card } from "../../../components/ui/Card";
 import { motion } from "framer-motion";
 import { forwardRef } from "react";
+import { LabelBadge } from "../../labels/components/LabelBadge";
 
 type Props = {
   task: Task;
@@ -58,6 +59,10 @@ export const TaskCard = forwardRef<
               )}
               <div className="flex items-center gap-2 mt-3">
                 <PriorityBadge priority={task.priority} />
+
+                {task.labels?.map((label) => (
+                  <LabelBadge key={label.id} label={label} />
+                ))}
 
                 {task.dueDate && (
                   <span className="text-xs text-gray-500">
