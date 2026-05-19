@@ -2,8 +2,8 @@ spring:
   application:
     name: todo
 
-#  profiles:
-#    active: dev
+  profiles:
+    active: prod
 
   datasource:
     url: ${DB_URL}
