@@ -3,7 +3,7 @@ spring:
     name: todo
 
 #  profiles:
-#    active: prod
+#    active: dev
 
   datasource:
     url: ${DB_URL}
