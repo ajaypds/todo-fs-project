@@ -37,12 +37,15 @@ export const Modal = ({ open, title, onClose, children }: Props) => {
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="bg-white rounded-2xl shadow-xl w-full max-w-lg p-6"
+        className="bg-background rounded-2xl shadow-xl w-full max-w-lg p-6"
       >
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-xl font-semibold">{title}</h2>
 
-          <button onClick={onClose} className="text-gray-500 hover:text-black">
+          <button
+            onClick={onClose}
+            className="text-gray-500 hover:text-black hover:cursor-pointer"
+          >
             ✕
           </button>
         </div>
