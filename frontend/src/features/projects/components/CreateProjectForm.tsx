@@ -36,10 +36,7 @@ export const CreateProjectForm = ({ onCreate }: Props) => {
   };
 
   return (
-    <form
-      onSubmit={handleSubmit}
-      className="bg-background rounded-lg py-4 mb-6"
-    >
+    <form onSubmit={handleSubmit} className="rounded-lg py-4 mb-6">
       <h2 className="font-semibold mb-4">Create Project</h2>
 
       <Input

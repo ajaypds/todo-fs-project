@@ -14,7 +14,7 @@ import { CreateTaskForm } from "../features/tasks/components/CreateTaskForm";
 import { EmptyState } from "../components/ui/EmptyState";
 import { TaskSkeleton } from "../components/ui/TaskSkeleton";
 import toast from "react-hot-toast";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   useCreateProject,
   useProjects,
@@ -36,6 +36,8 @@ import { SortableTaskCard } from "../features/tasks/components/SortableTaskCard"
 import { useQueryClient } from "@tanstack/react-query";
 import { TaskCard } from "../features/tasks/components/TaskCard";
 import { Input } from "../components/ui/Input";
+import { Plus } from "lucide-react";
+import { PageTransition } from "../components/ui/PageTransition";
 
 export const DashboardPage = () => {
   const { data, isLoading, error } = useTasks();
@@ -52,6 +54,7 @@ export const DashboardPage = () => {
   const { data: projects = [] } = useProjects();
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [showQuickAdd, setShowQuickAdd] = useState(false);
 
   const tasks = useMemo(() => {
     return data?.content ?? [];
@@ -108,6 +111,20 @@ export const DashboardPage = () => {
     reorderTasksMutation.mutate(reorderedTasks.map((task) => task.id));
   };
 
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "n" && !event.metaKey && !event.ctrlKey) {
+        setShowQuickAdd(true);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, []);
+
   if (isLoading) {
     return (
       <AppLayout>
@@ -131,144 +148,180 @@ export const DashboardPage = () => {
 
   return (
     <AppLayout>
-      <div className="max-w-4xl mx-auto px-6 py-8">
-        <h1 className="text-3xl font-bold mb-6">Inbox</h1>
+      <PageTransition>
+        <div className="max-w-4xl mx-auto px-6 py-8">
+          <h1 className="text-3xl font-bold mb-6">Inbox</h1>
 
-        <div className="mb-6">
-          <CreateProjectForm
-            onCreate={(payload) => {
-              createProjectMutation.mutate(payload);
-            }}
-          />
+          <div className="mb-6">
+            <CreateProjectForm
+              onCreate={(payload) => {
+                createProjectMutation.mutate(payload);
+              }}
+            />
+            <CreateTaskForm
+              projects={projects}
+              onCreate={(payload) => {
+                createTaskMutation.mutate(payload, {
+                  onSuccess: () => {
+                    toast.success("Task created");
+                  },
+
+                  onError: () => {
+                    toast.error("Failed to create task");
+                  },
+                });
+              }}
+            />
+          </div>
+
+          <div className="mb-4">
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search tasks..."
+              // className="w-full border rounded-lg p-3"
+            />
+          </div>
+
+          {tasks.length === 0 ? (
+            <EmptyState
+              title="No tasks yet"
+              description="Create your first task to get started."
+            />
+          ) : (
+            <DndContext
+              collisionDetection={closestCenter}
+              onDragStart={handleDragStart}
+              onDragEnd={handleDragEnd}
+            >
+              <SortableContext
+                items={filteredTasks.map((task) => task.id)}
+                strategy={verticalListSortingStrategy}
+              >
+                <div className="space-y-3">
+                  {filteredTasks.map((task) => (
+                    <SortableTaskCard
+                      key={task.id}
+                      task={task}
+                      onToggle={() => {
+                        updateTaskMutation.mutate(
+                          {
+                            taskId: task.id,
+
+                            payload: {
+                              completed: !task.completed,
+                            },
+                          },
+                          {
+                            onSuccess: () => {
+                              toast.success("Task updated");
+                            },
+
+                            onError: () => {
+                              toast.error("Failed to update task");
+                            },
+                          },
+                        );
+                      }}
+                      onEdit={() => {
+                        setEditingTask(task);
+                      }}
+                      onDelete={() => {
+                        deleteTaskMutation.mutate(task.id, {
+                          onSuccess: () => {
+                            toast.success("Task deleted");
+                          },
+
+                          onError: () => {
+                            toast.error("Failed to delete task");
+                          },
+                        });
+                      }}
+                    />
+                  ))}
+                </div>
+              </SortableContext>
+              <DragOverlay>
+                {activeTask ? (
+                  <TaskCard
+                    task={activeTask}
+                    onToggle={() => {}}
+                    onDelete={() => {}}
+                    onEdit={() => {}}
+                    className="cursor-grabbing opacity-80"
+                  />
+                ) : null}
+              </DragOverlay>
+            </DndContext>
+          )}
+        </div>
+        <Modal
+          open={!!editingTask}
+          title="Edit Task"
+          onClose={() => setEditingTask(null)}
+        >
+          {editingTask && (
+            <EditTaskForm
+              task={editingTask}
+              onSave={(payload) => {
+                updateTaskMutation.mutate(
+                  {
+                    taskId: editingTask.id,
+
+                    payload,
+                  },
+
+                  {
+                    onSuccess: () => {
+                      toast.success("Task updated");
+
+                      setEditingTask(null);
+                    },
+
+                    onError: () => {
+                      toast.error("Failed to update task");
+                    },
+                  },
+                );
+              }}
+            />
+          )}
+        </Modal>
+        <Modal
+          open={showQuickAdd}
+          title="Quick Add Task"
+          onClose={() => setShowQuickAdd(false)}
+        >
           <CreateTaskForm
             projects={projects}
             onCreate={(payload) => {
               createTaskMutation.mutate(payload, {
                 onSuccess: () => {
-                  toast.success("Task created");
-                },
-
-                onError: () => {
-                  toast.error("Failed to create task");
+                  setShowQuickAdd(false);
                 },
               });
             }}
           />
-        </div>
-
-        <div className="mb-4">
-          <Input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search tasks..."
-            // className="w-full border rounded-lg p-3"
-          />
-        </div>
-
-        {tasks.length === 0 ? (
-          <EmptyState
-            title="No tasks yet"
-            description="Create your first task to get started."
-          />
-        ) : (
-          <DndContext
-            collisionDetection={closestCenter}
-            onDragStart={handleDragStart}
-            onDragEnd={handleDragEnd}
-          >
-            <SortableContext
-              items={filteredTasks.map((task) => task.id)}
-              strategy={verticalListSortingStrategy}
-            >
-              <div className="space-y-3">
-                {filteredTasks.map((task) => (
-                  <SortableTaskCard
-                    key={task.id}
-                    task={task}
-                    onToggle={() => {
-                      updateTaskMutation.mutate(
-                        {
-                          taskId: task.id,
-
-                          payload: {
-                            completed: !task.completed,
-                          },
-                        },
-                        {
-                          onSuccess: () => {
-                            toast.success("Task updated");
-                          },
-
-                          onError: () => {
-                            toast.error("Failed to update task");
-                          },
-                        },
-                      );
-                    }}
-                    onEdit={() => {
-                      setEditingTask(task);
-                    }}
-                    onDelete={() => {
-                      deleteTaskMutation.mutate(task.id, {
-                        onSuccess: () => {
-                          toast.success("Task deleted");
-                        },
-
-                        onError: () => {
-                          toast.error("Failed to delete task");
-                        },
-                      });
-                    }}
-                  />
-                ))}
-              </div>
-            </SortableContext>
-            <DragOverlay>
-              {activeTask ? (
-                <TaskCard
-                  task={activeTask}
-                  onToggle={() => {}}
-                  onDelete={() => {}}
-                  onEdit={() => {}}
-                  className="cursor-grabbing opacity-80"
-                />
-              ) : null}
-            </DragOverlay>
-          </DndContext>
-        )}
-      </div>
-      <Modal
-        open={!!editingTask}
-        title="Edit Task"
-        onClose={() => setEditingTask(null)}
-      >
-        {editingTask && (
-          <EditTaskForm
-            task={editingTask}
-            onSave={(payload) => {
-              updateTaskMutation.mutate(
-                {
-                  taskId: editingTask.id,
-
-                  payload,
-                },
-
-                {
-                  onSuccess: () => {
-                    toast.success("Task updated");
-
-                    setEditingTask(null);
-                  },
-
-                  onError: () => {
-                    toast.error("Failed to update task");
-                  },
-                },
-              );
-            }}
-          />
-        )}
-      </Modal>
+        </Modal>
+        <button
+          className="
+            fixed bottom-8 right-8
+            w-14 h-14 rounded-full
+            bg-accent text-white
+            shadow-card
+            flex items-center justify-center
+            hover:scale-105
+            hover:cursor-pointer
+            transition-all
+            duration-200
+          "
+          onClick={() => {
+            setShowQuickAdd(true);
+          }}
+        >
+          <Plus size={24} />
+        </button>
+      </PageTransition>
     </AppLayout>
   );
 };
