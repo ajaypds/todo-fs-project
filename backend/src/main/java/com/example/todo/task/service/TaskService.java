@@ -1,6 +1,9 @@
 package com.example.todo.task.service;
 
 import com.example.todo.exception.ResourceNotFoundException;
+import com.example.todo.label.dto.LabelResponse;
+import com.example.todo.label.entity.Label;
+import com.example.todo.label.repository.LabelRepository;
 import com.example.todo.project.entity.Project;
 import com.example.todo.project.repository.ProjectRepository;
 import com.example.todo.task.dto.CreateTaskRequest;
@@ -17,8 +20,11 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -27,6 +33,7 @@ public class TaskService {
     private final TaskRepository taskRepository;
     private final UserRepository userRepository;
     private final ProjectRepository projectRepository;
+    private final LabelRepository labelRepository;
 
     public TaskResponse createTask(
             UUID userId,
@@ -60,21 +67,20 @@ public class TaskService {
             }
         }
 
+        Set<Label> labels = request.getLabelIds() == null ? new HashSet<>() : new HashSet<>(labelRepository.findAllById(request.getLabelIds()));
+
         Task task = Task.builder()
                 .user(user)
                 .title(request.getTitle())
                 .description(request.getDescription())
                 .completed(false)
-                .priority(
-                        request.getPriority() != null
-                                ? request.getPriority()
-                                : 4
-                )
+                .priority(request.getPriority() != null ? request.getPriority() : 4)
                 .dueDate(request.getDueDate())
                 .createdAt(LocalDateTime.now())
                 .updatedAt(LocalDateTime.now())
                 .project(project)
                 .position(position)
+                .labels(labels)
                 .build();
 
         taskRepository.save(task);
@@ -125,6 +131,11 @@ public class TaskService {
 
         if (request.getDueDate() != null) {
             task.setDueDate(request.getDueDate());
+        }
+
+        if(request.getLabelIds() != null){
+            Set<Label> labels = new HashSet<>(labelRepository.findAllById(request.getLabelIds()));
+            task.setLabels(labels);
         }
 
         task.setUpdatedAt(LocalDateTime.now());
@@ -217,6 +228,14 @@ public class TaskService {
                 .updatedAt(task.getUpdatedAt())
                 .projectId(task.getProject() != null ? task.getProject().getId() : null)
                 .position(task.getPosition())
+                .labels(task.getLabels().stream()
+                        .map(label -> LabelResponse
+                                        .builder()
+                                        .id(label.getId())
+                                        .name(label.getName())
+                                        .color(label.getColor())
+                                        .build()
+                        ).collect(Collectors.toSet()))
                 .build();
     }
 }
