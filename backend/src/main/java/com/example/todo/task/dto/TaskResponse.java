@@ -1,9 +1,11 @@
 package com.example.todo.task.dto;
 
+import com.example.todo.label.dto.LabelResponse;
 import lombok.Builder;
 import lombok.Getter;
 
 import java.time.LocalDateTime;
+import java.util.Set;
 import java.util.UUID;
 
 @Getter
@@ -29,4 +31,6 @@ public class TaskResponse {
     private LocalDateTime updatedAt;
 
     private Integer position;
+
+    private Set<LabelResponse> labels;
 }
