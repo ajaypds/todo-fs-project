@@ -18,4 +18,6 @@ EXPOSE 8080
 
 RUN apt-get update && apt-get install -y curl
 
+ENV SPRING_PROFILES_ACTIVE=prod
+
 ENTRYPOINT ["java", "-jar", "app.jar"]

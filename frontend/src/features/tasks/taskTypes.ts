@@ -19,6 +19,6 @@ export type Task = {
 
     projectId: string;
 
-    labels: Label[];
+    labels?: Label[];
 
 };

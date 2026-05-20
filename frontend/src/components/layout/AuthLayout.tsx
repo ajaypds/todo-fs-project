@@ -21,7 +21,7 @@ export const AuthLayout = ({ title, subtitle, children }: Props) => {
     >
       <div
         className="
-          hidden lg:flex
+          hidden xl:flex
           flex-col justify-between
           bg-primary
           text-white
