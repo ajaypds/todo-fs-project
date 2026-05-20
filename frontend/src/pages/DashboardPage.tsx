@@ -8,8 +8,6 @@ import {
   useReorderTasks,
 } from "../features/tasks/taskQueries";
 import type { PageResponse } from "../types/pagination";
-
-// import { TaskCard } from "../features/tasks/components/TaskCard";
 import { CreateTaskForm } from "../features/tasks/components/CreateTaskForm";
 import { EmptyState } from "../components/ui/EmptyState";
 import { TaskSkeleton } from "../components/ui/TaskSkeleton";
@@ -38,6 +36,7 @@ import { TaskCard } from "../features/tasks/components/TaskCard";
 import { Input } from "../components/ui/Input";
 import { Plus } from "lucide-react";
 import { PageTransition } from "../components/ui/PageTransition";
+import { useLabels } from "../features/labels/labelQueries";
 
 export const DashboardPage = () => {
   const { data, isLoading, error } = useTasks();
@@ -66,6 +65,7 @@ export const DashboardPage = () => {
 
   const reorderTasksMutation = useReorderTasks();
   const queryClient = useQueryClient();
+  const { data: labels = [] } = useLabels();
 
   const filteredTasks = useMemo(() => {
     return tasks.filter((task) => {
@@ -160,6 +160,7 @@ export const DashboardPage = () => {
             />
             <CreateTaskForm
               projects={projects}
+              labels={labels}
               onCreate={(payload) => {
                 createTaskMutation.mutate(payload, {
                   onSuccess: () => {
@@ -294,6 +295,7 @@ export const DashboardPage = () => {
         >
           <CreateTaskForm
             projects={projects}
+            labels={labels}
             onCreate={(payload) => {
               createTaskMutation.mutate(payload, {
                 onSuccess: () => {
