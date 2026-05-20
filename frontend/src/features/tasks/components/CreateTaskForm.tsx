@@ -4,20 +4,23 @@ import { Input } from "../../../components/ui/Input";
 import { Textarea } from "../../../components/ui/Textarea";
 import { Button } from "../../../components/ui/Button";
 import { Select } from "../../../components/ui/Select";
-// import { Card } from "../../../components/ui/Card";
+import type { Label } from "../../labels/labelTypes";
+import { cn } from "../../../lib/cn";
 
 type Props = {
   projects: Project[];
+  labels: Label[];
   onCreate: (payload: {
     title: string;
     description: string;
     priority: number;
     dueDate?: string;
     projectId?: string;
+    labelIds?: string[];
   }) => void;
 };
 
-export const CreateTaskForm = ({ onCreate, projects }: Props) => {
+export const CreateTaskForm = ({ onCreate, projects, labels }: Props) => {
   const [title, setTitle] = useState("");
 
   const [description, setDescription] = useState("");
@@ -26,6 +29,7 @@ export const CreateTaskForm = ({ onCreate, projects }: Props) => {
 
   const [dueDate, setDueDate] = useState("");
   const [projectId, setProjectId] = useState("");
+  const [selectedLabels, setSelectedLabels] = useState<string[]>([]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -40,6 +44,7 @@ export const CreateTaskForm = ({ onCreate, projects }: Props) => {
       priority,
       dueDate: dueDate ? `${dueDate}T00:00:00` : undefined,
       projectId: projectId || undefined,
+      labelIds: selectedLabels,
     });
 
     setTitle("");
@@ -92,6 +97,55 @@ export const CreateTaskForm = ({ onCreate, projects }: Props) => {
           </option>
         ))}
       </Select>
+
+      <div>
+        <label className="block text-sm font-medium mb-2">Labels</label>
+
+        <div className="flex flex-wrap gap-2">
+          {labels.map((label) => {
+            const selected = selectedLabels.includes(label.id);
+
+            return (
+              <button
+                key={label.id}
+                type="button"
+                onClick={() => {
+                  setSelectedLabels((prev) =>
+                    selected
+                      ? prev.filter((id) => id !== label.id)
+                      : [...prev, label.id],
+                  );
+                }}
+                className={cn(
+                  `
+                    px-3 py-1.5
+                    rounded-full
+                    text-xs font-medium
+                    border
+                    transition-all
+                    mb-3
+                  `,
+
+                  selected
+                    ? `
+                    text-white
+                    border-transparent
+                  `
+                    : `
+                    bg-card
+                    border-border
+                  `,
+                )}
+                style={{
+                  backgroundColor: selected ? label.color : undefined,
+                }}
+              >
+                {label.name}
+              </button>
+            );
+          })}
+        </div>
+      </div>
 
       <div className="mb-3">
         <Input
