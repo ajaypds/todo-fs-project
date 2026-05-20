@@ -6,6 +6,7 @@ import lombok.Getter;
 import lombok.Setter;
 
 import java.time.LocalDateTime;
+import java.util.Set;
 import java.util.UUID;
 
 @Getter
@@ -23,4 +24,6 @@ public class CreateTaskRequest {
     private LocalDateTime dueDate;
 
     private UUID projectId;
+
+    private Set<UUID> labelIds;
 }
