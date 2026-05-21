@@ -34,9 +34,7 @@ public class SecurityConfig {
     }
 
     @Bean
-    public SecurityFilterChain securityFilterChain(
-            HttpSecurity http
-    ) throws Exception {
+    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
 
         http
                 .cors(cors -> cors.configurationSource(
@@ -55,7 +53,8 @@ public class SecurityConfig {
 
                         .requestMatchers(
                                 "/api/v1/auth/**",
-                                "/actuator/**"
+                                "/actuator/**",
+                                "/ws/**"
                         ).permitAll()
 
                         .requestMatchers(
@@ -77,8 +76,7 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
 
-        CorsConfiguration configuration =
-                new CorsConfiguration();
+        CorsConfiguration configuration = new CorsConfiguration();
 
         configuration.setAllowedOrigins(
                 List.of("http://localhost:5173", "http://localhost:3000", "https://mytodo.ddns.net")
@@ -101,8 +99,7 @@ public class SecurityConfig {
 
         configuration.setAllowCredentials(true);
 
-        UrlBasedCorsConfigurationSource source =
-                new UrlBasedCorsConfigurationSource();
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
 
         source.registerCorsConfiguration(
                 "/**",
