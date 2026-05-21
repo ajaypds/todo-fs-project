@@ -11,14 +11,15 @@ import com.example.todo.task.dto.ReorderTasksRequest;
 import com.example.todo.task.dto.TaskResponse;
 import com.example.todo.task.dto.UpdateTaskRequest;
 import com.example.todo.task.entity.Task;
+import com.example.todo.task.event.TaskCreatedEvent;
 import com.example.todo.task.repository.TaskRepository;
 import com.example.todo.user.entity.User;
 import com.example.todo.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
-
 import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.List;
@@ -34,11 +35,9 @@ public class TaskService {
     private final UserRepository userRepository;
     private final ProjectRepository projectRepository;
     private final LabelRepository labelRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
-    public TaskResponse createTask(
-            UUID userId,
-            CreateTaskRequest request
-    ) {
+    public TaskResponse createTask( UUID userId, CreateTaskRequest request) {
 
         User user = userRepository.findById(userId)
                 .orElseThrow(() ->
@@ -85,14 +84,12 @@ public class TaskService {
 
         taskRepository.save(task);
 
+        eventPublisher.publishEvent(new TaskCreatedEvent(task.getId(), task.getTitle()));
+
         return mapToResponse(task);
     }
 
-    public Page<TaskResponse> getTasks(
-            UUID userId,
-            int page,
-            int size
-    ) {
+    public Page<TaskResponse> getTasks(UUID userId, int page, int size) {
 
         User user = userRepository.findById(userId)
                 .orElseThrow(() ->
@@ -105,11 +102,7 @@ public class TaskService {
         ).map(this::mapToResponse);
     }
 
-    public TaskResponse updateTask(
-            UUID userId,
-            UUID taskId,
-            UpdateTaskRequest request
-    ) {
+    public TaskResponse updateTask(UUID userId, UUID taskId, UpdateTaskRequest request) {
 
         Task task = getOwnedTask(userId, taskId);
 
@@ -145,20 +138,14 @@ public class TaskService {
         return mapToResponse(task);
     }
 
-    public void deleteTask(
-            UUID userId,
-            UUID taskId
-    ) {
+    public void deleteTask(UUID userId, UUID taskId) {
 
         Task task = getOwnedTask(userId, taskId);
 
         taskRepository.delete(task);
     }
 
-    private Task getOwnedTask(
-            UUID userId,
-            UUID taskId
-    ) {
+    private Task getOwnedTask(UUID userId, UUID taskId) {
 
         Task task = taskRepository.findById(taskId)
                 .orElseThrow(() ->
@@ -172,15 +159,9 @@ public class TaskService {
         return task;
     }
 
-    public void reorderTasks(
-            UUID userId,
-            ReorderTasksRequest request
-    ) {
+    public void reorderTasks(UUID userId, ReorderTasksRequest request) {
 
-        List<Task> tasks =
-                taskRepository.findAllById(
-                        request.getTaskIds()
-                );
+        List<Task> tasks = taskRepository.findAllById(request.getTaskIds());
 
         for (Task task : tasks) {
 
@@ -194,12 +175,9 @@ public class TaskService {
             }
         }
 
-        for (int i = 0;
-             i < request.getTaskIds().size();
-             i++) {
+        for (int i = 0; i < request.getTaskIds().size(); i++) {
 
-            UUID taskId =
-                    request.getTaskIds().get(i);
+            UUID taskId = request.getTaskIds().get(i);
 
             Task task = tasks.stream()
                     .filter(t ->
