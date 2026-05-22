@@ -37,28 +37,24 @@ import { Input } from "../components/ui/Input";
 import { Plus } from "lucide-react";
 import { PageTransition } from "../components/ui/PageTransition";
 import { useLabels } from "../features/labels/labelQueries";
+import { useRealtimeTasks } from "../features/tasks/hooks/useRealtimeTasks";
 
 export const DashboardPage = () => {
   const { data, isLoading, error } = useTasks();
-
   const createTaskMutation = useCreateTask();
-
   const updateTaskMutation = useUpdateTask();
-
   const deleteTaskMutation = useDeleteTask();
   const [search, setSearch] = useState("");
-
   const createProjectMutation = useCreateProject();
   const selectedProjectId = useProjectStore((state) => state.selectedProjectId);
   const { data: projects = [] } = useProjects();
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [showQuickAdd, setShowQuickAdd] = useState(false);
-
   const tasks = useMemo(() => {
     return data?.content ?? [];
   }, [data]);
-
+  useRealtimeTasks();
   const handleDragStart = (event: DragStartEvent) => {
     setActiveId(event.active.id as string);
   };
