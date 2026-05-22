@@ -12,6 +12,8 @@ import com.example.todo.task.dto.TaskResponse;
 import com.example.todo.task.dto.UpdateTaskRequest;
 import com.example.todo.task.entity.Task;
 import com.example.todo.task.event.TaskCreatedEvent;
+import com.example.todo.task.event.TaskDeletedEvent;
+import com.example.todo.task.event.TaskUpdatedEvent;
 import com.example.todo.task.repository.TaskRepository;
 import com.example.todo.user.entity.User;
 import com.example.todo.user.repository.UserRepository;
@@ -135,12 +137,16 @@ public class TaskService {
 
         taskRepository.save(task);
 
+        eventPublisher.publishEvent(new TaskUpdatedEvent(task.getId(), task.getTitle()));
+
         return mapToResponse(task);
     }
 
     public void deleteTask(UUID userId, UUID taskId) {
 
         Task task = getOwnedTask(userId, taskId);
+
+        eventPublisher.publishEvent(new TaskDeletedEvent(taskId));
 
         taskRepository.delete(task);
     }
