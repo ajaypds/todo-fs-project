@@ -14,7 +14,7 @@ public class ActivityService {
 
     public List<ActivityResponse> getActivities() {
 
-        return repository.findAll()
+        return repository.findAllByOrderByCreatedAtDesc()
                 .stream()
                 .map(activity -> ActivityResponse
                                 .builder()
