@@ -37,7 +37,10 @@ import { Input } from "../components/ui/Input";
 import { Plus } from "lucide-react";
 import { PageTransition } from "../components/ui/PageTransition";
 import { useLabels } from "../features/labels/labelQueries";
-import { useRealtimeTasks } from "../features/tasks/hooks/useRealtimeTasks";
+import { useRealtimeTasks } from "../features/realtime/hooks/useRealtimeTasks";
+import { OnlineUsers } from "../features/users/components/OnlineUsers";
+import { ActivityFeed } from "../features/activity/components/ActivityFeed";
+import { usePresence } from "../features/realtime/hooks/usePresence";
 
 export const DashboardPage = () => {
   const { data, isLoading, error } = useTasks();
@@ -55,6 +58,7 @@ export const DashboardPage = () => {
     return data?.content ?? [];
   }, [data]);
   useRealtimeTasks();
+  usePresence();
   const handleDragStart = (event: DragStartEvent) => {
     setActiveId(event.active.id as string);
   };
@@ -145,6 +149,7 @@ export const DashboardPage = () => {
   return (
     <AppLayout>
       <PageTransition>
+        <OnlineUsers />
         <div className="max-w-4xl mx-auto px-4 md:px-6 py-6 md:py-8">
           <h1 className="text-3xl font-bold mb-6">Inbox</h1>
 
@@ -251,6 +256,7 @@ export const DashboardPage = () => {
               </DragOverlay>
             </DndContext>
           )}
+          <ActivityFeed />
         </div>
         <Modal
           open={!!editingTask}
