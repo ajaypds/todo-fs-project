@@ -42,7 +42,7 @@ public class AuthService {
 
         userRepository.save(user);
 
-        String token = jwtService.generateToken(user.getId());
+        String token = jwtService.generateToken(user.getId(), user.getEmail());
 
         return AuthResponse.builder()
                 .token(token)
@@ -63,7 +63,7 @@ public class AuthService {
             throw new UnauthorizedException("Invalid credentials");
         }
 
-        String token = jwtService.generateToken(user.getId());
+        String token = jwtService.generateToken(user.getId(), user.getEmail());
         String refreshToken = jwtService.generateRefreshToken(user);
 
         refreshTokenRepository.save(
@@ -98,7 +98,7 @@ public class AuthService {
 
         User user = storedToken.getUser();
 
-        String newAccessToken = jwtService.generateToken(user.getId());
+        String newAccessToken = jwtService.generateToken(user.getId(), user.getEmail());
 
         return AuthResponse.builder()
                 .token(newAccessToken)
