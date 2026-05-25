@@ -1,10 +1,12 @@
 package com.example.todo.auth.security;
 
 import com.example.todo.user.entity.User;
+import com.example.todo.user.repository.UserRepository;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.security.Keys;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -31,10 +33,11 @@ public class JwtService {
         this.key = Keys.hmacShaKeyFor(SECRET.getBytes());
     }
 
-    public String generateToken(UUID userId) {
+    public String generateToken(UUID userId, String username) {
 
         return Jwts.builder()
                 .subject(userId.toString())
+                .claim("user", username)
                 .issuedAt(new Date())
                 .expiration(new Date(System.currentTimeMillis() + tokenExpiration))
                 .signWith(key, SignatureAlgorithm.HS256)
@@ -45,6 +48,10 @@ public class JwtService {
 
         return extractClaims(token)
                 .getSubject();
+    }
+
+    public String extractUsername(String token) {
+        return extractClaims(token).get("user", String.class);
     }
 
     public boolean isTokenValid(String token) {
@@ -71,15 +78,10 @@ public class JwtService {
     ) {
 
         return Jwts.builder()
-
                 .subject(user.getEmail())
-
                 .issuedAt(new Date())
-
                 .expiration(new Date(System.currentTimeMillis() + refreshExpiration))
-
                 .signWith(key, SignatureAlgorithm.HS256)
-
                 .compact();
     }
 }
