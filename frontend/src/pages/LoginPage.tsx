@@ -89,6 +89,14 @@ export const LoginPage = () => {
             >
               {loginMutation.isPending ? "Signing in..." : "Sign In"}
             </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              className="w-full mt-3"
+              onClick={() => navigate("/register")}
+            >
+              Register
+            </Button>
           </form>
           {/* </div> */}
         </Card>
