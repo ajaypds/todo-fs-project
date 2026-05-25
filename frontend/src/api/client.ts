@@ -1,4 +1,5 @@
 import axios from "axios";
+import { authStorage } from "../features/auth/authStorage";
 
 export const apiClient = axios.create({
     baseURL: import.meta.env.VITE_API_BASE_URL,
@@ -8,7 +9,7 @@ const refreshClient = axios.create({
 });
 
 apiClient.interceptors.request.use((config) => {
-    const token = localStorage.getItem("token");
+    const token = authStorage.getAccessToken();
 
     if (token) {
         config.headers.Authorization = `Bearer ${token}`;
@@ -31,13 +32,15 @@ apiClient.interceptors.response.use(
 
             try {
 
-                const refreshToken = localStorage.getItem("refreshToken");
+                // const refreshToken = localStorage.getItem("refreshToken");
+                const refreshToken = authStorage.getRefreshToken();
 
                 const response = await refreshClient.post("/auth/refresh", { refreshToken });
 
                 const newToken = response.data.token;
 
-                localStorage.setItem("token", newToken);
+                // localStorage.setItem("token", newToken);
+                authStorage.setAccessToken(newToken);
 
                 originalRequest.headers.Authorization = `Bearer ${newToken}`;
 
@@ -45,9 +48,10 @@ apiClient.interceptors.response.use(
 
             } catch {
 
-                localStorage.removeItem("token");
-
-                localStorage.removeItem("refreshToken");
+                // localStorage.removeItem("token");
+                // localStorage.removeItem("refreshToken");
+                authStorage.removeAccessToken();
+                authStorage.removeRefreshToken();
 
                 window.location.href = "/login";
             }
