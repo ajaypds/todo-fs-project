@@ -1,18 +1,20 @@
 import { useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { stompClient } from "../../../realtime/socket";
+import { createStompClient } from "../../../realtime/socket";
 
 export const useRealtimeTasks = () => {
 
     const queryClient = useQueryClient();
 
+
     useEffect(() => {
+        const client = createStompClient();
 
-        stompClient.activate();
+        client.activate();
 
-        stompClient.onConnect = () => {
+        client.onConnect = () => {
 
-            stompClient.subscribe(
+            client.subscribe(
 
                 "/topic/tasks",
 
@@ -30,7 +32,7 @@ export const useRealtimeTasks = () => {
         };
 
         return () => {
-            stompClient.deactivate();
+            client.deactivate();
         };
 
     }, [queryClient]);
