@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { authStorage } from "../features/auth/authStorage";
 
 type AuthState = {
     token: string | null;
@@ -11,22 +12,27 @@ type AuthState = {
 };
 
 export const useAuthStore = create<AuthState>((set) => ({
-    token: localStorage.getItem("token"),
-    refreshToken: localStorage.getItem("refreshToken"),
+    token: authStorage.getAccessToken(),
+    refreshToken: authStorage.getRefreshToken(),
 
     setToken: (token) => {
-        localStorage.setItem("token", token);
+        // localStorage.setItem("token", token);
+        authStorage.setAccessToken(token);
         set({ token });
     },
 
     logout: () => {
-        localStorage.removeItem("token");
+        // localStorage.removeItem("token");
+        authStorage.removeAccessToken();
+        authStorage.removeRefreshToken();
         set({ token: null, refreshToken: null });
     },
 
     setAuth: (token, refreshToken) => {
-        localStorage.setItem("token", token);
-        localStorage.setItem("refreshToken", refreshToken);
+        // localStorage.setItem("token", token);
+        // localStorage.setItem("refreshToken", refreshToken);
+        authStorage.setAccessToken(token);
+        authStorage.setRefreshToken(refreshToken);
         set({ token, refreshToken });
     },
 }));

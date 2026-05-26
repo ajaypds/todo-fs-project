@@ -1,15 +1,29 @@
 import SockJS from "sockjs-client";
-
 import { Client } from "@stomp/stompjs";
+import { authStorage } from "../features/auth/authStorage";
 
-const socket = new SockJS(
-    `${import.meta.env
-        .VITE_API_BASE_URL
-        .replace("/api/v1", "")}/ws`
-);
+type CreateClientOptions = {
+    onConnect?: () => void;
+};
 
-export const stompClient = new Client({
+export const createStompClient = (
+    options?: CreateClientOptions
+) => {
 
-    webSocketFactory: () => socket,
-    reconnectDelay: 5000,
-});
+    const socket = new SockJS(
+
+        `${import.meta.env
+            .VITE_API_BASE_URL
+            .replace("/api/v1", "")}/ws`
+    );
+
+    return new Client({
+
+        webSocketFactory: () => socket,
+        reconnectDelay: 5000,
+        connectHeaders: {
+            Authorization: `Bearer ${authStorage.getAccessToken()}`,
+        },
+        onConnect: options?.onConnect,
+    });
+};

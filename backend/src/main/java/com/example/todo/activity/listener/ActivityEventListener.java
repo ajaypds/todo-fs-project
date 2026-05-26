@@ -17,8 +17,7 @@ public class ActivityEventListener {
     @EventListener
     public void handleCreated(TaskCreatedEvent event) {
 
-        repository.save(
-                Activity.builder()
+        repository.save( Activity.builder()
                         .type("TASK_CREATED")
                         .message("Created task: " + event.getTitle())
                         .createdAt(LocalDateTime.now())

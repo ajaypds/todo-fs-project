@@ -37,7 +37,10 @@ import { Input } from "../components/ui/Input";
 import { Plus } from "lucide-react";
 import { PageTransition } from "../components/ui/PageTransition";
 import { useLabels } from "../features/labels/labelQueries";
-import { useRealtimeTasks } from "../features/tasks/hooks/useRealtimeTasks";
+import { OnlineUsers } from "../features/users/components/OnlineUsers";
+import { ActivityFeed } from "../features/activity/components/ActivityFeed";
+import { useOnlineUsers } from "../features/realtime/api/presenceQueries";
+import { usePresenceStore } from "../store/presenceStore";
 
 export const DashboardPage = () => {
   const { data, isLoading, error } = useTasks();
@@ -51,17 +54,24 @@ export const DashboardPage = () => {
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [showQuickAdd, setShowQuickAdd] = useState(false);
+  const { data: onlineUsers = [] } = useOnlineUsers();
+  const setUsers = usePresenceStore((state) => state.setUsers);
+  const reorderTasksMutation = useReorderTasks();
+  const queryClient = useQueryClient();
+  const { data: labels = [] } = useLabels();
+
   const tasks = useMemo(() => {
     return data?.content ?? [];
   }, [data]);
-  useRealtimeTasks();
+
   const handleDragStart = (event: DragStartEvent) => {
     setActiveId(event.active.id as string);
   };
 
-  const reorderTasksMutation = useReorderTasks();
-  const queryClient = useQueryClient();
-  const { data: labels = [] } = useLabels();
+  useEffect(() => {
+    console.log("Online users updated:", onlineUsers);
+    setUsers(onlineUsers);
+  }, [onlineUsers, setUsers]);
 
   const filteredTasks = useMemo(() => {
     return tasks.filter((task) => {
@@ -145,6 +155,7 @@ export const DashboardPage = () => {
   return (
     <AppLayout>
       <PageTransition>
+        <OnlineUsers />
         <div className="max-w-4xl mx-auto px-4 md:px-6 py-6 md:py-8">
           <h1 className="text-3xl font-bold mb-6">Inbox</h1>
 
@@ -251,6 +262,7 @@ export const DashboardPage = () => {
               </DragOverlay>
             </DndContext>
           )}
+          <ActivityFeed />
         </div>
         <Modal
           open={!!editingTask}

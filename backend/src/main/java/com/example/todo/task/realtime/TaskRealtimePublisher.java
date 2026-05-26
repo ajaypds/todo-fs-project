@@ -28,60 +28,27 @@ public class TaskRealtimePublisher {
     }
 
     @EventListener
-    public void handleTaskUpdated(
+    public void handleTaskUpdated(TaskUpdatedEvent event) {
 
-            TaskUpdatedEvent event
-    ) {
-
-        TaskRealtimeEvent payload =
-
-                TaskRealtimeEvent
+        TaskRealtimeEvent payload = TaskRealtimeEvent
                         .builder()
-
                         .type("TASK_UPDATED")
-
-                        .taskId(
-                                event.getTaskId()
-                        )
-
-                        .title(
-                                event.getTitle()
-                        )
-
+                        .taskId(event.getTaskId())
+                        .title(event.getTitle())
                         .build();
 
-        messagingTemplate.convertAndSend(
-
-                "/topic/tasks",
-
-                payload
-        );
+        messagingTemplate.convertAndSend("/topic/tasks", payload);
     }
 
     @EventListener
-    public void handleTaskDeleted(
+    public void handleTaskDeleted(TaskDeletedEvent event) {
 
-            TaskDeletedEvent event
-    ) {
-
-        TaskRealtimeEvent payload =
-
-                TaskRealtimeEvent
+        TaskRealtimeEvent payload = TaskRealtimeEvent
                         .builder()
-
                         .type("TASK_DELETED")
-
-                        .taskId(
-                                event.getTaskId()
-                        )
-
+                        .taskId(event.getTaskId())
                         .build();
 
-        messagingTemplate.convertAndSend(
-
-                "/topic/tasks",
-
-                payload
-        );
+        messagingTemplate.convertAndSend("/topic/tasks", payload);
     }
 }
