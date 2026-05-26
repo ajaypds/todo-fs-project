@@ -41,6 +41,8 @@ import { useRealtimeTasks } from "../features/realtime/hooks/useRealtimeTasks";
 import { OnlineUsers } from "../features/users/components/OnlineUsers";
 import { ActivityFeed } from "../features/activity/components/ActivityFeed";
 import { usePresence } from "../features/realtime/hooks/usePresence";
+import { useOnlineUsers } from "../features/realtime/api/presenceQueries";
+import { usePresenceStore } from "../store/presenceStore";
 
 export const DashboardPage = () => {
   const { data, isLoading, error } = useTasks();
@@ -54,18 +56,26 @@ export const DashboardPage = () => {
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [showQuickAdd, setShowQuickAdd] = useState(false);
+  const { data: onlineUsers = [] } = useOnlineUsers();
+  const setUsers = usePresenceStore((state) => state.setUsers);
+  const reorderTasksMutation = useReorderTasks();
+  const queryClient = useQueryClient();
+  const { data: labels = [] } = useLabels();
+
   const tasks = useMemo(() => {
     return data?.content ?? [];
   }, [data]);
-  useRealtimeTasks();
-  usePresence();
+
   const handleDragStart = (event: DragStartEvent) => {
     setActiveId(event.active.id as string);
   };
 
-  const reorderTasksMutation = useReorderTasks();
-  const queryClient = useQueryClient();
-  const { data: labels = [] } = useLabels();
+  useRealtimeTasks();
+  usePresence();
+
+  useEffect(() => {
+    setUsers(onlineUsers);
+  }, [onlineUsers, setUsers]);
 
   const filteredTasks = useMemo(() => {
     return tasks.filter((task) => {
