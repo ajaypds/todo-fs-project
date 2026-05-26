@@ -2,7 +2,13 @@ import SockJS from "sockjs-client";
 import { Client } from "@stomp/stompjs";
 import { authStorage } from "../features/auth/authStorage";
 
-export const createStompClient = () => {
+type CreateClientOptions = {
+    onConnect?: () => void;
+};
+
+export const createStompClient = (
+    options?: CreateClientOptions
+) => {
 
     const socket = new SockJS(
 
@@ -18,5 +24,6 @@ export const createStompClient = () => {
         connectHeaders: {
             Authorization: `Bearer ${authStorage.getAccessToken()}`,
         },
+        onConnect: options?.onConnect,
     });
 };
