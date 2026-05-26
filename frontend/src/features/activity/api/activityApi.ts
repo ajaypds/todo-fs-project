@@ -1,7 +1,8 @@
 import { apiClient } from "../../../api/client";
+import type { Activity } from "./activityTypes";
 
 
-export const getActivities = async () => {
+export const getActivities = async (): Promise<Activity[]> => {
 
     const response = await apiClient.get("/activities");
 
