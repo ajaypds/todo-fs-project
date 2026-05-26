@@ -1,5 +1,7 @@
 package com.example.todo.realtime;
 
+import com.example.todo.realtime.dto.PresenceEvent;
+import com.example.todo.realtime.service.PresenceService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.event.EventListener;
@@ -12,13 +14,16 @@ import org.springframework.web.socket.messaging.*;
 @RequiredArgsConstructor
 public class PresenceListener {
 
-    private final
-    SimpMessagingTemplate messagingTemplate;
+    private final SimpMessagingTemplate messagingTemplate;
+    private final PresenceService presenceService;
 
     @EventListener
     public void handleConnect(SessionConnectEvent event) {
 
         log.info("User connected: " + event.getUser().getName());
+
+        String username = event.getUser().getName();
+        presenceService.userConnected(username);
 
         PresenceEvent payload = PresenceEvent
                         .builder()
@@ -27,5 +32,16 @@ public class PresenceListener {
                         .build();
 
         messagingTemplate.convertAndSend("/topic/presence", payload);
+    }
+
+    @EventListener
+    public void handleDisconnect(SessionDisconnectEvent event){
+        if(event.getUser() == null){
+            return;
+        }
+
+        String username = event.getUser().getName();
+
+        presenceService.userDisconnected(username);
     }
 }
