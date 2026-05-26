@@ -1,4 +1,4 @@
-package com.example.todo.realtime;
+package com.example.todo.realtime.dto;
 
 import lombok.*;
 
