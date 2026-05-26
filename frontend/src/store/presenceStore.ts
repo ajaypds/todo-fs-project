@@ -11,6 +11,10 @@ type PresenceState = {
     addUser: (
         username: string
     ) => void;
+
+    removeUser: (
+        username: string
+    ) => void;
 };
 
 export const usePresenceStore = create<PresenceState>((set) => ({
@@ -25,4 +29,14 @@ export const usePresenceStore = create<PresenceState>((set) => ({
             ...new Set([...state.users, username]),
         ],
     })),
+
+    removeUser: (username) =>
+
+        set((state) => ({
+
+            users:
+                state.users.filter(
+                    (user) => user !== username
+                ),
+        })),
 }));
