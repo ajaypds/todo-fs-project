@@ -5,7 +5,7 @@ export const OnlineUsers = () => {
   const users = usePresenceStore((state) => state.users);
 
   useEffect(() => {
-    console.log("Online users updated:", users);
+    // console.log("Online users updated:", users);
   }, [users]);
 
   return (
