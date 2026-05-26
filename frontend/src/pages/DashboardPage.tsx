@@ -37,10 +37,8 @@ import { Input } from "../components/ui/Input";
 import { Plus } from "lucide-react";
 import { PageTransition } from "../components/ui/PageTransition";
 import { useLabels } from "../features/labels/labelQueries";
-import { useRealtimeTasks } from "../features/realtime/hooks/useRealtimeTasks";
 import { OnlineUsers } from "../features/users/components/OnlineUsers";
 import { ActivityFeed } from "../features/activity/components/ActivityFeed";
-import { usePresence } from "../features/realtime/hooks/usePresence";
 import { useOnlineUsers } from "../features/realtime/api/presenceQueries";
 import { usePresenceStore } from "../store/presenceStore";
 
@@ -70,10 +68,8 @@ export const DashboardPage = () => {
     setActiveId(event.active.id as string);
   };
 
-  useRealtimeTasks();
-  usePresence();
-
   useEffect(() => {
+    console.log("Online users updated:", onlineUsers);
     setUsers(onlineUsers);
   }, [onlineUsers, setUsers]);
 
