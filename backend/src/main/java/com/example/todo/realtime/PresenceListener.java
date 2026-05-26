@@ -20,6 +20,9 @@ public class PresenceListener {
     @EventListener
     public void handleConnect(SessionConnectEvent event) {
 
+        if(event.getUser() == null){
+            return;
+        }
         log.info("User connected: " + event.getUser().getName());
 
         String username = event.getUser().getName();
@@ -40,8 +43,18 @@ public class PresenceListener {
             return;
         }
 
-        String username = event.getUser().getName();
+        log.info("User disconnected: " + event.getUser().getName());
 
+        String username = event.getUser().getName();
         presenceService.userDisconnected(username);
+
+        PresenceEvent payload = PresenceEvent
+                                .builder()
+                                .type("USER_DISCONNECTED")
+                                .username(username)
+                                .build();
+
+        messagingTemplate.convertAndSend("/topic/presence", payload);
+
     }
 }
