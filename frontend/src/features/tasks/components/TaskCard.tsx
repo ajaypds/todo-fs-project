@@ -1,6 +1,6 @@
 import { Trash2 } from "lucide-react";
 
-import type { Task } from "../taskTypes";
+import type { Task } from "../types/taskTypes";
 
 import { PriorityBadge } from "../../../components/ui/PriorityBadge";
 
@@ -9,6 +9,7 @@ import { Card } from "../../../components/ui/Card";
 import { motion } from "framer-motion";
 import { forwardRef } from "react";
 import { LabelBadge } from "../../labels/components/LabelBadge";
+import { cn } from "../../../lib/cn";
 
 type Props = {
   task: Task;
@@ -26,7 +27,11 @@ export const TaskCard = forwardRef<
     <Card
       ref={ref}
       style={style}
-      className={`p-5 hover:shadow-card ${className ?? ""}`}
+      className={cn(
+        `p-5 hover:shadow-card ${className ?? ""}`,
+        "transition-opacity",
+        task.optimistic && "opacity-60",
+      )}
       {...props}
     >
       <motion.div
