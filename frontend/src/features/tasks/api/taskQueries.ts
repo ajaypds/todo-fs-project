@@ -1,8 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getTasks, createTask, updateTask, deleteTask, reorderTasks } from "./taskApi";
-import type { Task } from "./taskTypes";
+import type { Task } from "../types/taskTypes";
 
-import type { PageResponse } from "../../types/pagination";
+import type { PageResponse } from "../../../types/pagination";
 
 
 export const useTasks = () => {
@@ -21,6 +21,77 @@ export const useCreateTask = () => {
 
         onSuccess: () => {
             queryClient.invalidateQueries({
+                queryKey: ["tasks"],
+            });
+        },
+
+        onMutate: async (
+            newTask
+        ) => {
+
+            await queryClient.cancelQueries({
+
+                queryKey: ["tasks"],
+            });
+
+            const previousTasks = queryClient.getQueryData(["tasks"]);
+
+            queryClient.setQueryData(
+
+                ["tasks"],
+
+                (old: PageResponse<Task> | undefined) => {
+
+                    if (!old) {
+                        return old;
+                    }
+
+                    return {
+
+                        ...old,
+
+                        content: [
+
+                            {
+                                id: crypto.randomUUID(),
+
+                                title:
+                                    newTask.title,
+
+                                description:
+                                    newTask.description,
+
+                                completed: false,
+
+                                optimistic: true,
+                            },
+
+                            ...old.content,
+                        ],
+                    };
+                }
+            );
+
+            return {
+                previousTasks,
+            };
+        },
+
+        onError: (
+            error,
+            newTask,
+            context
+        ) => {
+            queryClient.setQueryData(
+                ["tasks"],
+                context?.previousTasks
+            )
+        },
+
+        onSettled: () => {
+
+            queryClient.invalidateQueries({
+
                 queryKey: ["tasks"],
             });
         },
@@ -67,14 +138,10 @@ export const useUpdateTask = () => {
                         ...old,
 
                         content: old.content.map(
-                            (task: Task) =>
-
-                                task.id === taskId
-                                    ? {
-                                        ...task,
-                                        ...payload,
-                                    }
-                                    : task
+                            (task: Task) => {
+                                task.optimistic = true;
+                                return task.id === taskId ? { ...task, ...payload } : task
+                            }
                         ),
                     };
                 }
