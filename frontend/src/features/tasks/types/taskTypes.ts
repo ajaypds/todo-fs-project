@@ -1,4 +1,4 @@
-import type { Label } from "../labels/labelTypes";
+import type { Label } from "../../labels/labelTypes";
 
 export type Task = {
     id: string;
@@ -20,5 +20,7 @@ export type Task = {
     projectId: string;
 
     labels?: Label[];
+
+    optimistic?: boolean;
 
 };
