@@ -86,7 +86,7 @@ public class TaskService {
 
         taskRepository.save(task);
 
-        eventPublisher.publishEvent(new TaskCreatedEvent(task.getId(), task.getTitle()));
+        eventPublisher.publishEvent(new TaskCreatedEvent(task.getId(), task.getTitle(), task.getUser().getId()));
 
         return mapToResponse(task);
     }
@@ -137,7 +137,7 @@ public class TaskService {
 
         taskRepository.save(task);
 
-        eventPublisher.publishEvent(new TaskUpdatedEvent(task.getId(), task.getTitle()));
+        eventPublisher.publishEvent(new TaskUpdatedEvent(task.getId(), task.getTitle(), task.getUser().getId()));
 
         return mapToResponse(task);
     }
@@ -146,7 +146,7 @@ public class TaskService {
 
         Task task = getOwnedTask(userId, taskId);
 
-        eventPublisher.publishEvent(new TaskDeletedEvent(taskId));
+        eventPublisher.publishEvent(new TaskDeletedEvent(taskId, userId));
 
         taskRepository.delete(task);
     }
