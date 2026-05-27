@@ -69,7 +69,7 @@ export const DashboardPage = () => {
   };
 
   useEffect(() => {
-    console.log("Online users updated:", onlineUsers);
+    console.log("Online users updated (dashboard):", onlineUsers);
     setUsers(onlineUsers);
   }, [onlineUsers, setUsers]);
 
