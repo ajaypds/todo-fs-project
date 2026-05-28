@@ -1,6 +1,6 @@
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import type { Task } from "../taskTypes";
+import type { Task } from "../types/taskTypes";
 import { TaskCard } from "./TaskCard";
 import { GripVertical } from "lucide-react";
 

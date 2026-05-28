@@ -6,7 +6,7 @@ import {
   useUpdateTask,
   useDeleteTask,
   useReorderTasks,
-} from "../features/tasks/taskQueries";
+} from "../features/tasks/api/taskQueries";
 import type { PageResponse } from "../types/pagination";
 import { CreateTaskForm } from "../features/tasks/components/CreateTaskForm";
 import { EmptyState } from "../components/ui/EmptyState";
@@ -21,7 +21,7 @@ import { CreateProjectForm } from "../features/projects/components/CreateProject
 import { useProjectStore } from "../store/projectStore";
 import { Modal } from "../components/ui/Modal";
 import { EditTaskForm } from "../features/tasks/components/EditTaskForm";
-import type { Task } from "../features/tasks/taskTypes";
+import type { Task } from "../features/tasks/types/taskTypes";
 import type { DragStartEvent } from "@dnd-kit/core";
 import { DndContext, closestCenter, DragOverlay } from "@dnd-kit/core";
 import {
@@ -69,7 +69,7 @@ export const DashboardPage = () => {
   };
 
   useEffect(() => {
-    console.log("Online users updated:", onlineUsers);
+    console.log("Online users updated (dashboard):", onlineUsers);
     setUsers(onlineUsers);
   }, [onlineUsers, setUsers]);
 

@@ -1,7 +1,7 @@
-import { apiClient } from "../../api/client";
-import type { Task } from "./taskTypes";
+import { apiClient } from "../../../api/client";
+import type { Task } from "../types/taskTypes";
 
-import type { PageResponse } from "../../types/pagination";
+import type { PageResponse } from "../../../types/pagination";
 
 
 export type CreateTaskRequest = {
