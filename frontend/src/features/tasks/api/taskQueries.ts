@@ -12,6 +12,11 @@ export const useTasks = () => {
     });
 };
 
+type Context = {
+    previousTasks: PageResponse<Task> | undefined;
+    optimisticId: string;
+};
+
 export const useCreateTask = () => {
 
     const queryClient = useQueryClient();
@@ -19,11 +24,30 @@ export const useCreateTask = () => {
     return useMutation({
         mutationFn: createTask,
 
-        onSuccess: () => {
-            queryClient.invalidateQueries({
-                queryKey: ["tasks"],
-            });
+        onSuccess: (newSavedTask, _variables, context: Context) => {
+            // queryClient.invalidateQueries({
+            //     queryKey: ["tasks"],
+            // });
+            console.log(context?.optimisticId);
+            queryClient.setQueryData(
+                ["tasks"],
+                (old: PageResponse<Task> | undefined) => {
+                    if (!old) {
+                        return old;
+                    }
+
+                    console.log("Replacing temp task with saved task:", newSavedTask)
+
+                    return {
+                        ...old,
+                        content: old.content.map((task) => {
+                            return task.id === context?.optimisticId ? newSavedTask : task;
+                        })
+                    }
+                }
+            )
         },
+
 
         onMutate: async (
             newTask
@@ -34,7 +58,9 @@ export const useCreateTask = () => {
                 queryKey: ["tasks"],
             });
 
-            const previousTasks = queryClient.getQueryData(["tasks"]);
+            // const previousTasks = queryClient.getQueryData(["tasks"]);
+            const previousTasks = queryClient.getQueryData<PageResponse<Task>>(["tasks"]);
+            const optimisticId = crypto.randomUUID();
 
             queryClient.setQueryData(
 
@@ -46,6 +72,9 @@ export const useCreateTask = () => {
                         return old;
                     }
 
+                    const mutatedTask = { ...newTask, id: optimisticId, completed: false, optimistic: true, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }
+                    console.log("mutating task: ", mutatedTask)
+
                     return {
 
                         ...old,
@@ -53,17 +82,18 @@ export const useCreateTask = () => {
                         content: [
 
                             {
-                                id: crypto.randomUUID(),
+                                // id: optimisticId,
 
-                                title:
-                                    newTask.title,
+                                // title:
+                                //     newTask.title,
 
-                                description:
-                                    newTask.description,
+                                // description:
+                                //     newTask.description,
 
-                                completed: false,
+                                // completed: false,
 
-                                optimistic: true,
+                                // optimistic: true,
+                                ...mutatedTask
                             },
 
                             ...old.content,
@@ -73,7 +103,7 @@ export const useCreateTask = () => {
             );
 
             return {
-                previousTasks,
+                previousTasks, optimisticId
             };
         },
 
@@ -88,13 +118,13 @@ export const useCreateTask = () => {
             )
         },
 
-        onSettled: () => {
+        // onSettled: () => {
 
-            queryClient.invalidateQueries({
+        //     queryClient.invalidateQueries({
 
-                queryKey: ["tasks"],
-            });
-        },
+        //         queryKey: ["tasks"],
+        //     });
+        // },
     });
 };
 
