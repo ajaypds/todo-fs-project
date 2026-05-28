@@ -36,7 +36,7 @@ export const useCreateTask = () => {
                         return old;
                     }
 
-                    console.log("Replacing temp task with saved task:", newSavedTask)
+                    // console.log("Replacing temp task with saved task:", newSavedTask)
 
                     return {
                         ...old,
@@ -72,31 +72,27 @@ export const useCreateTask = () => {
                         return old;
                     }
 
-                    const mutatedTask = { ...newTask, id: optimisticId, completed: false, optimistic: true, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }
-                    console.log("mutating task: ", mutatedTask)
+                    // const mutatedTask = {
+                    //     ...newTask,
+                    //     id: optimisticId,
+                    //     completed: false,
+                    //     optimistic: true
+                    // }
+                    // console.log("mutating task: ", mutatedTask)
 
                     return {
 
                         ...old,
 
                         content: [
-
+                            ...old.content,
                             {
-                                // id: optimisticId,
-
-                                // title:
-                                //     newTask.title,
-
-                                // description:
-                                //     newTask.description,
-
-                                // completed: false,
-
-                                // optimistic: true,
-                                ...mutatedTask
+                                ...newTask,
+                                id: optimisticId,
+                                completed: false,
+                                optimistic: true
                             },
 
-                            ...old.content,
                         ],
                     };
                 }
@@ -118,13 +114,13 @@ export const useCreateTask = () => {
             )
         },
 
-        // onSettled: () => {
+        onSettled: () => {
 
-        //     queryClient.invalidateQueries({
+            queryClient.invalidateQueries({
 
-        //         queryKey: ["tasks"],
-        //     });
-        // },
+                queryKey: ["tasks"],
+            });
+        },
     });
 };
 
