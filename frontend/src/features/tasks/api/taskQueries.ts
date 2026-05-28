@@ -108,8 +108,8 @@ export const useCreateTask = () => {
         },
 
         onError: (
-            error,
-            newTask,
+            _error,
+            _newTask,
             context
         ) => {
             queryClient.setQueryData(
