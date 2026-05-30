@@ -41,6 +41,7 @@ import { OnlineUsers } from "../features/users/components/OnlineUsers";
 import { ActivityFeed } from "../features/activity/components/ActivityFeed";
 import { useOnlineUsers } from "../features/realtime/api/presenceQueries";
 import { usePresenceStore } from "../store/presenceStore";
+import { AiQuickAdd } from "../features/ai/components/AiQuickAdd";
 
 export const DashboardPage = () => {
   const { data, isLoading, error } = useTasks();
@@ -181,6 +182,8 @@ export const DashboardPage = () => {
               }}
             />
           </div>
+
+          <AiQuickAdd />
 
           <div className="mb-4">
             <Input
