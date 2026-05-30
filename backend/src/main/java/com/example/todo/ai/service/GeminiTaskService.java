@@ -49,6 +49,12 @@ public class GeminiTaskService implements AiTaskService {
         - Do not invent information not present in the input
         - If a date is not specified, return null for dueDate
         
+        Description Rules:
+        - description must never be empty
+        - If the user does not provide a separate description,
+          generate a short description from the title
+        - description should be 1-2 sentences maximum
+        
         Input:
         %s
         
