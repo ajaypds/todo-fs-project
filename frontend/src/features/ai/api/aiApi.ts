@@ -1,4 +1,5 @@
 import { apiClient } from "../../../api/client";
+import type { ParsedTaskResponse } from "../types/aiTypes";
 
 export const parseTask = async (input: string) => {
 
@@ -7,5 +8,5 @@ export const parseTask = async (input: string) => {
         { input }
     );
 
-    return response.data;
+    return response.data as ParsedTaskResponse;
 };
