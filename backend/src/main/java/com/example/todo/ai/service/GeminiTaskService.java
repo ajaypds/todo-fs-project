@@ -49,6 +49,21 @@ public class GeminiTaskService implements AiTaskService {
         - Do not invent information not present in the input
         - If a date is not specified, return null for dueDate
         
+        Priority must be returned as a number:        
+        1 = LOW
+        2 = MEDIUM
+        3 = HIGH
+        4 = URGENT
+        
+        Priority Rules:
+        - URGENT (4): immediate action required, critical issues, deadlines within hours
+        - HIGH (3): important tasks with near deadlines
+        - MEDIUM (2): normal work tasks
+        - LOW (1): optional or non-urgent tasks
+        
+        The priority field MUST contain only the integer value 1, 2, 3, or 4.
+        Do NOT return LOW, MEDIUM, HIGH, or URGENT as text.
+        
         Description Rules:
         - description must never be empty
         - If the user does not provide a separate description,
