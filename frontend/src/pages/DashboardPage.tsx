@@ -45,6 +45,8 @@ import { usePresenceStore } from "../store/presenceStore";
 import type { ParsedTaskResponse } from "../features/ai/types/aiTypes";
 import { AiTaskAssistant } from "../features/ai/components/AiTaskAssistant";
 import AiParsePreview from "../features/ai/components/AiParsePreview";
+import { Button } from "../components/ui/Button";
+import { AiInsightsModal } from "../features/ai/components/AiInsightsModal";
 
 export const DashboardPage = () => {
   const { data, isLoading, error } = useTasks();
@@ -65,6 +67,7 @@ export const DashboardPage = () => {
   const { data: labels = [] } = useLabels();
   const [aiTask, setAiTask] = useState<ParsedTaskResponse | null>(null);
   const [formData, setFormData] = useState<ParsedTaskResponse | null>(null);
+  const [coachOpen, setCoachOpen] = useState(false);
 
   const tasks = useMemo(() => {
     return data?.content ?? [];
@@ -211,6 +214,9 @@ export const DashboardPage = () => {
               // className="w-full border rounded-lg p-3"
             />
           </div>
+          <Button onClick={() => setCoachOpen(true)} className="mb-2">
+            🧠 AI Insights
+          </Button>
 
           {tasks.length === 0 ? (
             <EmptyState
@@ -334,6 +340,11 @@ export const DashboardPage = () => {
             }}
           />
         </Modal>
+        <AiInsightsModal
+          open={coachOpen}
+          onClose={() => setCoachOpen(false)}
+          tasks={tasks}
+        />
         <button
           className="
             fixed bottom-6 right-6 md:bottom-8 md:right-8
