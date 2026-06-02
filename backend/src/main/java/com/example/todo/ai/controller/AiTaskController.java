@@ -14,13 +14,13 @@ public class AiTaskController {
 
     @PostMapping("/parse-task")
     public ParsedTaskResponse
-    parseTask(
-            @RequestBody
-            ParseTaskRequest request
-    ) {
+    parseTask(@RequestBody ParseTaskRequest request) {
+        return aiTaskService.parseTask(request.getInput());
+    }
 
-        return aiTaskService.parseTask(
-                request.getInput()
-        );
+    @PostMapping("/productivity-coach")
+    public ProductivityInsightResponse
+    productivityCoach(@RequestBody ProductivityInsightRequest request) {
+        return aiTaskService.generateInsights(request);
     }
 }
