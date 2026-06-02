@@ -8,12 +8,8 @@ import lombok.*;
 @NoArgsConstructor
 @AllArgsConstructor
 public class TaskSnapshot {
-
     private String title;
-
     private String priority;
-
     private Boolean completed;
-
     private String dueDate;
 }
