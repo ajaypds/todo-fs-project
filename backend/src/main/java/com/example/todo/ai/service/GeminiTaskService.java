@@ -1,6 +1,11 @@
 package com.example.todo.ai.service;
 
 import com.example.todo.ai.dto.ParsedTaskResponse;
+import com.example.todo.ai.dto.ProductivityInsightRequest;
+import com.example.todo.ai.dto.ProductivityInsightResponse;
+import com.example.todo.exception.PromptSerializationException;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.stereotype.Service;
@@ -19,11 +24,9 @@ public class GeminiTaskService implements AiTaskService {
         LocalDateTime now = LocalDateTime.now(ZoneId.of("Asia/Kolkata"));
 
         String prompt = """
-
         Extract task details from the following input.
         
-        Current date and time (Asia/Kolkata):
-        %s
+        Current date and time (Asia/Kolkata): %s
         
         Interpret relative dates such as:
         - today
@@ -49,7 +52,7 @@ public class GeminiTaskService implements AiTaskService {
         - Do not invent information not present in the input
         - If a date is not specified, return null for dueDate
         
-        Priority must be returned as a number:        
+        Priority must be returned as a number:
         1 = LOW
         2 = MEDIUM
         3 = HIGH
@@ -70,14 +73,50 @@ public class GeminiTaskService implements AiTaskService {
           generate a short description from the title
         - description should be 1-2 sentences maximum
         
-        Input:
-        %s
-        
+        Input: %s
         """.formatted(now, input);
 
         return chatClient.prompt()
                 .user(prompt)
                 .call()
                 .entity(ParsedTaskResponse.class);
+    }
+
+    @Override
+    public ProductivityInsightResponse generateInsights(ProductivityInsightRequest request) {
+
+        ObjectMapper objectMapper =  new ObjectMapper();
+        String tasksJson;
+        try {
+            tasksJson = objectMapper.writeValueAsString(request);
+        } catch (JsonProcessingException e) {
+            throw new PromptSerializationException("Failed to serialize productivity insight request");
+        }
+        String prompt = """
+        You are a productivity coach. Analyze the provided tasks.
+        Return JSON:
+        {
+          "summary": "...",
+          "recommendations": [
+            "...",
+            "...",
+            "..."
+          ]
+        }
+    
+        Focus on:
+        - overdue tasks
+        - workload
+        - prioritization
+        - planning
+    
+        Tasks: %s
+        """.formatted(tasksJson);
+
+        return chatClient
+                .prompt()
+                .user(prompt)
+                .call()
+                .entity(ProductivityInsightResponse.class);
     }
 }
