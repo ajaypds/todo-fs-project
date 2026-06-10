@@ -177,3 +177,5 @@ export const CreateTaskForm = ({
     </Card>
   );
 };
+
+export default CreateTaskForm;
