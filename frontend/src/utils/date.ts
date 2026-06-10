@@ -1,5 +1,5 @@
 export const formatDate = (
-    value?: string
+    value?: string | null | undefined
 ) => {
 
     if (!value) {
@@ -9,3 +9,11 @@ export const formatDate = (
     return new Date(value)
         .toLocaleDateString();
 };
+
+// export const formattedDate = (value?: string | null | undefined) => {
+//     return value
+//         ? new Date(value)
+//             .toLocaleDateString("en-GB")
+//             .replace(/\//g, "-")
+//         : "";
+// }

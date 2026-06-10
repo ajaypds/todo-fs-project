@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Input } from "../../../components/ui/Input";
 import { Button } from "../../../components/ui/Button";
+import { Card } from "../../../components/ui/Card";
 
 type Props = {
   onCreate: (payload: { name: string; color: string }) => void;
@@ -36,36 +37,38 @@ export const CreateProjectForm = ({ onCreate }: Props) => {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="rounded-lg py-4 mb-6">
-      <h2 className="font-semibold mb-4">Create Project</h2>
+    <Card className="p-4 mb-4">
+      <form onSubmit={handleSubmit} className="rounded-lg">
+        <h2 className="font-semibold mb-4">Create Project</h2>
 
-      <Input
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-        placeholder="Project name"
-        className="w-full border p-3 mb-4"
-      />
+        <Input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="Project name"
+          className="w-full border p-3 mb-4"
+        />
 
-      <div className="flex gap-2 mb-4">
-        {colors.map((item) => (
-          <Button
-            key={item}
-            type="button"
-            onClick={() => setColor(item)}
-            className={`
+        <div className="flex gap-2 mb-4">
+          {colors.map((item) => (
+            <Button
+              key={item}
+              type="button"
+              onClick={() => setColor(item)}
+              className={`
               w-8 h-8 rounded-full border-2
               ${color === item ? "border-black" : "border-transparent"}
             `}
-            style={{
-              backgroundColor: item,
-            }}
-          />
-        ))}
-      </div>
+              style={{
+                backgroundColor: item,
+              }}
+            />
+          ))}
+        </div>
 
-      <Button type="submit" variant="primary" className="px-4 py-2">
-        Create Project
-      </Button>
-    </form>
+        <Button type="submit" variant="primary" className="px-4 py-2">
+          Create Project
+        </Button>
+      </form>
+    </Card>
   );
 };

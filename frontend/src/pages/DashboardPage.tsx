@@ -41,6 +41,12 @@ import { OnlineUsers } from "../features/users/components/OnlineUsers";
 import { ActivityFeed } from "../features/activity/components/ActivityFeed";
 import { useOnlineUsers } from "../features/realtime/api/presenceQueries";
 import { usePresenceStore } from "../store/presenceStore";
+// import { AiQuickAdd } from "../features/ai/components/AiQuickAdd";
+import type { ParsedTaskResponse } from "../features/ai/types/aiTypes";
+import { AiTaskAssistant } from "../features/ai/components/AiTaskAssistant";
+import AiParsePreview from "../features/ai/components/AiParsePreview";
+import { Button } from "../components/ui/Button";
+import { AiInsightsModal } from "../features/ai/components/AiInsightsModal";
 
 export const DashboardPage = () => {
   const { data, isLoading, error } = useTasks();
@@ -59,6 +65,9 @@ export const DashboardPage = () => {
   const reorderTasksMutation = useReorderTasks();
   const queryClient = useQueryClient();
   const { data: labels = [] } = useLabels();
+  const [aiTask, setAiTask] = useState<ParsedTaskResponse | null>(null);
+  const [formData, setFormData] = useState<ParsedTaskResponse | null>(null);
+  const [coachOpen, setCoachOpen] = useState(false);
 
   const tasks = useMemo(() => {
     return data?.content ?? [];
@@ -66,6 +75,10 @@ export const DashboardPage = () => {
 
   const handleDragStart = (event: DragStartEvent) => {
     setActiveId(event.active.id as string);
+  };
+
+  const onGenerate = (task: ParsedTaskResponse) => {
+    setFormData(task);
   };
 
   useEffect(() => {
@@ -120,7 +133,7 @@ export const DashboardPage = () => {
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "n" && !event.metaKey && !event.ctrlKey) {
-        setShowQuickAdd(true);
+        // setShowQuickAdd(true);
       }
     };
 
@@ -165,9 +178,18 @@ export const DashboardPage = () => {
                 createProjectMutation.mutate(payload);
               }}
             />
+            <AiTaskAssistant onParsed={setAiTask} />
+            {aiTask && (
+              <AiParsePreview parsedTask={aiTask} onGenerate={onGenerate} />
+            )}
             <CreateTaskForm
               projects={projects}
               labels={labels}
+              parsedTask={formData}
+              // initialTitle={aiTask?.title}
+              // initialDescription={aiTask?.description}
+              // initialPriority={aiTask?.priority ?? 1}
+              // initialDueDate={aiTask?.dueDate ?? undefined}
               onCreate={(payload) => {
                 createTaskMutation.mutate(payload, {
                   onSuccess: () => {
@@ -182,6 +204,8 @@ export const DashboardPage = () => {
             />
           </div>
 
+          {/* <AiQuickAdd /> */}
+
           <div className="mb-4">
             <Input
               value={search}
@@ -190,6 +214,9 @@ export const DashboardPage = () => {
               // className="w-full border rounded-lg p-3"
             />
           </div>
+          <Button onClick={() => setCoachOpen(true)} className="mb-2">
+            🧠 AI Insights
+          </Button>
 
           {tasks.length === 0 ? (
             <EmptyState
@@ -313,6 +340,11 @@ export const DashboardPage = () => {
             }}
           />
         </Modal>
+        <AiInsightsModal
+          open={coachOpen}
+          onClose={() => setCoachOpen(false)}
+          tasks={tasks}
+        />
         <button
           className="
             fixed bottom-6 right-6 md:bottom-8 md:right-8
