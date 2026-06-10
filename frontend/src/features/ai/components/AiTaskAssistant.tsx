@@ -48,3 +48,5 @@ export const AiTaskAssistant = ({ onParsed }: Props) => {
     </Card>
   );
 };
+
+export default AiTaskAssistant;
