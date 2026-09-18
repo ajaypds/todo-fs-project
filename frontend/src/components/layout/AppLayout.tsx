@@ -1,12 +1,24 @@
-import { type ReactNode } from "react";
+import { useMemo, type ReactNode } from "react";
 import { ProjectSidebar } from "../../features/projects/components/ProjectSidebar";
 import { ThemeToggle } from "../ui/ThemeToggle";
-import { LogOut } from "lucide-react";
+import {
+  LogOut,
+  Menu,
+  X,
+  Inbox,
+  CalendarDays,
+  Calendar,
+  AlertCircle,
+  Command,
+} from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuthStore } from "../../store/authStore";
-import { Button } from "../ui/Button";
-import { Menu, X } from "lucide-react";
 import { useSidebarStore } from "../../store/sidebarStore";
+import { useViewStore } from "../../store/viewStore";
+import { useCommandPaletteStore } from "../../store/commandPaletteStore";
+import { useTasks } from "../../features/tasks/api/taskQueries";
+import { isToday, isOverdue, isUpcoming } from "../../utils/date";
+import { Button } from "../ui/Button";
 import { cn } from "../../lib/cn";
 
 type Props = {
@@ -17,99 +29,253 @@ export const AppLayout = ({ children }: Props) => {
   const navigate = useNavigate();
   const logout = useAuthStore((state) => state.logout);
   const { open, toggle, setOpen } = useSidebarStore();
+  const { activeView, setActiveView, selectedProjectId } = useViewStore();
+  const openCommandPalette = useCommandPaletteStore((state) => state.open);
+
+  const { data: tasksData } = useTasks();
+  const tasks = useMemo(() => tasksData?.content ?? [], [tasksData]);
+
+  // Dynamic live count calculations
+  const counts = useMemo(() => {
+    let inbox = 0;
+    let today = 0;
+    let upcoming = 0;
+    let overdue = 0;
+
+    tasks.forEach((t) => {
+      if (t.completed) return;
+
+      inbox++;
+
+      if (isToday(t.dueDate) || isOverdue(t.dueDate, t.completed)) {
+        today++;
+      }
+      if (isUpcoming(t.dueDate)) {
+        upcoming++;
+      }
+      if (isOverdue(t.dueDate, t.completed)) {
+        overdue++;
+      }
+    });
+
+    return { inbox, today, upcoming, overdue };
+  }, [tasks]);
+
+  const handleSelectView = (view: "inbox" | "today" | "upcoming" | "overdue") => {
+    setActiveView(view);
+    setOpen(false); // Close mobile sidebar if open
+  };
 
   return (
     <div className="flex h-screen bg-background text-foreground">
+      {/* Mobile Top Header */}
       <div
         className="
-                    md:hidden
-                    fixed top-0 left-0 right-0
-                    h-16
-                    bg-card/90
-                    backdrop-blur-xl
-                    border-b border-border
-                    z-40
-                    flex items-center
-                    justify-between
-                    px-4
-                  "
+          md:hidden
+          fixed top-0 left-0 right-0
+          h-16
+          bg-card/90
+          backdrop-blur-xl
+          border-b border-border
+          z-40
+          flex items-center
+          justify-between
+          px-4
+        "
       >
-        <h1 className="font-bold">TodoFlow</h1>
+        <div className="flex items-center gap-2">
+          <h1 className="font-bold text-lg">TodoFlow</h1>
+        </div>
 
-        <button onClick={toggle}>
-          {open ? <X size={22} /> : <Menu size={22} />}
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={openCommandPalette}
+            className="p-2 rounded-lg text-muted hover:text-foreground hover:bg-secondary cursor-pointer"
+            title="Search & Commands (Ctrl+K)"
+          >
+            <Command size={18} />
+          </button>
+          <ThemeToggle />
+          <button onClick={toggle} className="p-1 cursor-pointer">
+            {open ? <X size={22} /> : <Menu size={22} />}
+          </button>
+        </div>
       </div>
-      {/* <aside className="w-72 border-r border-border bg-background/80 backdrop-blur-xl px-4 py-6 flex flex-col"> */}
+
+      {/* Sidebar Navigation */}
       <aside
         className={cn(
           `
-                fixed md:static
-                inset-y-0 left-0
-                z-50
-                w-72
-                border-r border-border
-                bg-card/90
-                backdrop-blur-xl
-                px-4 py-6
-                transition-transform
-                duration-300
-                flex flex-col
-              `,
-
-          open ? "translate-x-0" : "-translate-x-full md:translate-x-0",
+            fixed md:static
+            inset-y-0 left-0
+            z-50
+            w-72
+            border-r border-border
+            bg-card/90
+            backdrop-blur-xl
+            px-4 py-6
+            transition-transform
+            duration-300
+            flex flex-col
+          `,
+          open ? "translate-x-0" : "-translate-x-full md:translate-x-0"
         )}
       >
-        <div className="flex items-center justify-between mb-8">
+        <div className="flex items-center justify-between mb-6 px-2">
           <h1 className="text-2xl font-bold tracking-tight">TodoFlow</h1>
-          <ThemeToggle />
+          <div className="hidden md:block">
+            <ThemeToggle />
+          </div>
         </div>
-        {/* <div className="mb-6">
-          <ThemeToggle />
-        </div> */}
 
-        <nav className="p-2 space-y-1">
-          <button className="w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium hover:bg-secondary transition-all">
-            Inbox
+        {/* Command Palette Quick Trigger Button */}
+        <button
+          type="button"
+          onClick={() => {
+            openCommandPalette();
+            setOpen(false);
+          }}
+          className="w-full flex items-center justify-between gap-2 px-3 py-2 mb-4 rounded-xl bg-secondary/60 hover:bg-secondary text-muted hover:text-foreground text-xs font-medium border border-border/60 transition-all cursor-pointer"
+        >
+          <span className="flex items-center gap-2">
+            <Command size={14} />
+            <span>Search & Commands</span>
+          </span>
+          <kbd className="font-mono text-[10px] bg-card px-1.5 py-0.5 rounded border border-border">
+            Ctrl K
+          </kbd>
+        </button>
+
+        {/* Smart Views Navigation */}
+        <nav className="space-y-1">
+          {/* Inbox */}
+          <button
+            type="button"
+            onClick={() => handleSelectView("inbox")}
+            className={cn(
+              "w-full flex items-center justify-between rounded-xl px-3 py-2 text-sm font-medium transition-all cursor-pointer",
+              activeView === "inbox" && !selectedProjectId
+                ? "bg-secondary text-foreground font-semibold shadow-xs"
+                : "text-muted hover:text-foreground hover:bg-secondary/70"
+            )}
+          >
+            <div className="flex items-center gap-3">
+              <Inbox size={17} className="text-blue-500" />
+              <span>Inbox</span>
+            </div>
+            {counts.inbox > 0 && (
+              <span className="text-xs px-2 py-0.5 rounded-full bg-secondary text-muted font-medium">
+                {counts.inbox}
+              </span>
+            )}
           </button>
 
-          <button className="w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium hover:bg-secondary transition-all">
-            Today
+          {/* Today */}
+          <button
+            type="button"
+            onClick={() => handleSelectView("today")}
+            className={cn(
+              "w-full flex items-center justify-between rounded-xl px-3 py-2 text-sm font-medium transition-all cursor-pointer",
+              activeView === "today" && !selectedProjectId
+                ? "bg-secondary text-foreground font-semibold shadow-xs"
+                : "text-muted hover:text-foreground hover:bg-secondary/70"
+            )}
+          >
+            <div className="flex items-center gap-3">
+              <CalendarDays size={17} className="text-emerald-500" />
+              <span>Today</span>
+            </div>
+            {counts.today > 0 && (
+              <span
+                className={cn(
+                  "text-xs px-2 py-0.5 rounded-full font-medium",
+                  counts.overdue > 0
+                    ? "bg-amber-500/15 text-amber-600 dark:text-amber-400 font-semibold"
+                    : "bg-secondary text-muted"
+                )}
+              >
+                {counts.today}
+              </span>
+            )}
           </button>
 
-          <button className="w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium hover:bg-secondary transition-all">
-            Upcoming
+          {/* Upcoming */}
+          <button
+            type="button"
+            onClick={() => handleSelectView("upcoming")}
+            className={cn(
+              "w-full flex items-center justify-between rounded-xl px-3 py-2 text-sm font-medium transition-all cursor-pointer",
+              activeView === "upcoming" && !selectedProjectId
+                ? "bg-secondary text-foreground font-semibold shadow-xs"
+                : "text-muted hover:text-foreground hover:bg-secondary/70"
+            )}
+          >
+            <div className="flex items-center gap-3">
+              <Calendar size={17} className="text-indigo-500" />
+              <span>Upcoming</span>
+            </div>
+            {counts.upcoming > 0 && (
+              <span className="text-xs px-2 py-0.5 rounded-full bg-secondary text-muted font-medium">
+                {counts.upcoming}
+              </span>
+            )}
           </button>
+
+          {/* Overdue (Highlighted if overdue count > 0) */}
+          {counts.overdue > 0 && (
+            <button
+              type="button"
+              onClick={() => handleSelectView("overdue")}
+              className={cn(
+                "w-full flex items-center justify-between rounded-xl px-3 py-2 text-sm font-medium transition-all cursor-pointer",
+                activeView === "overdue" && !selectedProjectId
+                  ? "bg-red-500/10 text-red-600 dark:text-red-400 font-semibold shadow-xs"
+                  : "text-red-500/80 hover:text-red-600 hover:bg-red-500/10"
+              )}
+            >
+              <div className="flex items-center gap-3">
+                <AlertCircle size={17} className="text-red-500" />
+                <span>Overdue</span>
+              </div>
+              <span className="text-xs px-2 py-0.5 rounded-full bg-red-500 text-white font-semibold">
+                {counts.overdue}
+              </span>
+            </button>
+          )}
         </nav>
+
+        {/* Projects Section */}
         <ProjectSidebar />
+
+        {/* Logout Footer */}
         <div className="mt-auto pt-6">
           <Button
             variant="ghost"
             onClick={() => {
               logout();
-
               navigate("/login");
             }}
-            className="w-full justify-start text-muted"
+            className="w-full justify-start text-muted hover:text-foreground cursor-pointer"
           >
             <LogOut size={16} />
-
             <span className="ml-2">Logout</span>
           </Button>
         </div>
       </aside>
+
+      {/* Backdrop for mobile sidebar */}
       {open && (
         <div
           onClick={() => setOpen(false)}
-          className="
-        fixed inset-0
-        bg-black/40
-        z-40 md:hidden
-      "
+          className="fixed inset-0 bg-black/40 z-40 md:hidden"
         />
       )}
 
+      {/* Main Content Area */}
       <main className="flex-1 overflow-y-auto pt-20 md:pt-0">{children}</main>
     </div>
   );
 };
+
+export default AppLayout;

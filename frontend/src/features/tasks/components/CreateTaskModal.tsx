@@ -5,6 +5,7 @@ import type { Project } from "../../projects/projectTypes";
 import { useCreateTask } from "../api/taskQueries";
 import toast from "react-hot-toast";
 import CreateTaskForm from "./CreateTaskForm";
+import { useAiStore } from "../../../store/aiStore";
 
 type Props = {
   open: boolean;
@@ -14,20 +15,30 @@ type Props = {
   parsedTask?: ParsedTaskResponse | undefined | null;
 };
 
-const CreateTaskModal = (props: Props) => {
+export const CreateTaskModal = (props: Props) => {
   const createTaskMutation = useCreateTask();
+  const storeParsedTask = useAiStore((state) => state.parsedTask);
+  const clearParsedTask = useAiStore((state) => state.clearParsedTask);
+
+  const activeParsedTask = props.parsedTask ?? storeParsedTask;
+
+  const handleClose = () => {
+    props.onClose();
+  };
+
   return (
-    <Modal open={props.open} onClose={props.onClose} title="Create Task">
+    <Modal open={props.open} onClose={handleClose} title="Create Task">
       <CreateTaskForm
         projects={props.projects}
         labels={props.labels}
-        parsedTask={props.parsedTask}
+        parsedTask={activeParsedTask}
         onCreate={(payload) => {
           createTaskMutation.mutate(payload, {
             onSuccess: () => {
               toast.success("Task created");
+              clearParsedTask();
+              props.onClose();
             },
-
             onError: () => {
               toast.error("Failed to create task");
             },
@@ -39,3 +50,4 @@ const CreateTaskModal = (props: Props) => {
 };
 
 export default CreateTaskModal;
+

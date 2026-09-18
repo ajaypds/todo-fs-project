@@ -4,10 +4,9 @@ import { Input } from "../../../components/ui/Input";
 import { Textarea } from "../../../components/ui/Textarea";
 import { Button } from "../../../components/ui/Button";
 import { Select } from "../../../components/ui/Select";
-import type { Label } from "../../labels/labelTypes";
 import { cn } from "../../../lib/cn";
+import type { Label } from "../../labels/labelTypes";
 import type { ParsedTaskResponse } from "../../ai/types/aiTypes";
-import { Card } from "../../../components/ui/Card";
 
 type Props = {
   projects: Project[];
@@ -69,27 +68,41 @@ export const CreateTaskForm = ({
   };
 
   return (
-    <Card className="p-4">
-      <form onSubmit={handleSubmit} className="rounded-lg">
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div>
+        <label className="block text-xs font-semibold uppercase tracking-wider text-muted mb-1.5">
+          Title
+        </label>
         <Input
           value={title}
           onChange={(e) => setTitle(e.target.value)}
-          placeholder="Task title"
-          className="w-full p-3 mb-3"
+          placeholder="What do you need to do?"
+          className="w-full text-sm font-medium"
+          autoFocus
         />
+      </div>
 
+      <div>
+        <label className="block text-xs font-semibold uppercase tracking-wider text-muted mb-1.5">
+          Description
+        </label>
         <Textarea
           value={description}
           onChange={(e) => setDescription(e.target.value)}
-          placeholder="Description"
-          className="w-full p-3 mb-3"
+          placeholder="Add details, links, or notes..."
+          className="w-full text-sm min-h-20"
         />
+      </div>
 
-        <div className="mb-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div>
+          <label className="block text-xs font-semibold uppercase tracking-wider text-muted mb-1.5">
+            Priority
+          </label>
           <Select
             value={priority}
             onChange={(e) => setPriority(Number(e.target.value))}
-            className="w-full border rounded p-3"
+            className="w-full text-xs"
           >
             <option value={1}>Low</option>
             <option value={2}>Medium</option>
@@ -98,27 +111,45 @@ export const CreateTaskForm = ({
           </Select>
         </div>
 
-        <Select
-          value={projectId}
-          onChange={(e) => setProjectId(e.target.value)}
-          className="w-full border rounded p-3 mb-3"
-        >
-          <option value="">No Project</option>
-
-          {projects.map((project) => (
-            <option key={project.id} value={project.id}>
-              {project.name}
-            </option>
-          ))}
-        </Select>
-
         <div>
-          <label className="block text-sm font-medium mb-2">Labels</label>
+          <label className="block text-xs font-semibold uppercase tracking-wider text-muted mb-1.5">
+            Project
+          </label>
+          <Select
+            value={projectId}
+            onChange={(e) => setProjectId(e.target.value)}
+            className="w-full text-xs"
+          >
+            <option value="">No Project (Inbox)</option>
+            {projects.map((project) => (
+              <option key={project.id} value={project.id}>
+                {project.name}
+              </option>
+            ))}
+          </Select>
+        </div>
+      </div>
 
-          <div className="flex flex-wrap gap-2">
+      <div>
+        <label className="block text-xs font-semibold uppercase tracking-wider text-muted mb-1.5">
+          Due Date
+        </label>
+        <Input
+          type="date"
+          value={dueDate}
+          onChange={(e) => setDueDate(e.target.value)}
+          className="w-full text-xs"
+        />
+      </div>
+
+      {labels.length > 0 && (
+        <div>
+          <label className="block text-xs font-semibold uppercase tracking-wider text-muted mb-1.5">
+            Labels
+          </label>
+          <div className="flex flex-wrap gap-1.5">
             {labels.map((label) => {
               const selected = selectedLabels.includes(label.id);
-
               return (
                 <button
                   key={label.id}
@@ -131,24 +162,10 @@ export const CreateTaskForm = ({
                     );
                   }}
                   className={cn(
-                    `
-                    px-3 py-1.5
-                    rounded-full
-                    text-xs font-medium
-                    border
-                    transition-all
-                    mb-3
-                  `,
-
+                    "px-2.5 py-1 rounded-full text-xs font-medium border transition-all cursor-pointer",
                     selected
-                      ? `
-                    text-white
-                    border-transparent
-                  `
-                      : `
-                    bg-card
-                    border-border
-                  `,
+                      ? "text-white border-transparent"
+                      : "bg-card border-border text-muted hover:text-foreground",
                   )}
                   style={{
                     backgroundColor: selected ? label.color : undefined,
@@ -160,21 +177,14 @@ export const CreateTaskForm = ({
             })}
           </div>
         </div>
+      )}
 
-        <div className="mb-3">
-          <Input
-            type="date"
-            value={dueDate}
-            onChange={(e) => setDueDate(e.target.value)}
-            className="w-full p-3"
-          />
-        </div>
-
-        <Button type="submit" variant="primary" className="px-4 py-2">
-          Add Task
+      <div className="flex justify-end gap-2 pt-3 border-t border-border">
+        <Button type="submit" variant="primary" className="px-5 py-2">
+          Create Task
         </Button>
-      </form>
-    </Card>
+      </div>
+    </form>
   );
 };
 

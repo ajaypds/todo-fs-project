@@ -4,21 +4,24 @@ import type { Task } from "../types/taskTypes";
 import { TaskCard } from "./TaskCard";
 import { GripVertical } from "lucide-react";
 
+import type { Project } from "../../projects/projectTypes";
+
 type Props = {
   task: Task;
-
+  project?: Project;
   onToggle: () => void;
-
   onDelete: () => void;
-
-  onEdit: () => void;
+  onEdit?: () => void;
+  onSelect?: () => void;
 };
 
 export const SortableTaskCard = ({
   task,
+  project,
   onToggle,
   onDelete,
   onEdit,
+  onSelect,
 }: Props) => {
   const {
     attributes,
@@ -52,9 +55,11 @@ export const SortableTaskCard = ({
         <div className="flex-1">
           <TaskCard
             task={task}
+            project={project}
             onToggle={onToggle}
             onDelete={onDelete}
             onEdit={onEdit}
+            onSelect={onSelect}
           />
         </div>
       </div>
