@@ -1,7 +1,9 @@
 package com.example.todo.task.entity;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
@@ -59,7 +61,13 @@ public class Task {
     @Column(nullable = false)
     private LocalDateTime updatedAt;
 
+    @Builder.Default
     @ManyToMany
     @JoinTable(name = "task_labels", joinColumns = @JoinColumn(name = "task_id"), inverseJoinColumns = @JoinColumn(name = "label_id"))
     private Set<Label> labels = new HashSet<>();
+
+    @Builder.Default
+    @OneToMany(mappedBy = "task", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OrderBy("position ASC, createdAt ASC")
+    private List<Subtask> subtasks = new ArrayList<>();
 }

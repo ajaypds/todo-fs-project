@@ -5,22 +5,22 @@ type Props = {
 const priorityMap: Record<number, { label: string; className: string }> = {
   1: {
     label: "P1",
-    className: "bg-red-100 text-red-700",
+    className: "bg-gray-100 text-gray-700",
   },
 
   2: {
     label: "P2",
-    className: "bg-orange-100 text-orange-700",
+    className: "bg-blue-100 text-blue-700",
   },
 
   3: {
     label: "P3",
-    className: "bg-blue-100 text-blue-700",
+    className: "bg-orange-100 text-orange-700",
   },
 
   4: {
     label: "P4",
-    className: "bg-gray-100 text-gray-700",
+    className: "bg-red-100 text-red-700",
   },
 };
 

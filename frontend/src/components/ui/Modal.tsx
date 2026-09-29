@@ -55,3 +55,5 @@ export const Modal = ({ open, title, onClose, children }: Props) => {
     </div>
   );
 };
+
+export default Modal;
