@@ -1,5 +1,7 @@
 package com.example.todo.ai.service;
 
+import com.example.todo.ai.dto.DecomposeTaskRequest;
+import com.example.todo.ai.dto.DecomposeTaskResponse;
 import com.example.todo.ai.dto.ParsedTaskResponse;
 import com.example.todo.ai.dto.ProductivityInsightRequest;
 import com.example.todo.ai.dto.ProductivityInsightResponse;
@@ -118,5 +120,42 @@ public class GeminiTaskService implements AiTaskService {
                 .user(prompt)
                 .call()
                 .entity(ProductivityInsightResponse.class);
+    }
+
+    @Override
+    public DecomposeTaskResponse decomposeTask(DecomposeTaskRequest request) {
+        String taskInfo = "Task Title: " + request.getTitle();
+        if (request.getDescription() != null && !request.getDescription().isBlank()) {
+            taskInfo += "\nTask Description: " + request.getDescription();
+        }
+
+        String prompt = """
+        You are an expert productivity assistant and project manager.
+        Break down the given task into 3 to 5 concrete, actionable, and sequential subtasks (checklist steps).
+
+        Rules:
+        - Return 3 to 5 subtasks.
+        - Each subtask title must be clear, concise, and start with an action verb (e.g., 'Research...', 'Draft...', 'Design...', 'Review...', 'Set up...').
+        - The subtasks should follow a logical sequence from start to finish.
+        - Return ONLY valid JSON adhering to the specified schema.
+
+        JSON schema:
+        {
+          "subtasks": [
+            { "title": "..." },
+            { "title": "..." },
+            { "title": "..." }
+          ]
+        }
+
+        Task Details:
+        %s
+        """.formatted(taskInfo);
+
+        return chatClient
+                .prompt()
+                .user(prompt)
+                .call()
+                .entity(DecomposeTaskResponse.class);
     }
 }

@@ -10,6 +10,7 @@ import {
   useUpdateSubtask,
   useDeleteSubtask,
 } from "../api/taskQueries";
+import { useDecomposeTask } from "../../ai/api/aiQueries";
 import { PriorityBadge } from "../../../components/ui/PriorityBadge";
 import { formatDate } from "../../../utils/date";
 import { Input } from "../../../components/ui/Input";
@@ -26,6 +27,9 @@ import {
   Circle,
   CheckSquare,
   Plus,
+  Sparkles,
+  Loader2,
+  Check,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { cn } from "../../../lib/cn";
@@ -50,6 +54,7 @@ export const TaskDetailsDrawer = ({
   const createSubtaskMutation = useCreateSubtask();
   const updateSubtaskMutation = useUpdateSubtask();
   const deleteSubtaskMutation = useDeleteSubtask();
+  const decomposeTaskMutation = useDecomposeTask();
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -59,6 +64,11 @@ export const TaskDetailsDrawer = ({
   const [selectedLabels, setSelectedLabels] = useState<string[]>([]);
   const [completed, setCompleted] = useState(false);
   const [newSubtaskTitle, setNewSubtaskTitle] = useState("");
+  const [aiSuggestions, setAiSuggestions] = useState<string[]>([]);
+  const [selectedSuggestions, setSelectedSuggestions] = useState<Set<number>>(
+    new Set()
+  );
+  const [isAddingAiSubtasks, setIsAddingAiSubtasks] = useState(false);
 
   useEffect(() => {
     if (!task) return;
@@ -70,6 +80,8 @@ export const TaskDetailsDrawer = ({
     setSelectedLabels(task.labels ? task.labels.map((l) => l.id) : []);
     setCompleted(task.completed || false);
     setNewSubtaskTitle("");
+    setAiSuggestions([]);
+    setSelectedSuggestions(new Set());
   }, [task]);
 
   if (!task) return null;
@@ -178,6 +190,88 @@ export const TaskDetailsDrawer = ({
     });
   };
 
+  const handleDecomposeWithAi = () => {
+    if (!title.trim()) {
+      toast.error("Please enter a task title first");
+      return;
+    }
+
+    decomposeTaskMutation.mutate(
+      {
+        title: title.trim(),
+        description: description.trim() || undefined,
+      },
+      {
+        onSuccess: (data) => {
+          if (data.subtasks && data.subtasks.length > 0) {
+            const titles = data.subtasks.map((s) => s.title);
+            setAiSuggestions(titles);
+            setSelectedSuggestions(new Set(titles.map((_, i) => i)));
+            toast.success(`Generated ${titles.length} subtask suggestions!`);
+          } else {
+            toast.error("No subtasks could be generated for this task.");
+          }
+        },
+        onError: () => {
+          toast.error("Failed to generate subtasks with AI.");
+        },
+      }
+    );
+  };
+
+  const toggleSuggestion = (index: number) => {
+    setSelectedSuggestions((prev) => {
+      const next = new Set(prev);
+      if (next.has(index)) {
+        next.delete(index);
+      } else {
+        next.add(index);
+      }
+      return next;
+    });
+  };
+
+  const toggleSelectAllSuggestions = () => {
+    if (selectedSuggestions.size === aiSuggestions.length) {
+      setSelectedSuggestions(new Set());
+    } else {
+      setSelectedSuggestions(new Set(aiSuggestions.map((_, i) => i)));
+    }
+  };
+
+  const handleDismissAiSuggestions = () => {
+    setAiSuggestions([]);
+    setSelectedSuggestions(new Set());
+  };
+
+  const handleApplyAiSuggestions = async () => {
+    if (!task || selectedSuggestions.size === 0) return;
+    setIsAddingAiSubtasks(true);
+    const selectedTitles = aiSuggestions.filter((_, idx) =>
+      selectedSuggestions.has(idx)
+    );
+
+    try {
+      for (const subTitle of selectedTitles) {
+        await createSubtaskMutation.mutateAsync({
+          taskId: task.id,
+          title: subTitle,
+        });
+      }
+      toast.success(
+        `Added ${selectedTitles.length} subtask${
+          selectedTitles.length > 1 ? "s" : ""
+        } to checklist!`
+      );
+      setAiSuggestions([]);
+      setSelectedSuggestions(new Set());
+    } catch {
+      toast.error("Failed to add some subtasks");
+    } finally {
+      setIsAddingAiSubtasks(false);
+    }
+  };
+
   const currentProject = projects.find((p) => p.id === projectId);
 
   return (
@@ -236,17 +330,108 @@ export const TaskDetailsDrawer = ({
 
         {/* Subtasks & Checklist Section */}
         <div className="p-4 rounded-xl bg-secondary/40 border border-border space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted shrink-0">
               <CheckSquare size={14} className="text-accent" />
               <span>Subtasks & Checklist</span>
             </div>
-            {totalSubtasks > 0 && (
-              <span className="text-xs text-muted font-medium">
-                {completedSubtasks} of {totalSubtasks} ({progressPercent}%)
-              </span>
-            )}
+            <div className="flex items-center gap-2 flex-wrap justify-end">
+              {totalSubtasks > 0 && (
+                <span className="text-xs text-muted font-medium">
+                  {completedSubtasks} of {totalSubtasks} ({progressPercent}%)
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={handleDecomposeWithAi}
+                disabled={decomposeTaskMutation.isPending}
+                className="flex items-center gap-1 px-2 py-0.5 text-xs font-medium text-purple-600 dark:text-purple-400 bg-purple-50 hover:bg-purple-100 dark:bg-purple-950/40 dark:hover:bg-purple-900/60 border border-purple-200 dark:border-purple-800/60 rounded-md transition-colors cursor-pointer disabled:opacity-50"
+                title="Decompose task into subtasks using AI"
+              >
+                {decomposeTaskMutation.isPending ? (
+                  <>
+                    <Loader2 size={12} className="animate-spin text-purple-500" />
+                    <span>Decomposing...</span>
+                  </>
+                ) : (
+                  <>
+                    <Sparkles size={12} className="text-purple-500" />
+                    <span>Decompose with AI</span>
+                  </>
+                )}
+              </button>
+            </div>
           </div>
+
+          {/* AI Suggested Subtasks Card */}
+          {aiSuggestions.length > 0 && (
+            <div className="p-3 rounded-lg bg-purple-500/5 border border-purple-200 dark:border-purple-800/60 space-y-2.5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5 text-xs font-semibold text-purple-700 dark:text-purple-300">
+                  <Sparkles size={13} className="text-purple-500" />
+                  <span>
+                    AI Suggested Subtasks ({selectedSuggestions.size}/{aiSuggestions.length})
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={toggleSelectAllSuggestions}
+                  className="text-[11px] text-purple-600 dark:text-purple-400 hover:underline cursor-pointer"
+                >
+                  {selectedSuggestions.size === aiSuggestions.length
+                    ? "Deselect All"
+                    : "Select All"}
+                </button>
+              </div>
+
+              <div className="space-y-1">
+                {aiSuggestions.map((item, idx) => (
+                  <label
+                    key={idx}
+                    className="flex items-center gap-2 p-1.5 rounded-md hover:bg-purple-500/10 cursor-pointer text-xs"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedSuggestions.has(idx)}
+                      onChange={() => toggleSuggestion(idx)}
+                      className="w-3.5 h-3.5 rounded border-purple-300 text-purple-600 focus:ring-purple-500/20 cursor-pointer"
+                    />
+                    <span className="text-foreground">{item}</span>
+                  </label>
+                ))}
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-1 border-t border-purple-200/50 dark:border-purple-800/40">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={handleDismissAiSuggestions}
+                  disabled={isAddingAiSubtasks}
+                  className="text-xs h-7 px-2 text-muted hover:text-foreground"
+                >
+                  Dismiss
+                </Button>
+                <Button
+                  type="button"
+                  onClick={handleApplyAiSuggestions}
+                  disabled={selectedSuggestions.size === 0 || isAddingAiSubtasks}
+                  className="text-xs h-7 px-3 bg-purple-600 hover:bg-purple-700 text-white gap-1"
+                >
+                  {isAddingAiSubtasks ? (
+                    <>
+                      <Loader2 size={12} className="animate-spin" />
+                      <span>Adding...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Check size={12} />
+                      <span>Add to Checklist ({selectedSuggestions.size})</span>
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+          )}
 
           {/* Progress Bar */}
           {totalSubtasks > 0 && (

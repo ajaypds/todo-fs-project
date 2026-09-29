@@ -1,5 +1,5 @@
 import { apiClient } from "../../../api/client";
-import type { ParsedTaskResponse } from "../types/aiTypes";
+import type { DecomposeTaskRequest, DecomposeTaskResponse, ParsedTaskResponse } from "../types/aiTypes";
 
 export const parseTask = async (input: string) => {
 
@@ -10,3 +10,12 @@ export const parseTask = async (input: string) => {
 
     return response.data as ParsedTaskResponse;
 };
+
+export const decomposeTask = async (payload: DecomposeTaskRequest) => {
+    const response = await apiClient.post(
+        "/ai/decompose-task",
+        payload
+    );
+
+    return response.data as DecomposeTaskResponse;
+};
