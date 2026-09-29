@@ -26,3 +26,5 @@ export type ActivityRealtimeEvent = {
 
     message: string;
 };
+
+export type RealtimeConnectionStatus = "connected" | "connecting" | "disconnected";

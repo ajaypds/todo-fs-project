@@ -1,6 +1,7 @@
 import { useMemo, type ReactNode } from "react";
 import { ProjectSidebar } from "../../features/projects/components/ProjectSidebar";
 import { ThemeToggle } from "../ui/ThemeToggle";
+import { RealtimeStatusIndicator } from "../../features/realtime/components/RealtimeStatusIndicator";
 import {
   LogOut,
   Menu,
@@ -88,6 +89,7 @@ export const AppLayout = ({ children }: Props) => {
         </div>
 
         <div className="flex items-center gap-2">
+          <RealtimeStatusIndicator compact />
           <button
             type="button"
             onClick={openCommandPalette}
@@ -124,7 +126,8 @@ export const AppLayout = ({ children }: Props) => {
       >
         <div className="flex items-center justify-between mb-6 px-2">
           <h1 className="text-2xl font-bold tracking-tight">TodoFlow</h1>
-          <div className="hidden md:block">
+          <div className="hidden md:flex items-center gap-2">
+            <RealtimeStatusIndicator />
             <ThemeToggle />
           </div>
         </div>

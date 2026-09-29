@@ -1,17 +1,21 @@
-import { useEffect } from "react";
 import { usePresenceStore } from "../../../store/presenceStore";
+import { useRealtime } from "../../realtime/context/RealtimeContext";
+import { Users } from "lucide-react";
 
 export const OnlineUsers = () => {
   const users = usePresenceStore((state) => state.users);
+  const { status } = useRealtime();
 
-  useEffect(() => {
-    // console.log("Online users updated:", users);
-  }, [users]);
+  if (status !== "connected") {
+    return null;
+  }
 
   return (
-    <div className="flex items-center gap-2 text-sm text-muted">
-      <div className="w-2 h-2 rounded-full bg-green-500" />
-      {users.length} online
+    <div className="flex items-center gap-1.5 text-xs text-muted">
+      <Users size={13} className="text-muted" />
+      <span>
+        {users.length} {users.length === 1 ? "user" : "users"} online
+      </span>
     </div>
   );
 };
