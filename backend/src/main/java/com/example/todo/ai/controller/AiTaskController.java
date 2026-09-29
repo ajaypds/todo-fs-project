@@ -2,7 +2,6 @@ package com.example.todo.ai.controller;
 
 import com.example.todo.ai.dto.*;
 import com.example.todo.ai.service.AiTaskService;
-import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
@@ -15,19 +14,13 @@ public class AiTaskController {
 
     @PostMapping("/parse-task")
     public ParsedTaskResponse
-    parseTask(@RequestBody ParseTaskRequest request) {
-        return aiTaskService.parseTask(request.getInput());
-    }
+    parseTask(
+            @RequestBody
+            ParseTaskRequest request
+    ) {
 
-    @PostMapping("/productivity-coach")
-    public ProductivityInsightResponse
-    productivityCoach(@RequestBody ProductivityInsightRequest request) {
-        return aiTaskService.generateInsights(request);
-    }
-
-    @PostMapping("/decompose-task")
-    public DecomposeTaskResponse
-    decomposeTask(@RequestBody @Valid DecomposeTaskRequest request) {
-        return aiTaskService.decomposeTask(request);
+        return aiTaskService.parseTask(
+                request.getInput()
+        );
     }
 }
