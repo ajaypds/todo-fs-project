@@ -1,4 +1,4 @@
-import { Trash2, Calendar } from "lucide-react";
+import { Trash2, Calendar, CheckSquare } from "lucide-react";
 import type { Task } from "../types/taskTypes";
 import type { Project } from "../../projects/projectTypes";
 import { PriorityBadge } from "../../../components/ui/PriorityBadge";
@@ -30,6 +30,11 @@ export const TaskCard = forwardRef<
       task.dueDate &&
       !task.completed &&
       new Date(task.dueDate) < new Date(new Date().setHours(0, 0, 0, 0));
+
+    const totalSubtasks = task.subtasks?.length ?? 0;
+    const completedSubtasks =
+      task.subtasks?.filter((st) => st.completed).length ?? 0;
+    const allSubtasksDone = totalSubtasks > 0 && completedSubtasks === totalSubtasks;
 
     return (
       <Card
@@ -122,6 +127,27 @@ export const TaskCard = forwardRef<
                       <LabelBadge key={label.id} label={label} />
                     ))}
                   </div>
+                )}
+
+                {/* Subtasks Progress Pill */}
+                {totalSubtasks > 0 && (
+                  <span
+                    className={cn(
+                      "inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[11px] font-medium transition-colors",
+                      allSubtasksDone
+                        ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-semibold"
+                        : "bg-secondary text-muted"
+                    )}
+                    title={`${completedSubtasks} of ${totalSubtasks} subtasks completed`}
+                  >
+                    <CheckSquare
+                      size={11}
+                      className={allSubtasksDone ? "text-emerald-500" : "text-muted"}
+                    />
+                    <span>
+                      {completedSubtasks}/{totalSubtasks}
+                    </span>
+                  </span>
                 )}
               </div>
             </div>

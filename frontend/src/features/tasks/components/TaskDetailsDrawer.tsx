@@ -3,14 +3,30 @@ import Drawer from "../../../components/ui/Drawer";
 import type { Task } from "../types/taskTypes";
 import type { Project } from "../../projects/projectTypes";
 import type { Label } from "../../labels/labelTypes";
-import { useUpdateTask, useDeleteTask } from "../api/taskQueries";
+import {
+  useUpdateTask,
+  useDeleteTask,
+  useCreateSubtask,
+  useUpdateSubtask,
+  useDeleteSubtask,
+} from "../api/taskQueries";
 import { PriorityBadge } from "../../../components/ui/PriorityBadge";
 import { formatDate } from "../../../utils/date";
 import { Input } from "../../../components/ui/Input";
 import { Textarea } from "../../../components/ui/Textarea";
 import { Select } from "../../../components/ui/Select";
 import { Button } from "../../../components/ui/Button";
-import { Trash2, Calendar, Folder, Tag, Clock, CheckCircle2, Circle } from "lucide-react";
+import {
+  Trash2,
+  Calendar,
+  Folder,
+  Tag,
+  Clock,
+  CheckCircle2,
+  Circle,
+  CheckSquare,
+  Plus,
+} from "lucide-react";
 import toast from "react-hot-toast";
 import { cn } from "../../../lib/cn";
 
@@ -31,6 +47,9 @@ export const TaskDetailsDrawer = ({
 }: Props) => {
   const updateTaskMutation = useUpdateTask();
   const deleteTaskMutation = useDeleteTask();
+  const createSubtaskMutation = useCreateSubtask();
+  const updateSubtaskMutation = useUpdateSubtask();
+  const deleteSubtaskMutation = useDeleteSubtask();
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -39,6 +58,7 @@ export const TaskDetailsDrawer = ({
   const [dueDate, setDueDate] = useState<string>("");
   const [selectedLabels, setSelectedLabels] = useState<string[]>([]);
   const [completed, setCompleted] = useState(false);
+  const [newSubtaskTitle, setNewSubtaskTitle] = useState("");
 
   useEffect(() => {
     if (!task) return;
@@ -49,9 +69,18 @@ export const TaskDetailsDrawer = ({
     setDueDate(task.dueDate ? task.dueDate.split("T")[0] : "");
     setSelectedLabels(task.labels ? task.labels.map((l) => l.id) : []);
     setCompleted(task.completed || false);
+    setNewSubtaskTitle("");
   }, [task]);
 
   if (!task) return null;
+
+  const subtasks = task.subtasks || [];
+  const totalSubtasks = subtasks.length;
+  const completedSubtasks = subtasks.filter((st) => st.completed).length;
+  const progressPercent =
+    totalSubtasks > 0
+      ? Math.round((completedSubtasks / totalSubtasks) * 100)
+      : 0;
 
   const handleSave = () => {
     if (!title.trim()) {
@@ -114,6 +143,41 @@ export const TaskDetailsDrawer = ({
     );
   };
 
+  const handleAddSubtask = () => {
+    if (!newSubtaskTitle.trim()) return;
+
+    createSubtaskMutation.mutate(
+      {
+        taskId: task.id,
+        title: newSubtaskTitle.trim(),
+      },
+      {
+        onSuccess: () => {
+          setNewSubtaskTitle("");
+          toast.success("Subtask added");
+        },
+        onError: () => {
+          toast.error("Failed to add subtask");
+        },
+      }
+    );
+  };
+
+  const handleToggleSubtask = (subtaskId: string, currentCompleted: boolean) => {
+    updateSubtaskMutation.mutate({
+      taskId: task.id,
+      subtaskId,
+      payload: { completed: !currentCompleted },
+    });
+  };
+
+  const handleDeleteSubtask = (subtaskId: string) => {
+    deleteSubtaskMutation.mutate({
+      taskId: task.id,
+      subtaskId,
+    });
+  };
+
   const currentProject = projects.find((p) => p.id === projectId);
 
   return (
@@ -166,8 +230,101 @@ export const TaskDetailsDrawer = ({
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             placeholder="Add detailed notes or requirements..."
-            className="min-h-28 text-sm"
+            className="min-h-24 text-sm"
           />
+        </div>
+
+        {/* Subtasks & Checklist Section */}
+        <div className="p-4 rounded-xl bg-secondary/40 border border-border space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted">
+              <CheckSquare size={14} className="text-accent" />
+              <span>Subtasks & Checklist</span>
+            </div>
+            {totalSubtasks > 0 && (
+              <span className="text-xs text-muted font-medium">
+                {completedSubtasks} of {totalSubtasks} ({progressPercent}%)
+              </span>
+            )}
+          </div>
+
+          {/* Progress Bar */}
+          {totalSubtasks > 0 && (
+            <div className="w-full h-1.5 bg-secondary rounded-full overflow-hidden">
+              <div
+                className="h-full bg-emerald-500 rounded-full transition-all duration-300"
+                style={{ width: `${progressPercent}%` }}
+              />
+            </div>
+          )}
+
+          {/* Subtasks List */}
+          <div className="space-y-1.5 pt-1">
+            {subtasks.map((subtask) => (
+              <div
+                key={subtask.id}
+                className="group flex items-center justify-between gap-2.5 p-2 rounded-lg bg-card/70 hover:bg-card border border-border/60 transition-colors"
+              >
+                <label className="flex items-center gap-2.5 flex-1 min-w-0 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={subtask.completed}
+                    onChange={() =>
+                      handleToggleSubtask(subtask.id, subtask.completed)
+                    }
+                    className="w-4 h-4 rounded border-border text-accent focus:ring-accent/20 cursor-pointer shrink-0"
+                  />
+                  <span
+                    className={cn(
+                      "text-xs sm:text-sm font-medium truncate select-none",
+                      subtask.completed
+                        ? "line-through text-muted"
+                        : "text-foreground"
+                    )}
+                  >
+                    {subtask.title}
+                  </span>
+                </label>
+
+                <button
+                  type="button"
+                  onClick={() => handleDeleteSubtask(subtask.id)}
+                  className="opacity-0 group-hover:opacity-100 p-1 text-muted hover:text-red-500 rounded transition-opacity cursor-pointer"
+                  title="Delete subtask"
+                >
+                  <Trash2 size={13} />
+                </button>
+              </div>
+            ))}
+          </div>
+
+          {/* Rapid Add Subtask Input */}
+          <div className="flex items-center gap-2 pt-1">
+            <Input
+              value={newSubtaskTitle}
+              onChange={(e) => setNewSubtaskTitle(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  handleAddSubtask();
+                }
+              }}
+              placeholder="Add a subtask (press Enter)..."
+              className="text-xs flex-1 h-9"
+            />
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={handleAddSubtask}
+              disabled={
+                !newSubtaskTitle.trim() || createSubtaskMutation.isPending
+              }
+              className="text-xs h-9 px-3 gap-1 shrink-0"
+            >
+              <Plus size={14} />
+              <span>Add</span>
+            </Button>
+          </div>
         </div>
 
         {/* Attributes Grid */}
@@ -196,7 +353,9 @@ export const TaskDetailsDrawer = ({
                   className="w-2 h-2 rounded-full"
                   style={{ backgroundColor: currentProject.color }}
                 />
-                <span className="text-xs text-muted">{currentProject.name}</span>
+                <span className="text-xs text-muted">
+                  {currentProject.name}
+                </span>
               </div>
             )}
           </div>
@@ -258,7 +417,9 @@ export const TaskDetailsDrawer = ({
           </div>
           <div className="flex flex-wrap gap-1.5">
             {labels.length === 0 && (
-              <span className="text-xs text-muted italic">No labels available</span>
+              <span className="text-xs text-muted italic">
+                No labels available
+              </span>
             )}
             {labels.map((label) => {
               const isSelected = selectedLabels.includes(label.id);
@@ -294,7 +455,9 @@ export const TaskDetailsDrawer = ({
         <div className="pt-2 border-t border-border flex items-center justify-between text-xs text-muted">
           <div className="flex items-center gap-1">
             <Clock size={12} />
-            <span>Created {task.createdAt ? formatDate(task.createdAt) : "Recently"}</span>
+            <span>
+              Created {task.createdAt ? formatDate(task.createdAt) : "Recently"}
+            </span>
           </div>
         </div>
 

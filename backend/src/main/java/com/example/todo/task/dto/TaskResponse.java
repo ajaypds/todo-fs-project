@@ -5,6 +5,7 @@ import lombok.Builder;
 import lombok.Getter;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
@@ -33,4 +34,6 @@ public class TaskResponse {
     private Integer position;
 
     private Set<LabelResponse> labels;
+
+    private List<SubtaskResponse> subtasks;
 }
