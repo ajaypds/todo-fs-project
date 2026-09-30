@@ -1,12 +1,9 @@
 package com.example.todo.task.controller;
 
 import com.example.todo.auth.security.CustomUserDetails;
-import com.example.todo.task.dto.CreateSubtaskRequest;
 import com.example.todo.task.dto.CreateTaskRequest;
 import com.example.todo.task.dto.ReorderTasksRequest;
-import com.example.todo.task.dto.SubtaskResponse;
 import com.example.todo.task.dto.TaskResponse;
-import com.example.todo.task.dto.UpdateSubtaskRequest;
 import com.example.todo.task.dto.UpdateTaskRequest;
 import com.example.todo.task.service.TaskService;
 import jakarta.validation.Valid;
@@ -105,64 +102,6 @@ public class TaskController {
         taskService.reorderTasks(
                 userDetails.getUserId(),
                 request
-        );
-    }
-
-    @PostMapping("/{taskId}/subtasks")
-    public SubtaskResponse createSubtask(
-            @AuthenticationPrincipal
-            CustomUserDetails userDetails,
-
-            @PathVariable
-            UUID taskId,
-
-            @Valid @RequestBody
-            CreateSubtaskRequest request
-    ) {
-        return taskService.createSubtask(
-                userDetails.getUserId(),
-                taskId,
-                request
-        );
-    }
-
-    @PatchMapping("/{taskId}/subtasks/{subtaskId}")
-    public SubtaskResponse updateSubtask(
-            @AuthenticationPrincipal
-            CustomUserDetails userDetails,
-
-            @PathVariable
-            UUID taskId,
-
-            @PathVariable
-            UUID subtaskId,
-
-            @RequestBody
-            UpdateSubtaskRequest request
-    ) {
-        return taskService.updateSubtask(
-                userDetails.getUserId(),
-                taskId,
-                subtaskId,
-                request
-        );
-    }
-
-    @DeleteMapping("/{taskId}/subtasks/{subtaskId}")
-    public void deleteSubtask(
-            @AuthenticationPrincipal
-            CustomUserDetails userDetails,
-
-            @PathVariable
-            UUID taskId,
-
-            @PathVariable
-            UUID subtaskId
-    ) {
-        taskService.deleteSubtask(
-                userDetails.getUserId(),
-                taskId,
-                subtaskId
         );
     }
 }

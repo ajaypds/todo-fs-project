@@ -6,19 +6,14 @@ import com.example.todo.label.entity.Label;
 import com.example.todo.label.repository.LabelRepository;
 import com.example.todo.project.entity.Project;
 import com.example.todo.project.repository.ProjectRepository;
-import com.example.todo.task.dto.CreateSubtaskRequest;
 import com.example.todo.task.dto.CreateTaskRequest;
 import com.example.todo.task.dto.ReorderTasksRequest;
-import com.example.todo.task.dto.SubtaskResponse;
 import com.example.todo.task.dto.TaskResponse;
-import com.example.todo.task.dto.UpdateSubtaskRequest;
 import com.example.todo.task.dto.UpdateTaskRequest;
-import com.example.todo.task.entity.Subtask;
 import com.example.todo.task.entity.Task;
 import com.example.todo.task.event.TaskCreatedEvent;
 import com.example.todo.task.event.TaskDeletedEvent;
 import com.example.todo.task.event.TaskUpdatedEvent;
-import com.example.todo.task.repository.SubtaskRepository;
 import com.example.todo.task.repository.TaskRepository;
 import com.example.todo.user.entity.User;
 import com.example.todo.user.repository.UserRepository;
@@ -28,7 +23,6 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import java.time.LocalDateTime;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -40,7 +34,6 @@ import java.util.stream.Collectors;
 public class TaskService {
 
     private final TaskRepository taskRepository;
-    private final SubtaskRepository subtaskRepository;
     private final UserRepository userRepository;
     private final ProjectRepository projectRepository;
     private final LabelRepository labelRepository;
@@ -206,75 +199,6 @@ public class TaskService {
         taskRepository.saveAll(tasks);
     }
 
-    public SubtaskResponse createSubtask(UUID userId, UUID taskId, CreateSubtaskRequest request) {
-        Task task = getOwnedTask(userId, taskId);
-
-        int position = subtaskRepository.countByTaskId(taskId);
-
-        Subtask subtask = Subtask.builder()
-                .task(task)
-                .title(request.getTitle())
-                .completed(false)
-                .position(position)
-                .createdAt(LocalDateTime.now())
-                .updatedAt(LocalDateTime.now())
-                .build();
-
-        subtaskRepository.save(subtask);
-
-        eventPublisher.publishEvent(new TaskUpdatedEvent(task.getId(), task.getTitle(), task.getUser().getId()));
-
-        return mapToSubtaskResponse(subtask);
-    }
-
-    public SubtaskResponse updateSubtask(UUID userId, UUID taskId, UUID subtaskId, UpdateSubtaskRequest request) {
-        Task task = getOwnedTask(userId, taskId);
-
-        Subtask subtask = subtaskRepository.findByIdAndTaskId(subtaskId, taskId)
-                .orElseThrow(() -> new ResourceNotFoundException("Subtask not found"));
-
-        if (request.getTitle() != null) {
-            subtask.setTitle(request.getTitle());
-        }
-
-        if (request.getCompleted() != null) {
-            subtask.setCompleted(request.getCompleted());
-        }
-
-        if (request.getPosition() != null) {
-            subtask.setPosition(request.getPosition());
-        }
-
-        subtask.setUpdatedAt(LocalDateTime.now());
-        subtaskRepository.save(subtask);
-
-        eventPublisher.publishEvent(new TaskUpdatedEvent(task.getId(), task.getTitle(), task.getUser().getId()));
-
-        return mapToSubtaskResponse(subtask);
-    }
-
-    public void deleteSubtask(UUID userId, UUID taskId, UUID subtaskId) {
-        Task task = getOwnedTask(userId, taskId);
-
-        Subtask subtask = subtaskRepository.findByIdAndTaskId(subtaskId, taskId)
-                .orElseThrow(() -> new ResourceNotFoundException("Subtask not found"));
-
-        subtaskRepository.delete(subtask);
-
-        eventPublisher.publishEvent(new TaskUpdatedEvent(task.getId(), task.getTitle(), task.getUser().getId()));
-    }
-
-    private SubtaskResponse mapToSubtaskResponse(Subtask subtask) {
-        return SubtaskResponse.builder()
-                .id(subtask.getId())
-                .taskId(subtask.getTask().getId())
-                .title(subtask.getTitle())
-                .completed(subtask.isCompleted())
-                .position(subtask.getPosition())
-                .createdAt(subtask.getCreatedAt())
-                .build();
-    }
-
     private TaskResponse mapToResponse(Task task) {
 
         return TaskResponse.builder()
@@ -296,9 +220,6 @@ public class TaskService {
                                         .color(label.getColor())
                                         .build()
                         ).collect(Collectors.toSet()))
-                .subtasks(task.getSubtasks() != null ? task.getSubtasks().stream()
-                        .map(this::mapToSubtaskResponse)
-                        .collect(Collectors.toList()) : Collections.emptyList())
                 .build();
     }
 }
