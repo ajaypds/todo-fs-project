@@ -3,7 +3,7 @@ package com.example.todo.user.entity;
 import jakarta.persistence.*;
 import lombok.*;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.UUID;
 
 @Entity
@@ -27,6 +27,10 @@ public class User {
 
     private String fullName;
 
+    @Builder.Default
+    @Column(nullable = false, length = 50)
+    private String timezone = "UTC";
+
     @Column(nullable = false)
-    private LocalDateTime createdAt;
+    private Instant createdAt;
 }

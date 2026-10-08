@@ -8,7 +8,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -19,7 +19,7 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiErrorResponse> handleBadRequest(BadRequestException ex){
 
         ApiErrorResponse response = ApiErrorResponse.builder()
-                .timestamp(LocalDateTime.now())
+                .timestamp(Instant.now())
                 .status(HttpStatus.BAD_REQUEST.value())
                 .message(ex.getMessage())
                 .build();
@@ -31,7 +31,7 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiErrorResponse> handleNotFound(ResourceNotFoundException ex){
 
         ApiErrorResponse response = ApiErrorResponse.builder()
-                .timestamp(LocalDateTime.now())
+                .timestamp(Instant.now())
                 .status(HttpStatus.NOT_FOUND.value())
                 .message(ex.getMessage())
                 .build();
@@ -46,7 +46,7 @@ public class GlobalExceptionHandler {
 
         ApiErrorResponse response =
                 ApiErrorResponse.builder()
-                        .timestamp(LocalDateTime.now())
+                        .timestamp(Instant.now())
                         .status(HttpStatus.UNAUTHORIZED.value())
                         .message(ex.getMessage())
                         .build();
@@ -85,7 +85,7 @@ public class GlobalExceptionHandler {
 
         ApiErrorResponse response =
                 ApiErrorResponse.builder()
-                        .timestamp(LocalDateTime.now())
+                        .timestamp(Instant.now())
                         .status(HttpStatus.INTERNAL_SERVER_ERROR.value())
                         .message("Something went wrong")
                         .build();

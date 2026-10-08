@@ -16,7 +16,7 @@ public class AiTaskController {
     @PostMapping("/parse-task")
     public ParsedTaskResponse
     parseTask(@RequestBody ParseTaskRequest request) {
-        return aiTaskService.parseTask(request.getInput());
+        return aiTaskService.parseTask(request.getInput(), request.getTimezone());
     }
 
     @PostMapping("/productivity-coach")

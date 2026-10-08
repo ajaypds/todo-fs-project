@@ -3,7 +3,7 @@ package com.example.todo.task.dto;
 import lombok.Builder;
 import lombok.Getter;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.UUID;
 
 @Getter
@@ -20,5 +20,5 @@ public class SubtaskResponse {
 
     private Integer position;
 
-    private LocalDateTime createdAt;
+    private Instant createdAt;
 }

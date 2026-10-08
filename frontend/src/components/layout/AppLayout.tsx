@@ -1,4 +1,4 @@
-import { useMemo, type ReactNode } from "react";
+import { useEffect, useMemo, type ReactNode } from "react";
 import { ProjectSidebar } from "../../features/projects/components/ProjectSidebar";
 import { ThemeToggle } from "../ui/ThemeToggle";
 import { RealtimeStatusIndicator } from "../../features/realtime/components/RealtimeStatusIndicator";
@@ -12,6 +12,7 @@ import {
   AlertCircle,
   Command,
   CalendarCheck,
+  Globe,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuthStore } from "../../store/authStore";
@@ -20,7 +21,8 @@ import { useViewStore } from "../../store/viewStore";
 import { useCommandPaletteStore } from "../../store/commandPaletteStore";
 import { useDailyPlannerStore } from "../../store/dailyPlannerStore";
 import { useTasks } from "../../features/tasks/api/taskQueries";
-import { isToday, isOverdue, isUpcoming } from "../../utils/date";
+import { isToday, isOverdue, isUpcoming, getUserTimezone } from "../../utils/date";
+import { useCurrentUser, useUpdateTimezone } from "../../features/users/api/userQueries";
 import { Button } from "../ui/Button";
 import { cn } from "../../lib/cn";
 
@@ -30,11 +32,28 @@ type Props = {
 
 export const AppLayout = ({ children }: Props) => {
   const navigate = useNavigate();
+  const token = useAuthStore((state) => state.token);
   const logout = useAuthStore((state) => state.logout);
   const { open, toggle, setOpen } = useSidebarStore();
   const { activeView, setActiveView, selectedProjectId } = useViewStore();
   const openCommandPalette = useCommandPaletteStore((state) => state.open);
   const openDailyPlanner = useDailyPlannerStore((state) => state.open);
+
+  const { data: userProfile } = useCurrentUser(!!token);
+  const updateTimezoneMutation = useUpdateTimezone();
+  const localTimezone = useMemo(() => getUserTimezone(), []);
+  const activeTimezone = userProfile?.timezone || localTimezone;
+
+  useEffect(() => {
+    if (
+      userProfile &&
+      userProfile.timezone === "UTC" &&
+      localTimezone !== "UTC" &&
+      !updateTimezoneMutation.isPending
+    ) {
+      updateTimezoneMutation.mutate({ timezone: localTimezone });
+    }
+  }, [userProfile, localTimezone, updateTimezoneMutation]);
 
   const { data: tasksData } = useTasks();
   const tasks = useMemo(() => tasksData?.content ?? [], [tasksData]);
@@ -272,8 +291,16 @@ export const AppLayout = ({ children }: Props) => {
         {/* Projects Section */}
         <ProjectSidebar />
 
-        {/* Logout Footer */}
-        <div className="mt-auto pt-6">
+        {/* Footer: Timezone Badge + Logout */}
+        <div className="mt-auto pt-6 space-y-2">
+          <div
+            className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-secondary/60 border border-border/50 text-[11px] text-muted font-medium select-none"
+            title={`Active Timezone: ${activeTimezone}. All timestamps and calendar schedules synchronize to UTC.`}
+          >
+            <Globe size={13} className="text-muted shrink-0" />
+            <span className="truncate">{activeTimezone}</span>
+          </div>
+
           <Button
             variant="ghost"
             onClick={() => {

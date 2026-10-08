@@ -14,8 +14,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.stereotype.Service;
-import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 
@@ -27,13 +27,26 @@ public class GeminiTaskService implements AiTaskService {
 
     @Override
     public ParsedTaskResponse parseTask(String input) {
+        return parseTask(input, null);
+    }
 
-        LocalDateTime now = LocalDateTime.now(ZoneId.of("Asia/Kolkata"));
+    @Override
+    public ParsedTaskResponse parseTask(String input, String userTimezone) {
+        ZoneId zoneId;
+        try {
+            zoneId = (userTimezone != null && !userTimezone.isBlank())
+                    ? ZoneId.of(userTimezone)
+                    : ZoneId.of("UTC");
+        } catch (Exception e) {
+            zoneId = ZoneId.of("UTC");
+        }
+
+        ZonedDateTime now = ZonedDateTime.now(zoneId);
 
         String prompt = """
         Extract task details from the following input.
         
-        Current date and time (Asia/Kolkata): %s
+        Current date and time (%s): %s
         
         Interpret relative dates such as:
         - today
@@ -42,7 +55,7 @@ public class GeminiTaskService implements AiTaskService {
         - this Friday
         - next Monday
         
-        relative to the current date above.
+        relative to the current date and timezone above.
         
         Return ONLY valid JSON.
         
@@ -53,8 +66,8 @@ public class GeminiTaskService implements AiTaskService {
         - dueDate
         
         Rules:
-        - dueDate must be ISO-8601 LocalDateTime format
-        - Use Asia/Kolkata timezone when interpreting dates
+        - dueDate must be standard ISO-8601 UTC Instant format ending with Z (e.g. 2026-10-09T00:00:00Z) or null if no date specified
+        - Use %s timezone when interpreting relative dates
         - Priority must be one of: LOW, MEDIUM, HIGH
         - Do not invent information not present in the input
         - If a date is not specified, return null for dueDate
@@ -81,7 +94,7 @@ public class GeminiTaskService implements AiTaskService {
         - description should be 1-2 sentences maximum
         
         Input: %s
-        """.formatted(now, input);
+        """.formatted(zoneId.getId(), now, zoneId.getId(), input);
 
         return chatClient.prompt()
                 .user(prompt)
@@ -191,7 +204,7 @@ public class GeminiTaskService implements AiTaskService {
         } catch (Exception e) {
             zoneId = ZoneId.of("Asia/Kolkata");
         }
-        LocalDateTime now = LocalDateTime.now(zoneId);
+        ZonedDateTime now = ZonedDateTime.now(zoneId);
 
         String prompt = """
         You are an elite productivity strategist and executive coach specializing in the Eisenhower Matrix method and daily time blocking.

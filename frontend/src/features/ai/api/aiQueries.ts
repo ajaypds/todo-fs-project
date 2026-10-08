@@ -3,7 +3,7 @@ import { decomposeTask, parseTask, generateDailyPlan } from "./aiApi";
 
 export const useParseTask = () => {
     return useMutation({
-        mutationFn: parseTask,
+        mutationFn: (input: string) => parseTask(input),
     });
 };
 

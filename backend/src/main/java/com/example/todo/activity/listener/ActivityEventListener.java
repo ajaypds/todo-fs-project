@@ -10,7 +10,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 
 @Component
 @RequiredArgsConstructor
@@ -24,7 +24,7 @@ public class ActivityEventListener {
         repository.save(Activity.builder()
                 .type("TASK_CREATED")
                 .message("Created task: " + event.getTitle())
-                .createdAt(LocalDateTime.now())
+                .createdAt(Instant.now())
                 .user(userRepository.findById(event.getUserId()).orElse(null))
                 .build()
         );
@@ -35,7 +35,7 @@ public class ActivityEventListener {
         repository.save(Activity.builder()
                 .type("TASK_UPDATED")
                 .message("Updated task: " + event.getTitle())
-                .createdAt(LocalDateTime.now())
+                .createdAt(Instant.now())
                 .user(userRepository.findById(event.getUserId()).orElse(null))
                 .build()
         );
@@ -46,7 +46,7 @@ public class ActivityEventListener {
         repository.save(Activity.builder()
                 .type("TASK_DELETED")
                 .message("Deleted a task")
-                .createdAt(LocalDateTime.now())
+                .createdAt(Instant.now())
                 .user(userRepository.findById(event.getUserId()).orElse(null))
                 .build()
         );

@@ -28,7 +28,10 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
-import java.time.LocalDateTime;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -88,8 +91,8 @@ public class TaskService {
                 .completed(false)
                 .priority(request.getPriority() != null ? request.getPriority() : 4)
                 .dueDate(request.getDueDate())
-                .createdAt(LocalDateTime.now())
-                .updatedAt(LocalDateTime.now())
+                .createdAt(Instant.now())
+                .updatedAt(Instant.now())
                 .project(project)
                 .position(position)
                 .labels(labels)
@@ -155,7 +158,7 @@ public class TaskService {
             task.setLabels(labels);
         }
 
-        task.setUpdatedAt(LocalDateTime.now());
+        task.setUpdatedAt(Instant.now());
 
         taskRepository.save(task);
 
@@ -236,8 +239,8 @@ public class TaskService {
                 .title(request.getTitle())
                 .completed(false)
                 .position(position)
-                .createdAt(LocalDateTime.now())
-                .updatedAt(LocalDateTime.now())
+                .createdAt(Instant.now())
+                .updatedAt(Instant.now())
                 .build();
 
         subtaskRepository.save(subtask);
@@ -265,7 +268,7 @@ public class TaskService {
             subtask.setPosition(request.getPosition());
         }
 
-        subtask.setUpdatedAt(LocalDateTime.now());
+        subtask.setUpdatedAt(Instant.now());
         subtaskRepository.save(subtask);
 
         eventPublisher.publishEvent(new TaskUpdatedEvent(task.getId(), task.getTitle(), task.getUser().getId()));
@@ -326,10 +329,20 @@ public class TaskService {
 
     private void spawnNextRecurringInstance(Task task) {
         int position = (int) taskRepository.count();
-        LocalDateTime nextDueDate = calculateNextDueDate(
-                task.getDueDate() != null ? task.getDueDate() : LocalDateTime.now(),
+        ZoneId zoneId;
+        try {
+            zoneId = task.getUser() != null && task.getUser().getTimezone() != null && !task.getUser().getTimezone().isBlank()
+                    ? ZoneId.of(task.getUser().getTimezone())
+                    : ZoneOffset.UTC;
+        } catch (Exception e) {
+            zoneId = ZoneOffset.UTC;
+        }
+
+        Instant nextDueDate = calculateNextDueDate(
+                task.getDueDate() != null ? task.getDueDate() : Instant.now(),
                 task.getRecurrenceType(),
-                task.getRecurrenceInterval() != null && task.getRecurrenceInterval() > 0 ? task.getRecurrenceInterval() : 1
+                task.getRecurrenceInterval() != null && task.getRecurrenceInterval() > 0 ? task.getRecurrenceInterval() : 1,
+                zoneId
         );
 
         Task nextTask = Task.builder()
@@ -339,8 +352,8 @@ public class TaskService {
                 .completed(false)
                 .priority(task.getPriority())
                 .dueDate(nextDueDate)
-                .createdAt(LocalDateTime.now())
-                .updatedAt(LocalDateTime.now())
+                .createdAt(Instant.now())
+                .updatedAt(Instant.now())
                 .project(task.getProject())
                 .position(position)
                 .labels(task.getLabels() != null ? new HashSet<>(task.getLabels()) : new HashSet<>())
@@ -357,8 +370,8 @@ public class TaskService {
                             .title(sub.getTitle())
                             .completed(false)
                             .position(sub.getPosition())
-                            .createdAt(LocalDateTime.now())
-                            .updatedAt(LocalDateTime.now())
+                            .createdAt(Instant.now())
+                            .updatedAt(Instant.now())
                             .build())
                     .collect(Collectors.toList());
             subtaskRepository.saveAll(clonedSubtasks);
@@ -367,29 +380,37 @@ public class TaskService {
         eventPublisher.publishEvent(new TaskCreatedEvent(savedNextTask.getId(), savedNextTask.getTitle(), savedNextTask.getUser().getId()));
     }
 
-    private LocalDateTime calculateNextDueDate(LocalDateTime base, RecurrenceType type, int interval) {
+    private Instant calculateNextDueDate(Instant base, RecurrenceType type, int interval, ZoneId zoneId) {
         if (base == null) {
-            base = LocalDateTime.now();
+            base = Instant.now();
         }
         if (interval < 1) {
             interval = 1;
         }
-        LocalDateTime next = switch (type) {
-            case DAILY -> base.plusDays(interval);
-            case WEEKLY -> base.plusWeeks(interval);
-            case MONTHLY -> base.plusMonths(interval);
-            case YEARLY -> base.plusYears(interval);
-            default -> base;
+        if (zoneId == null) {
+            zoneId = ZoneOffset.UTC;
+        }
+
+        ZonedDateTime zdt = base.atZone(zoneId);
+        ZonedDateTime nextZdt = switch (type) {
+            case DAILY -> zdt.plusDays(interval);
+            case WEEKLY -> zdt.plusWeeks(interval);
+            case MONTHLY -> zdt.plusMonths(interval);
+            case YEARLY -> zdt.plusYears(interval);
+            default -> zdt;
         };
 
-        while (next.isBefore(LocalDateTime.now())) {
-            next = switch (type) {
-                case DAILY -> next.plusDays(interval);
-                case WEEKLY -> next.plusWeeks(interval);
-                case MONTHLY -> next.plusMonths(interval);
-                case YEARLY -> next.plusYears(interval);
-                default -> next;
+        Instant next = nextZdt.toInstant();
+        Instant now = Instant.now();
+        while (next.isBefore(now)) {
+            nextZdt = switch (type) {
+                case DAILY -> nextZdt.plusDays(interval);
+                case WEEKLY -> nextZdt.plusWeeks(interval);
+                case MONTHLY -> nextZdt.plusMonths(interval);
+                case YEARLY -> nextZdt.plusYears(interval);
+                default -> nextZdt;
             };
+            next = nextZdt.toInstant();
         }
         return next;
     }

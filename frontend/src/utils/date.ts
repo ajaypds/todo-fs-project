@@ -1,3 +1,35 @@
+export const getUserTimezone = (): string => {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+  } catch {
+    return "UTC";
+  }
+};
+
+export const toLocalDateInputValue = (
+  isoString?: string | null
+): string => {
+  if (!isoString) return "";
+  const d = new Date(isoString);
+  if (isNaN(d.getTime())) return "";
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
+export const fromLocalDateInputValue = (
+  dateInput?: string | null
+): string | undefined => {
+  if (!dateInput) return undefined;
+  const parts = dateInput.split("-").map(Number);
+  if (parts.length < 3 || isNaN(parts[0]) || isNaN(parts[1]) || isNaN(parts[2])) {
+    return undefined;
+  }
+  const d = new Date(parts[0], parts[1] - 1, parts[2], 0, 0, 0, 0);
+  return d.toISOString();
+};
+
 export const formatDate = (
   value?: string | null | undefined
 ): string | null => {
@@ -46,6 +78,21 @@ export const formatDate = (
     month: "short",
     day: "numeric",
     year: d.getFullYear() !== now.getFullYear() ? "numeric" : undefined,
+  });
+};
+
+export const formatDateTime = (
+  value?: string | null | undefined
+): string | null => {
+  if (!value) return null;
+  const d = new Date(value);
+  if (isNaN(d.getTime())) return null;
+
+  return d.toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
   });
 };
 

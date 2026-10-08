@@ -8,4 +8,5 @@ import lombok.Setter;
 public class ParseTaskRequest {
 
     private String input;
+    private String timezone;
 }

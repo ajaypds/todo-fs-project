@@ -12,6 +12,8 @@ public interface AiTaskService {
 
     ParsedTaskResponse parseTask(String input);
 
+    ParsedTaskResponse parseTask(String input, String userTimezone);
+
     ProductivityInsightResponse generateInsights(ProductivityInsightRequest request);
 
     DecomposeTaskResponse decomposeTask(DecomposeTaskRequest request);

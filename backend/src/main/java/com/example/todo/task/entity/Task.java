@@ -1,6 +1,6 @@
 package com.example.todo.task.entity;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -46,7 +46,7 @@ public class Task {
     @Column(nullable = false)
     private Integer priority;
 
-    private LocalDateTime dueDate;
+    private Instant dueDate;
 
     @Enumerated(EnumType.STRING)
     @Column(length = 20)
@@ -65,10 +65,10 @@ public class Task {
     private Project project;
 
     @Column(nullable = false)
-    private LocalDateTime createdAt;
+    private Instant createdAt;
 
     @Column(nullable = false)
-    private LocalDateTime updatedAt;
+    private Instant updatedAt;
 
     @Builder.Default
     @ManyToMany

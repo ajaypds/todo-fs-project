@@ -4,7 +4,7 @@ import com.example.todo.label.dto.LabelResponse;
 import lombok.Builder;
 import lombok.Getter;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -23,13 +23,13 @@ public class TaskResponse {
 
     private Integer priority;
 
-    private LocalDateTime dueDate;
+    private Instant dueDate;
 
     private UUID projectId;
 
-    private LocalDateTime createdAt;
+    private Instant createdAt;
 
-    private LocalDateTime updatedAt;
+    private Instant updatedAt;
 
     private Integer position;
 

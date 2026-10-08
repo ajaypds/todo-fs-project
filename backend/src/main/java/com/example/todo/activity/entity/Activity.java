@@ -3,7 +3,7 @@ package com.example.todo.activity.entity;
 import com.example.todo.user.entity.User;
 import jakarta.persistence.*;
 import lombok.*;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.UUID;
 
 @Entity
@@ -23,7 +23,7 @@ public class Activity {
 
     private String message;
 
-    private LocalDateTime createdAt;
+    private Instant createdAt;
 
     @JoinColumn(nullable = false)
     @ManyToOne(fetch = FetchType.LAZY)

@@ -6,7 +6,7 @@ import jakarta.persistence.*;
 
 import lombok.*;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.UUID;
 
 @Entity
@@ -30,7 +30,7 @@ public class RefreshToken {
     private User user;
 
     @Column(nullable = false)
-    private LocalDateTime expiresAt;
+    private Instant expiresAt;
 
     @Column(nullable = false)
     private boolean revoked;

@@ -15,7 +15,7 @@ import lombok.RequiredArgsConstructor;
 
 import org.springframework.stereotype.Service;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
@@ -40,7 +40,7 @@ public class ProjectService {
                 .user(user)
                 .name(request.getName())
                 .color(request.getColor())
-                .createdAt(LocalDateTime.now())
+                .createdAt(Instant.now())
                 .build();
 
         projectRepository.save(project);

@@ -8,6 +8,7 @@ import { cn } from "../../../lib/cn";
 import type { Label } from "../../labels/labelTypes";
 import type { ParsedTaskResponse } from "../../ai/types/aiTypes";
 import type { RecurrenceType } from "../types/taskTypes";
+import { toLocalDateInputValue, fromLocalDateInputValue } from "../../../utils/date";
 
 type Props = {
   projects: Project[];
@@ -48,7 +49,7 @@ export const CreateTaskForm = ({
     setTitle(parsedTask.title ?? "");
     setDescription(parsedTask.description ?? "");
     setPriority(parsedTask.priority ?? 1);
-    setDueDate(parsedTask.dueDate?.split("T")[0] ?? "");
+    setDueDate(toLocalDateInputValue(parsedTask.dueDate));
     console.log("Parsed Task: ", parsedTask);
   }, [parsedTask]);
 
@@ -63,7 +64,7 @@ export const CreateTaskForm = ({
       title,
       description,
       priority,
-      dueDate: dueDate ? `${dueDate}T00:00:00` : undefined,
+      dueDate: fromLocalDateInputValue(dueDate),
       projectId: projectId || undefined,
       labelIds: selectedLabels,
       recurrenceType,

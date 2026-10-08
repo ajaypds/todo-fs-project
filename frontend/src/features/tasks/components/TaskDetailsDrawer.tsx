@@ -12,7 +12,7 @@ import {
 } from "../api/taskQueries";
 import { useDecomposeTask } from "../../ai/api/aiQueries";
 import { PriorityBadge } from "../../../components/ui/PriorityBadge";
-import { formatDate } from "../../../utils/date";
+import { formatDate, toLocalDateInputValue, fromLocalDateInputValue } from "../../../utils/date";
 import { Input } from "../../../components/ui/Input";
 import { MarkdownEditor } from "../../../components/ui/MarkdownEditor";
 import { Select } from "../../../components/ui/Select";
@@ -79,7 +79,7 @@ export const TaskDetailsDrawer = ({
     setDescription(task.description || "");
     setPriority(task.priority || 1);
     setProjectId(task.projectId || "");
-    setDueDate(task.dueDate ? task.dueDate.split("T")[0] : "");
+    setDueDate(task.dueDate ? toLocalDateInputValue(task.dueDate) : "");
     setSelectedLabels(task.labels ? task.labels.map((l) => l.id) : []);
     setCompleted(task.completed || false);
     setRecurrenceType(task.recurrenceType || "NONE");
@@ -113,7 +113,7 @@ export const TaskDetailsDrawer = ({
           description: description.trim(),
           priority,
           projectId: projectId || null,
-          dueDate: dueDate ? `${dueDate}T00:00:00` : null,
+          dueDate: fromLocalDateInputValue(dueDate) ?? null,
           labelIds: selectedLabels,
           completed,
           recurrenceType,
@@ -593,7 +593,7 @@ export const TaskDetailsDrawer = ({
             </div>
             {dueDate && (
               <p className="text-xs text-muted mt-1 px-1">
-                Scheduled for {formatDate(`${dueDate}T00:00:00`)}
+                Scheduled for {formatDate(fromLocalDateInputValue(dueDate))}
               </p>
             )}
           </div>

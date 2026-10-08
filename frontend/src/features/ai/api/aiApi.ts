@@ -1,4 +1,5 @@
 import { apiClient } from "../../../api/client";
+import { getUserTimezone } from "../../../utils/date";
 import type {
   DecomposeTaskRequest,
   DecomposeTaskResponse,
@@ -7,11 +8,11 @@ import type {
   DailyPlannerResponse,
 } from "../types/aiTypes";
 
-export const parseTask = async (input: string) => {
-
+export const parseTask = async (input: string, timezone?: string) => {
+    const tz = timezone || getUserTimezone();
     const response = await apiClient.post(
         "/ai/parse-task",
-        { input }
+        { input, timezone: tz }
     );
 
     return response.data as ParsedTaskResponse;
