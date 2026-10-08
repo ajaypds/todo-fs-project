@@ -6,14 +6,12 @@ import {
   useDeleteTask,
   useReorderTasks,
 } from "../features/tasks/api/taskQueries";
-import type { PageResponse } from "../types/pagination";
 import { EmptyState } from "../components/ui/EmptyState";
 import { TaskSkeleton } from "../components/ui/TaskSkeleton";
 import toast from "react-hot-toast";
 import { useProjects } from "../features/projects/projectQueries";
 import { useViewStore } from "../store/viewStore";
 import { useCommandPaletteStore } from "../store/commandPaletteStore";
-import type { Task } from "../features/tasks/types/taskTypes";
 import type { DragStartEvent, DragEndEvent } from "@dnd-kit/core";
 import { DndContext, closestCenter, DragOverlay } from "@dnd-kit/core";
 import {
@@ -22,7 +20,6 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { SortableTaskCard } from "../features/tasks/components/SortableTaskCard";
-import { useQueryClient } from "@tanstack/react-query";
 import { TaskCard } from "../features/tasks/components/TaskCard";
 import { Input } from "../components/ui/Input";
 import {
@@ -60,7 +57,6 @@ export const DashboardPage = () => {
   const updateTaskMutation = useUpdateTask();
   const deleteTaskMutation = useDeleteTask();
   const reorderTasksMutation = useReorderTasks();
-  const queryClient = useQueryClient();
 
   const [search, setSearch] = useState("");
   const { activeView, selectedProjectId } = useViewStore();
@@ -161,21 +157,6 @@ export const DashboardPage = () => {
     const newIndex = filteredTasks.findIndex((task) => task.id === over.id);
 
     const reorderedTasks = arrayMove(filteredTasks, oldIndex, newIndex);
-
-    queryClient.setQueryData(
-      ["tasks"],
-      (old: PageResponse<Task> | undefined) => {
-        if (!old) {
-          return old;
-        }
-
-        return {
-          ...old,
-          content: reorderedTasks,
-        };
-      }
-    );
-
     reorderTasksMutation.mutate(reorderedTasks.map((task) => task.id));
   };
 
