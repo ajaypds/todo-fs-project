@@ -49,6 +49,7 @@ import AiDailyPlannerModal from "../features/ai/components/AiDailyPlannerModal";
 import CreateTaskModal from "../features/tasks/components/CreateTaskModal";
 import TaskDetailsDrawer from "../features/tasks/components/TaskDetailsDrawer";
 import CreateProjectModal from "../features/projects/components/CreateProjectModal";
+import ApiKeysModal from "../features/apikeys/components/ApiKeysModal";
 import CommandPalette from "../components/ui/CommandPalette";
 import { isToday, isUpcoming, isOverdue } from "../utils/date";
 
@@ -75,6 +76,7 @@ export const DashboardPage = () => {
   } = useDailyPlannerStore();
   const [taskModalOpen, setTaskModalOpen] = useState(false);
   const [projectModalOpen, setProjectModalOpen] = useState(false);
+  const [apiKeysModalOpen, setApiKeysModalOpen] = useState(false);
   const [aiOpen, setAiOpen] = useState(false);
   const [coachOpen, setCoachOpen] = useState(false);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
@@ -253,7 +255,10 @@ export const DashboardPage = () => {
   const activeTask = filteredTasks.find((task) => task.id === activeId);
 
   return (
-    <AppLayout onOpenCreateTask={() => setTaskModalOpen(true)}>
+    <AppLayout
+      onOpenCreateTask={() => setTaskModalOpen(true)}
+      onOpenApiKeys={() => setApiKeysModalOpen(true)}
+    >
       <PageTransition>
         <OnlineUsers />
 
@@ -489,6 +494,13 @@ export const DashboardPage = () => {
           onOpenAiInsights={() => setCoachOpen(true)}
           onOpenCreateProject={() => setProjectModalOpen(true)}
           onSelectTask={(taskId) => setSelectedTaskId(taskId)}
+          onOpenApiKeys={() => setApiKeysModalOpen(true)}
+        />
+
+        {/* API Keys & MCP Integration Modal */}
+        <ApiKeysModal
+          open={apiKeysModalOpen}
+          onClose={() => setApiKeysModalOpen(false)}
         />
 
         {/* Floating Action Button for quick task add (desktop only, mobile uses bottom nav + button) */}

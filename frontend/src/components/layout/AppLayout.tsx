@@ -16,6 +16,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Plus,
+  KeyRound,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuthStore } from "../../store/authStore";
@@ -32,9 +33,10 @@ import { cn } from "../../lib/cn";
 type Props = {
   children: ReactNode;
   onOpenCreateTask?: () => void;
+  onOpenApiKeys?: () => void;
 };
 
-export const AppLayout = ({ children, onOpenCreateTask }: Props) => {
+export const AppLayout = ({ children, onOpenCreateTask, onOpenApiKeys }: Props) => {
   const navigate = useNavigate();
   const token = useAuthStore((state) => state.token);
   const logout = useAuthStore((state) => state.logout);
@@ -125,6 +127,16 @@ export const AppLayout = ({ children, onOpenCreateTask }: Props) => {
           >
             <Command size={18} />
           </button>
+          {onOpenApiKeys && (
+            <button
+              type="button"
+              onClick={onOpenApiKeys}
+              className="p-2 rounded-lg text-muted hover:text-foreground hover:bg-secondary cursor-pointer"
+              title="API Keys & MCP Integration"
+            >
+              <KeyRound size={18} />
+            </button>
+          )}
           <ThemeToggle />
           <button onClick={toggle} className="p-1 cursor-pointer">
             {open ? <X size={22} /> : <Menu size={22} />}
@@ -167,12 +179,32 @@ export const AppLayout = ({ children, onOpenCreateTask }: Props) => {
               >
                 <PanelLeftOpen size={18} />
               </button>
+              {onOpenApiKeys && (
+                <button
+                  type="button"
+                  onClick={onOpenApiKeys}
+                  className="p-1.5 rounded-lg text-muted hover:text-foreground hover:bg-secondary cursor-pointer transition-colors"
+                  title="API Keys & MCP Integration"
+                >
+                  <KeyRound size={17} />
+                </button>
+              )}
             </div>
           ) : (
             <>
               <h1 className="text-2xl font-bold tracking-tight">TodoFlow</h1>
               <div className="hidden md:flex items-center gap-1">
                 <RealtimeStatusIndicator />
+                {onOpenApiKeys && (
+                  <button
+                    type="button"
+                    onClick={onOpenApiKeys}
+                    className="p-1.5 rounded-lg text-muted hover:text-foreground hover:bg-secondary cursor-pointer transition-colors"
+                    title="API Keys & MCP Integration"
+                  >
+                    <KeyRound size={17} />
+                  </button>
+                )}
                 <ThemeToggle />
                 <button
                   type="button"

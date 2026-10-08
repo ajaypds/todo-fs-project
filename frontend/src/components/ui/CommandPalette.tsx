@@ -17,6 +17,7 @@ import {
   X,
   ArrowRight,
   CalendarCheck,
+  KeyRound,
 } from "lucide-react";
 import { useCommandPaletteStore } from "../../store/commandPaletteStore";
 import { useViewStore } from "../../store/viewStore";
@@ -32,6 +33,7 @@ type Props = {
   onOpenAiInsights: () => void;
   onOpenCreateProject: () => void;
   onSelectTask: (taskId: string) => void;
+  onOpenApiKeys?: () => void;
 };
 
 type CommandItem = {
@@ -49,6 +51,7 @@ export const CommandPalette = ({
   onOpenAiInsights,
   onOpenCreateProject,
   onSelectTask,
+  onOpenApiKeys,
 }: Props) => {
   const { isOpen, close, toggle } = useCommandPaletteStore();
   const openDailyPlanner = useDailyPlannerStore((state) => state.open);
@@ -150,6 +153,20 @@ export const CommandPalette = ({
         onOpenCreateProject();
       },
     });
+
+    if (onOpenApiKeys) {
+      items.push({
+        id: "action-api-keys",
+        title: "API Keys & MCP Integration",
+        subtitle: "Connect Claude Desktop, ChatGPT, Gemini, or Cursor via MCP",
+        category: "Actions",
+        icon: <KeyRound size={16} className="text-amber-500" />,
+        onSelect: () => {
+          close();
+          onOpenApiKeys();
+        },
+      });
+    }
 
     items.push({
       id: "action-toggle-theme",
