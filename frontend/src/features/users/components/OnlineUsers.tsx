@@ -1,9 +1,12 @@
 import { usePresenceStore } from "../../../store/presenceStore";
 import { useRealtime } from "../../realtime/context/RealtimeContext";
-import { Users } from "lucide-react";
+import { Laptop } from "lucide-react";
 
 export const OnlineUsers = () => {
-  const users = usePresenceStore((state) => state.users);
+  const { activeSessions } = usePresenceStore((state) => ({
+    online: state.online,
+    activeSessions: state.activeSessions,
+  }));
   const { status } = useRealtime();
 
   if (status !== "connected") {
@@ -11,10 +14,23 @@ export const OnlineUsers = () => {
   }
 
   return (
-    <div className="flex items-center gap-1.5 text-xs text-muted">
-      <Users size={13} className="text-muted" />
+    <div
+      className="flex items-center gap-1.5 text-xs text-muted"
+      title={
+        activeSessions > 1
+          ? `${activeSessions} active browser sessions syncing in real-time`
+          : "Workspace live & synchronized"
+      }
+    >
+      <span className="relative flex h-2 w-2">
+        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+        <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+      </span>
+      <Laptop size={13} className="text-muted" />
       <span>
-        {users.length} {users.length === 1 ? "user" : "users"} online
+        {activeSessions > 1
+          ? `${activeSessions} sessions connected`
+          : "Workspace synced"}
       </span>
     </div>
   );

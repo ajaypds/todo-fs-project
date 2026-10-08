@@ -23,6 +23,7 @@ export const RealtimeProvider = ({ children }: Props) => {
 
   const addUser = usePresenceStore((state) => state.addUser);
   const removeUser = usePresenceStore((state) => state.removeUser);
+  const setPresence = usePresenceStore((state) => state.setPresence);
   const isAuthenticated = useAuthStore((state) => !!state.token);
 
   const [status, setStatus] = useState<RealtimeConnectionStatus>("disconnected");
@@ -35,20 +36,26 @@ export const RealtimeProvider = ({ children }: Props) => {
       onConnect: () => {
         console.log("Realtime connected");
         setStatus("connected");
+        const userId = authStorage.getUserId();
+
         if (isAuthenticated) {
           console.log(
             "User is authenticated, subscribing to realtime topics...",
+            userId,
           );
         }
         queryClient.invalidateQueries({
           queryKey: ["presence"],
         });
 
-        // TASKS
+        if (!userId) {
+          console.warn("Realtime connected but userId is not found in token.");
+          return;
+        }
 
+        // USER TASKS
         client.subscribe(
-          "/topic/tasks",
-
+          `/topic/users/${userId}/tasks`,
           (message) => {
             const payload: TaskRealtimeEvent = JSON.parse(message.body);
 
@@ -60,31 +67,31 @@ export const RealtimeProvider = ({ children }: Props) => {
           },
         );
 
-        // PRESENCE
-
+        // USER PRESENCE
         client.subscribe(
-          "/topic/presence",
-
+          `/topic/users/${userId}/presence`,
           (message) => {
             const payload: PresenceRealtimeEvent = JSON.parse(message.body);
 
             console.log("Presence event:", payload);
 
-            if (payload.type === "USER_CONNECTED") {
+            if (payload.activeSessions !== undefined) {
+              setPresence({
+                online: payload.online ?? payload.activeSessions > 0,
+                activeSessions: payload.activeSessions,
+                username: payload.username,
+              });
+            } else if (payload.type === "USER_CONNECTED") {
               addUser(payload.username);
-            }
-
-            if (payload.type === "USER_DISCONNECTED") {
+            } else if (payload.type === "USER_DISCONNECTED") {
               removeUser(payload.username);
             }
           },
         );
 
-        // ACTIVITIES
-
+        // USER ACTIVITIES
         client.subscribe(
-          "/topic/activities",
-
+          `/topic/users/${userId}/activities`,
           (message) => {
             const payload: ActivityRealtimeEvent = JSON.parse(message.body);
 
@@ -121,7 +128,7 @@ export const RealtimeProvider = ({ children }: Props) => {
         }
       },
     });
-  }, [queryClient, addUser, removeUser, isAuthenticated]);
+  }, [queryClient, addUser, removeUser, setPresence, isAuthenticated]);
 
   const reconnect = useCallback(() => {
     const token = authStorage.getAccessToken();

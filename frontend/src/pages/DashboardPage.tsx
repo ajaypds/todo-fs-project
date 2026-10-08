@@ -68,8 +68,8 @@ export const DashboardPage = () => {
 
   const { data: projects = [] } = useProjects();
   const { data: labels = [] } = useLabels();
-  const { data: onlineUsers = [] } = useOnlineUsers();
-  const setUsers = usePresenceStore((state) => state.setUsers);
+  const { data: presence } = useOnlineUsers();
+  const setPresence = usePresenceStore((state) => state.setPresence);
 
   // Modals & Drawers state
   const {
@@ -101,8 +101,14 @@ export const DashboardPage = () => {
   }, [tasks, selectedTaskId]);
 
   useEffect(() => {
-    setUsers(onlineUsers);
-  }, [onlineUsers, setUsers]);
+    if (presence) {
+      setPresence({
+        online: presence.online,
+        activeSessions: presence.activeSessions,
+        username: presence.username,
+      });
+    }
+  }, [presence, setPresence]);
 
   // Smart view + search filtering
   const filteredTasks = useMemo(() => {

@@ -1,8 +1,16 @@
 import { create } from "zustand";
 
 type PresenceState = {
-
     users: string[];
+    online: boolean;
+    activeSessions: number;
+    username: string | null;
+
+    setPresence: (presence: {
+        online?: boolean;
+        activeSessions?: number;
+        username?: string;
+    }) => void;
 
     setUsers: (
         users: string[]
@@ -18,25 +26,51 @@ type PresenceState = {
 };
 
 export const usePresenceStore = create<PresenceState>((set) => ({
-
     users: [],
+    online: false,
+    activeSessions: 0,
+    username: null,
 
-    setUsers: (users) => set({ users }),
+    setPresence: (presence) =>
+        set((state) => {
+            const online = presence.online ?? state.online;
+            const activeSessions = presence.activeSessions ?? state.activeSessions;
+            const username = presence.username ?? state.username;
+            const users = online && username ? [username] : [];
+            return {
+                online,
+                activeSessions,
+                username,
+                users,
+            };
+        }),
 
-    addUser: (username) => set((state) => ({
+    setUsers: (users) =>
+        set({
+            users,
+            online: users.length > 0,
+            activeSessions: users.length > 0 ? 1 : 0,
+        }),
 
-        users: [
-            ...new Set([...state.users, username]),
-        ],
-    })),
+    addUser: (username) =>
+        set((state) => ({
+            users: [
+                ...new Set([...state.users, username]),
+            ],
+            online: true,
+            activeSessions: Math.max(state.activeSessions, 1),
+            username,
+        })),
 
     removeUser: (username) =>
-
-        set((state) => ({
-
-            users:
-                state.users.filter(
-                    (user) => user !== username
-                ),
-        })),
+        set((state) => {
+            const users = state.users.filter(
+                (user) => user !== username
+            );
+            return {
+                users,
+                online: users.length > 0,
+                activeSessions: users.length > 0 ? state.activeSessions : 0,
+            };
+        }),
 }));

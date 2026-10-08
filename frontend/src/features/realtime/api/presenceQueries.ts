@@ -1,12 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
-import { getOnlineUsers } from "./presenceApi";
+import { getPresenceStatus } from "./presenceApi";
+import type { UserPresenceResponse } from "../types/realtimeTypes";
 
-export const useOnlineUsers = () => {
-
-    return useQuery({
-
+export const useUserPresence = () => {
+    return useQuery<UserPresenceResponse>({
         queryKey: ["presence"],
-
-        queryFn: getOnlineUsers,
+        queryFn: getPresenceStatus,
     });
 };
+
+export const useOnlineUsers = useUserPresence;
