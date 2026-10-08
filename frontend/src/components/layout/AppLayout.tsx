@@ -11,12 +11,14 @@ import {
   Calendar,
   AlertCircle,
   Command,
+  CalendarCheck,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuthStore } from "../../store/authStore";
 import { useSidebarStore } from "../../store/sidebarStore";
 import { useViewStore } from "../../store/viewStore";
 import { useCommandPaletteStore } from "../../store/commandPaletteStore";
+import { useDailyPlannerStore } from "../../store/dailyPlannerStore";
 import { useTasks } from "../../features/tasks/api/taskQueries";
 import { isToday, isOverdue, isUpcoming } from "../../utils/date";
 import { Button } from "../ui/Button";
@@ -32,6 +34,7 @@ export const AppLayout = ({ children }: Props) => {
   const { open, toggle, setOpen } = useSidebarStore();
   const { activeView, setActiveView, selectedProjectId } = useViewStore();
   const openCommandPalette = useCommandPaletteStore((state) => state.open);
+  const openDailyPlanner = useDailyPlannerStore((state) => state.open);
 
   const { data: tasksData } = useTasks();
   const tasks = useMemo(() => tasksData?.content ?? [], [tasksData]);
@@ -246,6 +249,24 @@ export const AppLayout = ({ children }: Props) => {
               </span>
             </button>
           )}
+
+          {/* AI Daily Planner (Eisenhower Matrix) */}
+          <button
+            type="button"
+            onClick={() => {
+              openDailyPlanner();
+              setOpen(false);
+            }}
+            className="w-full flex items-center justify-between rounded-xl px-3 py-2 text-sm font-medium transition-all cursor-pointer text-purple-600 dark:text-purple-400 hover:bg-purple-500/10 mt-1"
+          >
+            <div className="flex items-center gap-3">
+              <CalendarCheck size={17} className="text-purple-500" />
+              <span>Daily Planner</span>
+            </div>
+            <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded-full bg-purple-500/10 text-purple-600 dark:text-purple-400">
+              AI
+            </span>
+          </button>
         </nav>
 
         {/* Projects Section */}

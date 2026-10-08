@@ -35,6 +35,7 @@ import {
   Calendar,
   AlertCircle,
   Command,
+  CalendarCheck,
 } from "lucide-react";
 import { PageTransition } from "../components/ui/PageTransition";
 import { useLabels } from "../features/labels/labelQueries";
@@ -43,9 +44,11 @@ import { ActivityFeed } from "../features/activity/components/ActivityFeed";
 import { useOnlineUsers } from "../features/realtime/api/presenceQueries";
 import { usePresenceStore } from "../store/presenceStore";
 import { useAiStore } from "../store/aiStore";
+import { useDailyPlannerStore } from "../store/dailyPlannerStore";
 import { Button } from "../components/ui/Button";
 import { AiInsightsModal } from "../features/ai/components/AiInsightsModal";
 import AiAssistantDrawer from "../features/ai/components/AiAssistantDrawer";
+import AiDailyPlannerModal from "../features/ai/components/AiDailyPlannerModal";
 import CreateTaskModal from "../features/tasks/components/CreateTaskModal";
 import TaskDetailsDrawer from "../features/tasks/components/TaskDetailsDrawer";
 import CreateProjectModal from "../features/projects/components/CreateProjectModal";
@@ -69,6 +72,11 @@ export const DashboardPage = () => {
   const setUsers = usePresenceStore((state) => state.setUsers);
 
   // Modals & Drawers state
+  const {
+    isOpen: dailyPlannerOpen,
+    open: openDailyPlanner,
+    close: closeDailyPlanner,
+  } = useDailyPlannerStore();
   const [taskModalOpen, setTaskModalOpen] = useState(false);
   const [projectModalOpen, setProjectModalOpen] = useState(false);
   const [aiOpen, setAiOpen] = useState(false);
@@ -291,6 +299,16 @@ export const DashboardPage = () => {
 
               <Button
                 variant="ghost"
+                onClick={openDailyPlanner}
+                className="gap-1.5 text-xs sm:text-sm text-purple-600 dark:text-purple-400 hover:bg-purple-500/10 cursor-pointer"
+                title="AI Daily Planner & Eisenhower Matrix"
+              >
+                <CalendarCheck size={15} />
+                <span>Daily Planner</span>
+              </Button>
+
+              <Button
+                variant="ghost"
                 onClick={() => setCoachOpen(true)}
                 className="gap-1.5 text-xs sm:text-sm text-muted hover:text-foreground cursor-pointer"
                 title="View AI Productivity Insights"
@@ -464,6 +482,17 @@ export const DashboardPage = () => {
           open={coachOpen}
           onClose={() => setCoachOpen(false)}
           tasks={tasks}
+        />
+
+        <AiDailyPlannerModal
+          open={dailyPlannerOpen}
+          onClose={closeDailyPlanner}
+          tasks={tasks}
+          projects={projects}
+          onSelectTask={(taskId) => {
+            closeDailyPlanner();
+            setSelectedTaskId(taskId);
+          }}
         />
 
         {/* Command Palette (Spotlight / Ctrl+K) */}

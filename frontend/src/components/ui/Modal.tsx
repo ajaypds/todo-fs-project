@@ -9,9 +9,20 @@ type Props = {
   onClose: () => void;
 
   children: ReactNode;
+
+  maxWidth?: string;
+
+  className?: string;
 };
 
-export const Modal = ({ open, title, onClose, children }: Props) => {
+export const Modal = ({
+  open,
+  title,
+  onClose,
+  children,
+  maxWidth = "max-w-lg",
+  className = "",
+}: Props) => {
   useEffect(() => {
     const handleEscape = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
@@ -33,11 +44,11 @@ export const Modal = ({ open, title, onClose, children }: Props) => {
   return (
     <div
       onClick={onClose}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4 sm:p-6 overflow-y-auto"
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="bg-background rounded-2xl shadow-xl w-full max-w-lg mx-4 p-6"
+        className={`bg-background border border-border rounded-2xl shadow-2xl w-full ${maxWidth} my-auto p-5 sm:p-6 max-h-[90vh] flex flex-col ${className}`}
       >
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-xl font-semibold">{title}</h2>

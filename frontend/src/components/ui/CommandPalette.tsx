@@ -16,9 +16,11 @@ import {
   Sun,
   X,
   ArrowRight,
+  CalendarCheck,
 } from "lucide-react";
 import { useCommandPaletteStore } from "../../store/commandPaletteStore";
 import { useViewStore } from "../../store/viewStore";
+import { useDailyPlannerStore } from "../../store/dailyPlannerStore";
 import { useTasks } from "../../features/tasks/api/taskQueries";
 import { useProjects } from "../../features/projects/projectQueries";
 import { useThemeStore } from "../../store/themeStore";
@@ -49,6 +51,7 @@ export const CommandPalette = ({
   onSelectTask,
 }: Props) => {
   const { isOpen, close, toggle } = useCommandPaletteStore();
+  const openDailyPlanner = useDailyPlannerStore((state) => state.open);
   const { setActiveView, setSelectedProjectId } = useViewStore();
   const { data: tasksData } = useTasks();
   const { data: projects = [] } = useProjects();
@@ -121,6 +124,18 @@ export const CommandPalette = ({
       onSelect: () => {
         close();
         onOpenAiInsights();
+      },
+    });
+
+    items.push({
+      id: "action-daily-planner",
+      title: "AI Daily Planner (Eisenhower Matrix)",
+      subtitle: "Categorize tasks into 4 quadrants & time blocks",
+      category: "Actions",
+      icon: <CalendarCheck size={16} className="text-purple-500" />,
+      onSelect: () => {
+        close();
+        openDailyPlanner();
       },
     });
 

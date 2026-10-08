@@ -30,4 +30,10 @@ public class AiTaskController {
     decomposeTask(@RequestBody @Valid DecomposeTaskRequest request) {
         return aiTaskService.decomposeTask(request);
     }
+
+    @PostMapping("/daily-planner")
+    public DailyPlannerResponse
+    generateDailyPlan(@RequestBody DailyPlannerRequest request) {
+        return aiTaskService.generateDailyPlan(request);
+    }
 }

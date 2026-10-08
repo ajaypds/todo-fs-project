@@ -1,5 +1,7 @@
 package com.example.todo.ai.service;
 
+import com.example.todo.ai.dto.DailyPlannerRequest;
+import com.example.todo.ai.dto.DailyPlannerResponse;
 import com.example.todo.ai.dto.DecomposeTaskRequest;
 import com.example.todo.ai.dto.DecomposeTaskResponse;
 import com.example.todo.ai.dto.ParsedTaskResponse;
@@ -13,4 +15,6 @@ public interface AiTaskService {
     ProductivityInsightResponse generateInsights(ProductivityInsightRequest request);
 
     DecomposeTaskResponse decomposeTask(DecomposeTaskRequest request);
+
+    DailyPlannerResponse generateDailyPlan(DailyPlannerRequest request);
 }

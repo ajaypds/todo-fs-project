@@ -1,5 +1,11 @@
 import { apiClient } from "../../../api/client";
-import type { DecomposeTaskRequest, DecomposeTaskResponse, ParsedTaskResponse } from "../types/aiTypes";
+import type {
+  DecomposeTaskRequest,
+  DecomposeTaskResponse,
+  ParsedTaskResponse,
+  DailyPlannerRequest,
+  DailyPlannerResponse,
+} from "../types/aiTypes";
 
 export const parseTask = async (input: string) => {
 
@@ -18,4 +24,13 @@ export const decomposeTask = async (payload: DecomposeTaskRequest) => {
     );
 
     return response.data as DecomposeTaskResponse;
+};
+
+export const generateDailyPlan = async (payload: DailyPlannerRequest) => {
+    const response = await apiClient.post(
+        "/ai/daily-planner",
+        payload
+    );
+
+    return response.data as DailyPlannerResponse;
 };
