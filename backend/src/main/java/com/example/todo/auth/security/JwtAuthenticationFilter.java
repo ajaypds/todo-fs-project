@@ -19,70 +19,63 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
-    private final JwtService jwtService;
-    private final CustomUserDetailsService userDetailsService;
+        private final JwtService jwtService;
+        private final CustomUserDetailsService userDetailsService;
 
-    @Override
-    protected void doFilterInternal(
-            HttpServletRequest request,
-            HttpServletResponse response,
-            FilterChain filterChain
-    ) throws ServletException, IOException {
+        @Override
+        protected void doFilterInternal(
+                        HttpServletRequest request,
+                        HttpServletResponse response,
+                        FilterChain filterChain) throws ServletException, IOException {
 
-        final String authHeader =
-                request.getHeader("Authorization");
+                final String authHeader = request.getHeader("Authorization");
 
-        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+                if (authHeader == null || !authHeader.startsWith("Bearer ")) {
 
-            filterChain.doFilter(request, response);
-            return;
+                        filterChain.doFilter(request, response);
+                        return;
+                }
+
+                String token = authHeader.substring(7);
+
+                if (!jwtService.isTokenValid(token)) {
+
+                        filterChain.doFilter(request, response);
+                        return;
+                }
+
+                String userId = jwtService.extractUserId(token);
+
+                UserDetails userDetails = userDetailsService.loadUserById(
+                                UUID.fromString(userId));
+
+                UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
+                                userDetails,
+                                null,
+                                userDetails.getAuthorities());
+
+                authentication.setDetails(
+                                new WebAuthenticationDetailsSource()
+                                                .buildDetails(request));
+
+                SecurityContextHolder.getContext()
+                                .setAuthentication(authentication);
+
+                filterChain.doFilter(request, response);
         }
 
-        String token = authHeader.substring(7);
+        // private String getEmailFromUserId(UUID userId) {
 
-        if (!jwtService.isTokenValid(token)) {
+        // CustomUserDetails userDetails =
+        // (CustomUserDetails) userDetailsService
+        // .loadUserByUsername(
+        // userDetailsService
+        // .userRepository
+        // .findById(userId)
+        // .orElseThrow()
+        // .getEmail()
+        // );
 
-            filterChain.doFilter(request, response);
-            return;
-        }
-
-        String userId = jwtService.extractUserId(token);
-
-        UserDetails userDetails =
-                userDetailsService.loadUserById(
-                        UUID.fromString(userId)
-                );
-
-        UsernamePasswordAuthenticationToken authentication =
-                new UsernamePasswordAuthenticationToken(
-                        userDetails,
-                        null,
-                        userDetails.getAuthorities()
-                );
-
-        authentication.setDetails(
-                new WebAuthenticationDetailsSource()
-                        .buildDetails(request)
-        );
-
-        SecurityContextHolder.getContext()
-                .setAuthentication(authentication);
-
-        filterChain.doFilter(request, response);
-    }
-
-    private String getEmailFromUserId(UUID userId) {
-
-        CustomUserDetails userDetails =
-                (CustomUserDetails) userDetailsService
-                        .loadUserByUsername(
-                                userDetailsService
-                                        .userRepository
-                                        .findById(userId)
-                                        .orElseThrow()
-                                        .getEmail()
-                        );
-
-        return userDetails.getUsername();
-    }
+        // return userDetails.getUsername();
+        // }
 }

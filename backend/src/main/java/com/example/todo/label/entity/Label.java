@@ -34,6 +34,7 @@ public class Label {
     @JoinColumn(nullable = false)
     private User user;
 
+    @Builder.Default
     @ManyToMany(mappedBy = "labels")
     private Set<Task> tasks = new HashSet<>();
 }
