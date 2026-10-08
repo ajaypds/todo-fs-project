@@ -24,4 +24,8 @@ public class UpdateTaskRequest {
     private LocalDateTime dueDate;
 
     private Set<UUID> labelIds;
+
+    private com.example.todo.task.entity.RecurrenceType recurrenceType;
+
+    private Integer recurrenceInterval;
 }

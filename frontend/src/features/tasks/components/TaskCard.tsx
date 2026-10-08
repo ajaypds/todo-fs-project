@@ -1,4 +1,4 @@
-import { Trash2, Calendar, CheckSquare } from "lucide-react";
+import { Trash2, Calendar, CheckSquare, Repeat } from "lucide-react";
 import type { Task } from "../types/taskTypes";
 import type { Project } from "../../projects/projectTypes";
 import { PriorityBadge } from "../../../components/ui/PriorityBadge";
@@ -117,6 +117,47 @@ export const TaskCard = forwardRef<
                   >
                     <Calendar size={12} />
                     <span>{formatDate(task.dueDate)}</span>
+                  </span>
+                )}
+
+                {/* Recurrence Pill */}
+                {task.recurrenceType && task.recurrenceType !== "NONE" && (
+                  <span
+                    className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[11px] font-medium bg-blue-500/10 text-blue-600 dark:text-blue-400"
+                    title={
+                      task.recurrenceInterval && task.recurrenceInterval > 1
+                        ? `Repeats every ${task.recurrenceInterval} ${
+                            task.recurrenceType === "DAILY"
+                              ? "days"
+                              : task.recurrenceType === "WEEKLY"
+                              ? "weeks"
+                              : task.recurrenceType === "MONTHLY"
+                              ? "months"
+                              : "years"
+                          }`
+                        : `Repeats ${task.recurrenceType.toLowerCase()}`
+                    }
+                  >
+                    <Repeat size={11} />
+                    <span>
+                      {task.recurrenceInterval && task.recurrenceInterval > 1
+                        ? `Every ${task.recurrenceInterval} ${
+                            task.recurrenceType === "DAILY"
+                              ? "days"
+                              : task.recurrenceType === "WEEKLY"
+                              ? "wks"
+                              : task.recurrenceType === "MONTHLY"
+                              ? "mos"
+                              : "yrs"
+                          }`
+                        : task.recurrenceType === "DAILY"
+                        ? "Daily"
+                        : task.recurrenceType === "WEEKLY"
+                        ? "Weekly"
+                        : task.recurrenceType === "MONTHLY"
+                        ? "Monthly"
+                        : "Yearly"}
+                    </span>
                   </span>
                 )}
 

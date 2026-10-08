@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import Drawer from "../../../components/ui/Drawer";
-import type { Task } from "../types/taskTypes";
+import type { Task, RecurrenceType } from "../types/taskTypes";
 import type { Project } from "../../projects/projectTypes";
 import type { Label } from "../../labels/labelTypes";
 import {
@@ -30,6 +30,7 @@ import {
   Sparkles,
   Loader2,
   Check,
+  Repeat,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { cn } from "../../../lib/cn";
@@ -63,6 +64,8 @@ export const TaskDetailsDrawer = ({
   const [dueDate, setDueDate] = useState<string>("");
   const [selectedLabels, setSelectedLabels] = useState<string[]>([]);
   const [completed, setCompleted] = useState(false);
+  const [recurrenceType, setRecurrenceType] = useState<RecurrenceType>("NONE");
+  const [recurrenceInterval, setRecurrenceInterval] = useState<number>(1);
   const [newSubtaskTitle, setNewSubtaskTitle] = useState("");
   const [aiSuggestions, setAiSuggestions] = useState<string[]>([]);
   const [selectedSuggestions, setSelectedSuggestions] = useState<Set<number>>(
@@ -79,6 +82,8 @@ export const TaskDetailsDrawer = ({
     setDueDate(task.dueDate ? task.dueDate.split("T")[0] : "");
     setSelectedLabels(task.labels ? task.labels.map((l) => l.id) : []);
     setCompleted(task.completed || false);
+    setRecurrenceType(task.recurrenceType || "NONE");
+    setRecurrenceInterval(task.recurrenceInterval || 1);
     setNewSubtaskTitle("");
     setAiSuggestions([]);
     setSelectedSuggestions(new Set());
@@ -111,6 +116,8 @@ export const TaskDetailsDrawer = ({
           dueDate: dueDate ? `${dueDate}T00:00:00` : null,
           labelIds: selectedLabels,
           completed,
+          recurrenceType,
+          recurrenceInterval: Number(recurrenceInterval) || 1,
         },
       },
       {
@@ -587,6 +594,83 @@ export const TaskDetailsDrawer = ({
             {dueDate && (
               <p className="text-xs text-muted mt-1 px-1">
                 Scheduled for {formatDate(`${dueDate}T00:00:00`)}
+              </p>
+            )}
+          </div>
+
+          {/* Recurrence */}
+          <div className="sm:col-span-2 pt-3 border-t border-border/50">
+            <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted mb-2">
+              <Repeat size={13} className="text-blue-500" />
+              <span>Recurrence (Repeat Task)</span>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-[11px] text-muted mb-1 font-medium">
+                  Repeat Frequency
+                </label>
+                <Select
+                  value={recurrenceType}
+                  onChange={(e) =>
+                    setRecurrenceType(e.target.value as RecurrenceType)
+                  }
+                  className="text-xs"
+                >
+                  <option value="NONE">Do not repeat</option>
+                  <option value="DAILY">Daily</option>
+                  <option value="WEEKLY">Weekly</option>
+                  <option value="MONTHLY">Monthly</option>
+                  <option value="YEARLY">Yearly</option>
+                </Select>
+              </div>
+
+              {recurrenceType !== "NONE" && (
+                <div>
+                  <label className="block text-[11px] text-muted mb-1 font-medium">
+                    Repeat Every
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="number"
+                      min={1}
+                      max={99}
+                      value={recurrenceInterval}
+                      onChange={(e) =>
+                        setRecurrenceInterval(
+                          Math.max(1, parseInt(e.target.value) || 1)
+                        )
+                      }
+                      className="text-xs w-20"
+                    />
+                    <span className="text-xs text-muted">
+                      {recurrenceType === "DAILY"
+                        ? recurrenceInterval === 1
+                          ? "day"
+                          : "days"
+                        : recurrenceType === "WEEKLY"
+                        ? recurrenceInterval === 1
+                          ? "week"
+                          : "weeks"
+                        : recurrenceType === "MONTHLY"
+                        ? recurrenceInterval === 1
+                          ? "month"
+                          : "months"
+                        : recurrenceInterval === 1
+                        ? "year"
+                        : "years"}
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {recurrenceType !== "NONE" && (
+              <p className="text-[11px] text-blue-600 dark:text-blue-400 mt-2 px-1 flex items-center gap-1.5">
+                <Repeat size={12} className="shrink-0" />
+                <span>
+                  When marked complete, a new active instance will automatically
+                  be created scheduled for the next interval with a clean checklist.
+                </span>
               </p>
             )}
           </div>

@@ -36,4 +36,8 @@ public class TaskResponse {
     private Set<LabelResponse> labels;
 
     private List<SubtaskResponse> subtasks;
+
+    private String recurrenceType;
+
+    private Integer recurrenceInterval;
 }

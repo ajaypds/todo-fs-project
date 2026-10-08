@@ -48,6 +48,15 @@ public class Task {
 
     private LocalDateTime dueDate;
 
+    @Enumerated(EnumType.STRING)
+    @Column(length = 20)
+    @Builder.Default
+    private RecurrenceType recurrenceType = RecurrenceType.NONE;
+
+    @Column(nullable = false)
+    @Builder.Default
+    private Integer recurrenceInterval = 1;
+
     @Column(nullable = false)
     private Integer position;
 

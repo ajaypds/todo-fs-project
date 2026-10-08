@@ -1,0 +1,3 @@
+ALTER TABLE tasks
+ADD COLUMN recurrence_type VARCHAR(20) DEFAULT 'NONE',
+ADD COLUMN recurrence_interval INTEGER DEFAULT 1;

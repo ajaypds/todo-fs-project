@@ -1,5 +1,5 @@
 import { apiClient } from "../../../api/client";
-import type { Task, Subtask } from "../types/taskTypes";
+import type { Task, Subtask, RecurrenceType } from "../types/taskTypes";
 import type { PageResponse } from "../../../types/pagination";
 
 export type CreateTaskRequest = {
@@ -7,6 +7,10 @@ export type CreateTaskRequest = {
   description?: string;
   priority?: number;
   dueDate?: string;
+  projectId?: string;
+  labelIds?: string[];
+  recurrenceType?: RecurrenceType;
+  recurrenceInterval?: number;
 };
 
 export const getTasks = async (): Promise<PageResponse<Task>> => {

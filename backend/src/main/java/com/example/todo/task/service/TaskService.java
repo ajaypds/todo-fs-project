@@ -13,6 +13,7 @@ import com.example.todo.task.dto.SubtaskResponse;
 import com.example.todo.task.dto.TaskResponse;
 import com.example.todo.task.dto.UpdateSubtaskRequest;
 import com.example.todo.task.dto.UpdateTaskRequest;
+import com.example.todo.task.entity.RecurrenceType;
 import com.example.todo.task.entity.Subtask;
 import com.example.todo.task.entity.Task;
 import com.example.todo.task.event.TaskCreatedEvent;
@@ -77,6 +78,9 @@ public class TaskService {
 
         Set<Label> labels = request.getLabelIds() == null ? new HashSet<>() : new HashSet<>(labelRepository.findAllById(request.getLabelIds()));
 
+        RecurrenceType recurrenceType = request.getRecurrenceType() != null ? request.getRecurrenceType() : RecurrenceType.NONE;
+        Integer recurrenceInterval = request.getRecurrenceInterval() != null && request.getRecurrenceInterval() > 0 ? request.getRecurrenceInterval() : 1;
+
         Task task = Task.builder()
                 .user(user)
                 .title(request.getTitle())
@@ -89,6 +93,8 @@ public class TaskService {
                 .project(project)
                 .position(position)
                 .labels(labels)
+                .recurrenceType(recurrenceType)
+                .recurrenceInterval(recurrenceInterval)
                 .build();
 
         taskRepository.save(task);
@@ -114,6 +120,7 @@ public class TaskService {
     public TaskResponse updateTask(UUID userId, UUID taskId, UpdateTaskRequest request) {
 
         Task task = getOwnedTask(userId, taskId);
+        boolean wasNotCompleted = !task.isCompleted();
 
         if (request.getTitle() != null) {
             task.setTitle(request.getTitle());
@@ -135,6 +142,14 @@ public class TaskService {
             task.setDueDate(request.getDueDate());
         }
 
+        if (request.getRecurrenceType() != null) {
+            task.setRecurrenceType(request.getRecurrenceType());
+        }
+
+        if (request.getRecurrenceInterval() != null && request.getRecurrenceInterval() > 0) {
+            task.setRecurrenceInterval(request.getRecurrenceInterval());
+        }
+
         if(request.getLabelIds() != null){
             Set<Label> labels = new HashSet<>(labelRepository.findAllById(request.getLabelIds()));
             task.setLabels(labels);
@@ -145,6 +160,11 @@ public class TaskService {
         taskRepository.save(task);
 
         eventPublisher.publishEvent(new TaskUpdatedEvent(task.getId(), task.getTitle(), task.getUser().getId()));
+
+        if (Boolean.TRUE.equals(request.getCompleted()) && wasNotCompleted
+                && task.getRecurrenceType() != null && task.getRecurrenceType() != RecurrenceType.NONE) {
+            spawnNextRecurringInstance(task);
+        }
 
         return mapToResponse(task);
     }
@@ -288,6 +308,8 @@ public class TaskService {
                 .updatedAt(task.getUpdatedAt())
                 .projectId(task.getProject() != null ? task.getProject().getId() : null)
                 .position(task.getPosition())
+                .recurrenceType(task.getRecurrenceType() != null ? task.getRecurrenceType().name() : "NONE")
+                .recurrenceInterval(task.getRecurrenceInterval() != null ? task.getRecurrenceInterval() : 1)
                 .labels(task.getLabels().stream()
                         .map(label -> LabelResponse
                                         .builder()
@@ -300,5 +322,75 @@ public class TaskService {
                         .map(this::mapToSubtaskResponse)
                         .collect(Collectors.toList()) : Collections.emptyList())
                 .build();
+    }
+
+    private void spawnNextRecurringInstance(Task task) {
+        int position = (int) taskRepository.count();
+        LocalDateTime nextDueDate = calculateNextDueDate(
+                task.getDueDate() != null ? task.getDueDate() : LocalDateTime.now(),
+                task.getRecurrenceType(),
+                task.getRecurrenceInterval() != null && task.getRecurrenceInterval() > 0 ? task.getRecurrenceInterval() : 1
+        );
+
+        Task nextTask = Task.builder()
+                .user(task.getUser())
+                .title(task.getTitle())
+                .description(task.getDescription())
+                .completed(false)
+                .priority(task.getPriority())
+                .dueDate(nextDueDate)
+                .createdAt(LocalDateTime.now())
+                .updatedAt(LocalDateTime.now())
+                .project(task.getProject())
+                .position(position)
+                .labels(task.getLabels() != null ? new HashSet<>(task.getLabels()) : new HashSet<>())
+                .recurrenceType(task.getRecurrenceType())
+                .recurrenceInterval(task.getRecurrenceInterval())
+                .build();
+
+        Task savedNextTask = taskRepository.save(nextTask);
+
+        if (task.getSubtasks() != null && !task.getSubtasks().isEmpty()) {
+            List<Subtask> clonedSubtasks = task.getSubtasks().stream()
+                    .map(sub -> Subtask.builder()
+                            .task(savedNextTask)
+                            .title(sub.getTitle())
+                            .completed(false)
+                            .position(sub.getPosition())
+                            .createdAt(LocalDateTime.now())
+                            .updatedAt(LocalDateTime.now())
+                            .build())
+                    .collect(Collectors.toList());
+            subtaskRepository.saveAll(clonedSubtasks);
+        }
+
+        eventPublisher.publishEvent(new TaskCreatedEvent(savedNextTask.getId(), savedNextTask.getTitle(), savedNextTask.getUser().getId()));
+    }
+
+    private LocalDateTime calculateNextDueDate(LocalDateTime base, RecurrenceType type, int interval) {
+        if (base == null) {
+            base = LocalDateTime.now();
+        }
+        if (interval < 1) {
+            interval = 1;
+        }
+        LocalDateTime next = switch (type) {
+            case DAILY -> base.plusDays(interval);
+            case WEEKLY -> base.plusWeeks(interval);
+            case MONTHLY -> base.plusMonths(interval);
+            case YEARLY -> base.plusYears(interval);
+            default -> base;
+        };
+
+        while (next.isBefore(LocalDateTime.now())) {
+            next = switch (type) {
+                case DAILY -> next.plusDays(interval);
+                case WEEKLY -> next.plusWeeks(interval);
+                case MONTHLY -> next.plusMonths(interval);
+                case YEARLY -> next.plusYears(interval);
+                default -> next;
+            };
+        }
+        return next;
     }
 }
