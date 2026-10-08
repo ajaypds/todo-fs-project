@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import type { Project } from "../../projects/projectTypes";
 import { Input } from "../../../components/ui/Input";
-import { Textarea } from "../../../components/ui/Textarea";
+import { MarkdownEditor } from "../../../components/ui/MarkdownEditor";
 import { Button } from "../../../components/ui/Button";
 import { Select } from "../../../components/ui/Select";
 import { cn } from "../../../lib/cn";
@@ -83,14 +83,12 @@ export const CreateTaskForm = ({
       </div>
 
       <div>
-        <label className="block text-xs font-semibold uppercase tracking-wider text-muted mb-1.5">
-          Description
-        </label>
-        <Textarea
+        <MarkdownEditor
+          label="Description"
           value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          placeholder="Add details, links, or notes..."
-          className="w-full text-sm min-h-20"
+          onChange={(val) => setDescription(val)}
+          placeholder="Add details, checklists, links, or notes in Markdown..."
+          minHeight="min-h-[90px]"
         />
       </div>
 

@@ -14,7 +14,7 @@ import { useDecomposeTask } from "../../ai/api/aiQueries";
 import { PriorityBadge } from "../../../components/ui/PriorityBadge";
 import { formatDate } from "../../../utils/date";
 import { Input } from "../../../components/ui/Input";
-import { Textarea } from "../../../components/ui/Textarea";
+import { MarkdownEditor } from "../../../components/ui/MarkdownEditor";
 import { Select } from "../../../components/ui/Select";
 import { Button } from "../../../components/ui/Button";
 import {
@@ -315,16 +315,14 @@ export const TaskDetailsDrawer = ({
           />
         </div>
 
-        {/* Description Textarea */}
+        {/* Rich Description & Markdown Notes */}
         <div>
-          <label className="block text-xs font-semibold uppercase tracking-wider text-muted mb-1.5">
-            Description & Notes
-          </label>
-          <Textarea
+          <MarkdownEditor
+            label="Description & Notes"
             value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            placeholder="Add detailed notes or requirements..."
-            className="min-h-24 text-sm"
+            onChange={(val) => setDescription(val)}
+            placeholder="Add detailed notes, checklists, code snippets, or links in Markdown..."
+            minHeight="min-h-[130px]"
           />
         </div>
 
