@@ -272,7 +272,7 @@ export const DashboardPage = () => {
   const activeTask = filteredTasks.find((task) => task.id === activeId);
 
   return (
-    <AppLayout>
+    <AppLayout onOpenCreateTask={() => setTaskModalOpen(true)}>
       <PageTransition>
         <OnlineUsers />
 
@@ -510,14 +510,15 @@ export const DashboardPage = () => {
           onSelectTask={(taskId) => setSelectedTaskId(taskId)}
         />
 
-        {/* Floating Action Button for quick task add */}
+        {/* Floating Action Button for quick task add (desktop only, mobile uses bottom nav + button) */}
         <button
           className="
-            fixed bottom-6 right-6 md:bottom-8 md:right-8
+            hidden md:flex
+            fixed bottom-8 right-8
             w-13 h-13 rounded-full
             bg-primary text-primary-foreground
             shadow-lg
-            flex items-center justify-center
+            items-center justify-center
             hover:scale-105 active:scale-95
             cursor-pointer
             transition-all duration-200 z-30

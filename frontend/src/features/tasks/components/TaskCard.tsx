@@ -58,21 +58,21 @@ export const TaskCard = forwardRef<
         >
           {/* Left Side: Checkbox + Title + Metadata */}
           <div className="flex items-center gap-3 min-w-0 flex-1">
-            {/* Checkbox */}
+            {/* Checkbox with >= 44px tap target on mobile */}
             <button
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
                 onToggle();
               }}
-              className="shrink-0 p-1 -m-1 rounded-full text-muted hover:text-foreground cursor-pointer focus:outline-none"
+              className="shrink-0 w-11 h-11 sm:w-8 sm:h-8 -ml-2 sm:ml-0 flex items-center justify-center rounded-lg text-muted hover:text-foreground cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 active:scale-95 transition-transform"
               aria-label={task.completed ? "Mark incomplete" : "Mark complete"}
             >
               <input
                 type="checkbox"
                 checked={task.completed}
                 readOnly
-                className="w-4 h-4 rounded border-border text-accent focus:ring-accent/20 cursor-pointer pointer-events-none"
+                className="w-4.5 h-4.5 sm:w-4 sm:h-4 rounded border-border text-accent focus:ring-accent/20 cursor-pointer pointer-events-none"
               />
             </button>
 
@@ -194,8 +194,8 @@ export const TaskCard = forwardRef<
             </div>
           </div>
 
-          {/* Right Side: Quick Action Buttons (visible on hover or focus) */}
-          <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+          {/* Right Side: Quick Action Buttons (touch accessible on mobile, hover on desktop) */}
+          <div className="flex items-center gap-1 shrink-0 opacity-70 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
             {onEdit && (
               <button
                 type="button"
@@ -203,7 +203,7 @@ export const TaskCard = forwardRef<
                   e.stopPropagation();
                   onEdit();
                 }}
-                className="text-xs px-2 py-1 rounded-md text-muted hover:text-foreground hover:bg-secondary transition-colors cursor-pointer"
+                className="text-xs px-2.5 py-1.5 min-h-[36px] sm:min-h-0 rounded-md text-muted hover:text-foreground hover:bg-secondary transition-colors cursor-pointer flex items-center"
               >
                 Edit
               </button>
@@ -215,10 +215,10 @@ export const TaskCard = forwardRef<
                 e.stopPropagation();
                 onDelete();
               }}
-              className="p-1 rounded-md text-muted hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors cursor-pointer"
+              className="p-2 sm:p-1 min-w-[36px] min-h-[36px] sm:min-w-0 sm:min-h-0 flex items-center justify-center rounded-md text-muted hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors cursor-pointer"
               title="Delete task"
             >
-              <Trash2 size={15} />
+              <Trash2 size={16} />
             </button>
           </div>
         </motion.div>
