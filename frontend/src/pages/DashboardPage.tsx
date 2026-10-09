@@ -578,10 +578,12 @@ export const DashboardPage = () => {
         />
 
         {/* API Keys & MCP Integration Modal */}
-        <ApiKeysModal
-          open={apiKeysModalOpen}
-          onClose={() => setApiKeysModalOpen(false)}
-        />
+        {apiKeysModalOpen && (
+          <ApiKeysModal
+            open={apiKeysModalOpen}
+            onClose={() => setApiKeysModalOpen(false)}
+          />
+        )}
 
         {/* Floating Action Button for quick task add (desktop only, mobile uses bottom nav + button) */}
         <button

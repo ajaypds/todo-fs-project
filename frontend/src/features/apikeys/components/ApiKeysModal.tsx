@@ -1,9 +1,9 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Modal } from "../../../components/ui/Modal";
 import { useApiKeys, useCreateApiKey, useRevokeApiKey } from "../apiKeyQueries";
 import { Button } from "../../../components/ui/Button";
 import { Input } from "../../../components/ui/Input";
-import { KeyRound, Copy, Check, Trash2, Terminal, Sparkles, AlertTriangle } from "lucide-react";
+import { KeyRound, Copy, Check, Trash2, Terminal, Sparkles, AlertTriangle, X } from "lucide-react";
 import toast from "react-hot-toast";
 import { formatDate } from "../../../utils/date";
 
@@ -19,9 +19,38 @@ export const ApiKeysModal = ({ open, onClose }: Props) => {
 
   const [keyName, setKeyName] = useState("");
   const [newlyGeneratedKey, setNewlyGeneratedKey] = useState<string | null>(null);
+  const [newlyGeneratedKeyId, setNewlyGeneratedKeyId] = useState<string | null>(null);
   const [copiedKey, setCopiedKey] = useState(false);
   const [activeTab, setActiveTab] = useState<"claude" | "cursor" | "chatgpt" | "gemini">("claude");
   const [copiedConfig, setCopiedConfig] = useState(false);
+
+  // Automatically clear one-time secret key whenever dialog is closed or reopened
+  useEffect(() => {
+    if (!open) {
+      setNewlyGeneratedKey(null);
+      setNewlyGeneratedKeyId(null);
+      setKeyName("");
+      setCopiedKey(false);
+      setCopiedConfig(false);
+    }
+  }, [open]);
+
+  // If the active keys list updates and no longer contains newlyGeneratedKeyId (e.g. deleted), clear it immediately
+  useEffect(() => {
+    if (newlyGeneratedKeyId && !keys.some((k) => k.id === newlyGeneratedKeyId)) {
+      setNewlyGeneratedKey(null);
+      setNewlyGeneratedKeyId(null);
+    }
+  }, [keys, newlyGeneratedKeyId]);
+
+  const handleClose = useCallback(() => {
+    setNewlyGeneratedKey(null);
+    setNewlyGeneratedKeyId(null);
+    setKeyName("");
+    setCopiedKey(false);
+    setCopiedConfig(false);
+    onClose();
+  }, [onClose]);
 
   const handleGenerate = (e: React.FormEvent) => {
     e.preventDefault();
@@ -31,9 +60,21 @@ export const ApiKeysModal = ({ open, onClose }: Props) => {
       onSuccess: (data) => {
         if (data.apiKey) {
           setNewlyGeneratedKey(data.apiKey);
+          setNewlyGeneratedKeyId(data.id);
         }
         setKeyName("");
         toast.success("API key generated successfully!");
+      },
+    });
+  };
+
+  const handleRevokeKey = (keyId: string) => {
+    revokeKeyMutation.mutate(keyId, {
+      onSuccess: () => {
+        if (newlyGeneratedKeyId === keyId) {
+          setNewlyGeneratedKey(null);
+          setNewlyGeneratedKeyId(null);
+        }
       },
     });
   };
@@ -95,7 +136,7 @@ export const ApiKeysModal = ({ open, onClose }: Props) => {
   };
 
   return (
-    <Modal open={open} onClose={onClose} title="🔑 API Keys & MCP Integration" maxWidth="max-w-2xl">
+    <Modal open={open} onClose={handleClose} title="🔑 API Keys & MCP Integration" maxWidth="max-w-2xl">
       <div className="space-y-6 text-sm">
         <p className="text-muted text-xs leading-relaxed">
           Generate API keys to connect <strong>Claude Desktop</strong>, <strong>ChatGPT</strong>,{" "}
@@ -123,13 +164,26 @@ export const ApiKeysModal = ({ open, onClose }: Props) => {
 
         {/* Newly Generated Secret Banner */}
         {newlyGeneratedKey && (
-          <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 space-y-2">
-            <div className="flex items-center gap-2 text-amber-700 dark:text-amber-400 font-semibold text-xs">
-              <AlertTriangle size={15} />
-              <span>Copy your new API Key now</span>
+          <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 space-y-2 relative">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-amber-700 dark:text-amber-400 font-semibold text-xs">
+                <AlertTriangle size={15} />
+                <span>Copy your new API Key now</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setNewlyGeneratedKey(null);
+                  setNewlyGeneratedKeyId(null);
+                }}
+                className="text-muted hover:text-foreground p-1 rounded-md transition-colors cursor-pointer"
+                title="Dismiss secret banner"
+              >
+                <X size={14} />
+              </button>
             </div>
             <p className="text-[11px] text-muted">
-              For security, this secret key will never be shown again. Store it securely or add it directly to your MCP client config.
+              For security, this secret key will only be shown once now. It will never be shown again once you close this dialog or dismiss this banner.
             </p>
             <div className="flex items-center gap-2 mt-2">
               <code className="flex-1 p-2 bg-card border border-border rounded-lg text-xs font-mono font-semibold select-all truncate text-foreground">
@@ -144,6 +198,18 @@ export const ApiKeysModal = ({ open, onClose }: Props) => {
                 {copiedKey ? <Check size={13} className="text-emerald-500" /> : <Copy size={13} />}
                 <span>{copiedKey ? "Copied" : "Copy"}</span>
               </Button>
+            </div>
+            <div className="flex justify-end pt-1">
+              <button
+                type="button"
+                onClick={() => {
+                  setNewlyGeneratedKey(null);
+                  setNewlyGeneratedKeyId(null);
+                }}
+                className="text-[11px] font-medium text-amber-800 dark:text-amber-300 hover:underline cursor-pointer"
+              >
+                I've saved my key (dismiss banner)
+              </button>
             </div>
           </div>
         )}
@@ -179,9 +245,9 @@ export const ApiKeysModal = ({ open, onClose }: Props) => {
                   <Button
                     type="button"
                     variant="ghost"
-                    onClick={() => revokeKeyMutation.mutate(k.id)}
+                    onClick={() => handleRevokeKey(k.id)}
                     disabled={revokeKeyMutation.isPending}
-                    className="text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40 p-1.5 h-8 w-8"
+                    className="text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40 p-1.5 h-8 w-8 cursor-pointer"
                     title="Revoke key"
                   >
                     <Trash2 size={14} />
