@@ -9,7 +9,6 @@ import {
 import { EmptyState } from "../components/ui/EmptyState";
 import { TaskSkeleton } from "../components/ui/TaskSkeleton";
 import toast from "react-hot-toast";
-import { useProjects } from "../features/projects/projectQueries";
 import { useViewStore } from "../store/viewStore";
 import { useCommandPaletteStore } from "../store/commandPaletteStore";
 import type { DragStartEvent, DragEndEvent } from "@dnd-kit/core";
@@ -33,16 +32,21 @@ import {
   AlertCircle,
   Command,
   CalendarCheck,
+  Activity,
+  Trash2,
 } from "lucide-react";
 import { PageTransition } from "../components/ui/PageTransition";
 import { useLabels } from "../features/labels/labelQueries";
 import { OnlineUsers } from "../features/users/components/OnlineUsers";
-import { ActivityFeed } from "../features/activity/components/ActivityFeed";
+import { ActivityDrawer } from "../features/activity/components/ActivityDrawer";
 import { useOnlineUsers } from "../features/realtime/api/presenceQueries";
 import { usePresenceStore } from "../store/presenceStore";
 import { useAiStore } from "../store/aiStore";
 import { useDailyPlannerStore } from "../store/dailyPlannerStore";
 import { Button } from "../components/ui/Button";
+import { Modal } from "../components/ui/Modal";
+import { useProjects, useDeleteProject } from "../features/projects/projectQueries";
+import type { Project } from "../features/projects/projectTypes";
 import { AiInsightsModal } from "../features/ai/components/AiInsightsModal";
 import AiAssistantDrawer from "../features/ai/components/AiAssistantDrawer";
 import AiDailyPlannerModal from "../features/ai/components/AiDailyPlannerModal";
@@ -60,13 +64,14 @@ export const DashboardPage = () => {
   const reorderTasksMutation = useReorderTasks();
 
   const [search, setSearch] = useState("");
-  const { activeView, selectedProjectId } = useViewStore();
+  const { activeView, selectedProjectId, setSelectedProjectId } = useViewStore();
   const openCommandPalette = useCommandPaletteStore((state) => state.open);
 
   const { data: projects = [] } = useProjects();
   const { data: labels = [] } = useLabels();
   const { data: presence } = useOnlineUsers();
   const setPresence = usePresenceStore((state) => state.setPresence);
+  const deleteProjectMutation = useDeleteProject();
 
   // Modals & Drawers state
   const {
@@ -76,6 +81,8 @@ export const DashboardPage = () => {
   } = useDailyPlannerStore();
   const [taskModalOpen, setTaskModalOpen] = useState(false);
   const [projectModalOpen, setProjectModalOpen] = useState(false);
+  const [projectToDelete, setProjectToDelete] = useState<Project | null>(null);
+  const [activityDrawerOpen, setActivityDrawerOpen] = useState(false);
   const [apiKeysModalOpen, setApiKeysModalOpen] = useState(false);
   const [aiOpen, setAiOpen] = useState(false);
   const [coachOpen, setCoachOpen] = useState(false);
@@ -258,6 +265,7 @@ export const DashboardPage = () => {
     <AppLayout
       onOpenCreateTask={() => setTaskModalOpen(true)}
       onOpenApiKeys={() => setApiKeysModalOpen(true)}
+      onOpenActivity={() => setActivityDrawerOpen(true)}
     >
       <PageTransition>
         <OnlineUsers />
@@ -271,6 +279,16 @@ export const DashboardPage = () => {
                 <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
                   {viewHeaderInfo.title}
                 </h1>
+                {selectedProject && (
+                  <Button
+                    variant="ghost"
+                    onClick={() => setProjectToDelete(selectedProject)}
+                    className="text-red-500 hover:text-red-600 hover:bg-red-500/10 cursor-pointer ml-1 p-1.5 h-auto rounded-lg"
+                    title={`Delete project "${selectedProject.name}"`}
+                  >
+                    <Trash2 size={16} />
+                  </Button>
+                )}
               </div>
               <p className="text-xs text-muted mt-1">
                 {viewHeaderInfo.subtitle}
@@ -279,6 +297,16 @@ export const DashboardPage = () => {
 
             {/* Action Buttons */}
             <div className="flex items-center gap-2 flex-wrap">
+              <Button
+                variant="ghost"
+                onClick={() => setActivityDrawerOpen(true)}
+                className="gap-1.5 text-xs sm:text-sm text-muted hover:text-foreground cursor-pointer"
+                title="View Activity Feed"
+              >
+                <Activity size={15} />
+                <span>Activity</span>
+              </Button>
+
               <Button
                 variant="ghost"
                 onClick={() => setAiOpen(true)}
@@ -432,11 +460,6 @@ export const DashboardPage = () => {
               </DragOverlay>
             </DndContext>
           )}
-
-          {/* Activity Feed Section */}
-          <div className="mt-12 pt-8 border-t border-border">
-            <ActivityFeed />
-          </div>
         </div>
 
         {/* Drawers & Modals */}
@@ -487,6 +510,62 @@ export const DashboardPage = () => {
           }}
         />
 
+        {/* Activity Drawer */}
+        <ActivityDrawer
+          open={activityDrawerOpen}
+          onClose={() => setActivityDrawerOpen(false)}
+        />
+
+        {/* Delete Project Confirmation Modal */}
+        <Modal
+          open={!!projectToDelete}
+          onClose={() => setProjectToDelete(null)}
+          title="Delete Project"
+        >
+          <div className="space-y-4">
+            <p className="text-sm text-foreground/80">
+              Are you sure you want to delete project{" "}
+              <strong className="text-foreground font-semibold">
+                "{projectToDelete?.name}"
+              </strong>
+              ?
+            </p>
+            <div className="p-3 bg-secondary/50 rounded-xl text-xs text-muted border border-border">
+              Tasks in this project will not be deleted; they will be safely unassigned and moved to your Inbox.
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button
+                variant="ghost"
+                onClick={() => setProjectToDelete(null)}
+                disabled={deleteProjectMutation.isPending}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="danger"
+                disabled={deleteProjectMutation.isPending}
+                onClick={() => {
+                  if (!projectToDelete) return;
+                  deleteProjectMutation.mutate(projectToDelete.id, {
+                    onSuccess: () => {
+                      toast.success(`Project "${projectToDelete.name}" deleted`);
+                      if (selectedProjectId === projectToDelete.id) {
+                        setSelectedProjectId(null);
+                      }
+                      setProjectToDelete(null);
+                    },
+                    onError: () => {
+                      toast.error("Failed to delete project");
+                    },
+                  });
+                }}
+              >
+                Delete Project
+              </Button>
+            </div>
+          </div>
+        </Modal>
+
         {/* Command Palette (Spotlight / Ctrl+K) */}
         <CommandPalette
           onOpenAddTask={() => setTaskModalOpen(true)}
@@ -495,6 +574,7 @@ export const DashboardPage = () => {
           onOpenCreateProject={() => setProjectModalOpen(true)}
           onSelectTask={(taskId) => setSelectedTaskId(taskId)}
           onOpenApiKeys={() => setApiKeysModalOpen(true)}
+          onOpenActivity={() => setActivityDrawerOpen(true)}
         />
 
         {/* API Keys & MCP Integration Modal */}

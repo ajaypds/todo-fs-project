@@ -18,6 +18,7 @@ import {
   ArrowRight,
   CalendarCheck,
   KeyRound,
+  Activity,
 } from "lucide-react";
 import { useCommandPaletteStore } from "../../store/commandPaletteStore";
 import { useViewStore } from "../../store/viewStore";
@@ -34,6 +35,7 @@ type Props = {
   onOpenCreateProject: () => void;
   onSelectTask: (taskId: string) => void;
   onOpenApiKeys?: () => void;
+  onOpenActivity?: () => void;
 };
 
 type CommandItem = {
@@ -52,6 +54,7 @@ export const CommandPalette = ({
   onOpenCreateProject,
   onSelectTask,
   onOpenApiKeys,
+  onOpenActivity,
 }: Props) => {
   const { isOpen, close, toggle } = useCommandPaletteStore();
   const openDailyPlanner = useDailyPlannerStore((state) => state.open);
@@ -164,6 +167,20 @@ export const CommandPalette = ({
         onSelect: () => {
           close();
           onOpenApiKeys();
+        },
+      });
+    }
+
+    if (onOpenActivity) {
+      items.push({
+        id: "action-activity-log",
+        title: "View Activity Log",
+        subtitle: "Audit trail of changes made across your workspace",
+        category: "Actions",
+        icon: <Activity size={16} className="text-emerald-500" />,
+        onSelect: () => {
+          close();
+          onOpenActivity();
         },
       });
     }

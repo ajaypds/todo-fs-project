@@ -17,6 +17,7 @@ import {
   PanelLeftOpen,
   Plus,
   KeyRound,
+  Activity,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuthStore } from "../../store/authStore";
@@ -34,9 +35,10 @@ type Props = {
   children: ReactNode;
   onOpenCreateTask?: () => void;
   onOpenApiKeys?: () => void;
+  onOpenActivity?: () => void;
 };
 
-export const AppLayout = ({ children, onOpenCreateTask, onOpenApiKeys }: Props) => {
+export const AppLayout = ({ children, onOpenCreateTask, onOpenApiKeys, onOpenActivity }: Props) => {
   const navigate = useNavigate();
   const token = useAuthStore((state) => state.token);
   const logout = useAuthStore((state) => state.logout);
@@ -137,6 +139,16 @@ export const AppLayout = ({ children, onOpenCreateTask, onOpenApiKeys }: Props) 
               <KeyRound size={18} />
             </button>
           )}
+          {onOpenActivity && (
+            <button
+              type="button"
+              onClick={onOpenActivity}
+              className="p-2 rounded-lg text-muted hover:text-foreground hover:bg-secondary cursor-pointer"
+              title="Activity Log"
+            >
+              <Activity size={18} />
+            </button>
+          )}
           <ThemeToggle />
           <button onClick={toggle} className="p-1 cursor-pointer">
             {open ? <X size={22} /> : <Menu size={22} />}
@@ -189,6 +201,16 @@ export const AppLayout = ({ children, onOpenCreateTask, onOpenApiKeys }: Props) 
                   <KeyRound size={17} />
                 </button>
               )}
+              {onOpenActivity && (
+                <button
+                  type="button"
+                  onClick={onOpenActivity}
+                  className="p-1.5 rounded-lg text-muted hover:text-foreground hover:bg-secondary cursor-pointer transition-colors"
+                  title="Activity Log"
+                >
+                  <Activity size={17} />
+                </button>
+              )}
             </div>
           ) : (
             <>
@@ -203,6 +225,16 @@ export const AppLayout = ({ children, onOpenCreateTask, onOpenApiKeys }: Props) 
                     title="API Keys & MCP Integration"
                   >
                     <KeyRound size={17} />
+                  </button>
+                )}
+                {onOpenActivity && (
+                  <button
+                    type="button"
+                    onClick={onOpenActivity}
+                    className="p-1.5 rounded-lg text-muted hover:text-foreground hover:bg-secondary cursor-pointer transition-colors"
+                    title="Activity Log"
+                  >
+                    <Activity size={17} />
                   </button>
                 )}
                 <ThemeToggle />

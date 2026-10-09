@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { createProject, getProjects } from "./projectApi";
+import { createProject, deleteProject, getProjects } from "./projectApi";
 import type { Project } from "./projectTypes";
 import toast from "react-hot-toast";
 
@@ -57,6 +57,37 @@ export const useCreateProject = () => {
       queryClient.invalidateQueries({
         queryKey: ["projects"],
       });
+    },
+  });
+};
+
+export const useDeleteProject = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: deleteProject,
+
+    onMutate: async (projectId: string) => {
+      await queryClient.cancelQueries({ queryKey: ["projects"] });
+      const previousProjects = queryClient.getQueryData<Project[]>(["projects"]);
+
+      queryClient.setQueryData<Project[]>(["projects"], (old = []) =>
+        old.filter((p) => p.id !== projectId)
+      );
+
+      return { previousProjects };
+    },
+
+    onError: (_error, _projectId, context) => {
+      if (context?.previousProjects) {
+        queryClient.setQueryData(["projects"], context.previousProjects);
+      }
+      toast.error("Failed to delete project. Reverted.");
+    },
+
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ["projects"] });
+      queryClient.invalidateQueries({ queryKey: ["tasks"] });
     },
   });
 };

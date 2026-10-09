@@ -11,11 +11,12 @@ import jakarta.validation.Valid;
 
 import lombok.RequiredArgsConstructor;
 
+import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/v1/projects")
@@ -26,7 +27,6 @@ public class ProjectController {
 
     @PostMapping
     public ProjectResponse createProject(
-
             @AuthenticationPrincipal
             CustomUserDetails userDetails,
 
@@ -34,17 +34,25 @@ public class ProjectController {
             @RequestBody
             CreateProjectRequest request
     ) {
-
-        return projectService.createProject(userDetails.getUserId(),request);
+        return projectService.createProject(userDetails.getUserId(), request);
     }
 
     @GetMapping
     public List<ProjectResponse> getProjects(
-
             @AuthenticationPrincipal
             CustomUserDetails userDetails
     ) {
-
         return projectService.getProjects(userDetails.getUserId());
+    }
+
+    @DeleteMapping("/{projectId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void deleteProject(
+            @AuthenticationPrincipal
+            CustomUserDetails userDetails,
+            @PathVariable
+            UUID projectId
+    ) {
+        projectService.deleteProject(userDetails.getUserId(), projectId);
     }
 }

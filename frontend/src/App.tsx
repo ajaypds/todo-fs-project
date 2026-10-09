@@ -5,6 +5,7 @@ import { DashboardPage } from "./pages/DashboardPage";
 import { ProtectedRoute } from "./routes/ProtectedRoute";
 import { useEffect } from "react";
 import { useThemeStore } from "./store/themeStore";
+import { ErrorBoundary } from "./components/ui/ErrorBoundary";
 
 function App() {
   const theme = useThemeStore((state) => state.theme);
@@ -13,20 +14,22 @@ function App() {
   }, [theme]);
 
   return (
-    <Routes>
-      <Route path="/login" element={<LoginPage />} />
+    <ErrorBoundary>
+      <Routes>
+        <Route path="/login" element={<LoginPage />} />
 
-      <Route path="/register" element={<RegisterPage />} />
+        <Route path="/register" element={<RegisterPage />} />
 
-      <Route
-        path="/"
-        element={
-          <ProtectedRoute>
-            <DashboardPage />
-          </ProtectedRoute>
-        }
-      />
-    </Routes>
+        <Route
+          path="/"
+          element={
+            <ProtectedRoute>
+              <DashboardPage />
+            </ProtectedRoute>
+          }
+        />
+      </Routes>
+    </ErrorBoundary>
   );
 }
 

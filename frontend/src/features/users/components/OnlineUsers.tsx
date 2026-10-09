@@ -3,10 +3,7 @@ import { useRealtime } from "../../realtime/context/RealtimeContext";
 import { Laptop } from "lucide-react";
 
 export const OnlineUsers = () => {
-  const { activeSessions } = usePresenceStore((state) => ({
-    online: state.online,
-    activeSessions: state.activeSessions,
-  }));
+  const activeSessions = usePresenceStore((state) => state.activeSessions);
   const { status } = useRealtime();
 
   if (status !== "connected") {
