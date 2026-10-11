@@ -146,6 +146,8 @@ todo-app/
 │   │   └── realtime/             # STOMP socket client & lifecycle hooks
 │   ├── package.json
 │   └── vite.config.ts
+├── infra/                         # Infrastructure & reverse proxy
+│   └── nginx/                    # Nginx reverse proxy configuration
 ├── .github/workflows/             # GitHub Actions CI/CD workflows
 └── docker-compose.yml             # Local and production container orchestration
 ```
@@ -198,9 +200,10 @@ To start the database, backend, and frontend together:
 docker-compose up -d
 ```
 
-- **Frontend**: `http://localhost:3000` (or `http://localhost:5173` if running dev server)
-- **Backend API**: `http://localhost:8080/api/v1`
-- **PostgreSQL**: `localhost:5432`
+- **Application URL**: `http://localhost` (routed through Nginx reverse proxy on port 80)
+  - Frontend SPA served at `/`
+  - Backend REST API routed at `/api/v1`
+  - Real-time WebSockets & STOMP routed at `/ws`
 
 ---
 
