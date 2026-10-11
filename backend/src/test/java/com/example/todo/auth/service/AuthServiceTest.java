@@ -10,6 +10,10 @@ import com.example.todo.exception.BadRequestException;
 import com.example.todo.exception.UnauthorizedException;
 import com.example.todo.user.entity.User;
 import com.example.todo.user.repository.UserRepository;
+import com.example.todo.workspace.entity.Workspace;
+import com.example.todo.workspace.entity.WorkspaceMember;
+import com.example.todo.workspace.repository.WorkspaceMemberRepository;
+import com.example.todo.workspace.repository.WorkspaceRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -41,6 +45,12 @@ class AuthServiceTest {
 
     @Mock
     private RefreshTokenRepository refreshTokenRepository;
+
+    @Mock
+    private WorkspaceRepository workspaceRepository;
+
+    @Mock
+    private WorkspaceMemberRepository workspaceMemberRepository;
 
     @InjectMocks
     private AuthService authService;
@@ -77,6 +87,8 @@ class AuthServiceTest {
         assertEquals("Test User", savedUser.getFullName());
         assertEquals("Asia/Kolkata", savedUser.getTimezone());
 
+        verify(workspaceRepository).save(any(Workspace.class));
+        verify(workspaceMemberRepository).save(any(WorkspaceMember.class));
         verify(refreshTokenRepository).save(any(RefreshToken.class));
     }
 
@@ -90,6 +102,8 @@ class AuthServiceTest {
 
         assertEquals("Email already exists", exception.getMessage());
         verify(userRepository, never()).save(any(User.class));
+        verify(workspaceRepository, never()).save(any(Workspace.class));
+        verify(workspaceMemberRepository, never()).save(any(WorkspaceMember.class));
         verify(refreshTokenRepository, never()).save(any(RefreshToken.class));
     }
 

@@ -10,6 +10,11 @@ import com.example.todo.exception.UnauthorizedException;
 import com.example.todo.auth.security.JwtService;
 import com.example.todo.user.entity.User;
 import com.example.todo.user.repository.UserRepository;
+import com.example.todo.workspace.entity.Workspace;
+import com.example.todo.workspace.entity.WorkspaceMember;
+import com.example.todo.workspace.entity.WorkspaceRole;
+import com.example.todo.workspace.repository.WorkspaceMemberRepository;
+import com.example.todo.workspace.repository.WorkspaceRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -26,6 +31,8 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
     private final RefreshTokenRepository refreshTokenRepository;
+    private final WorkspaceRepository workspaceRepository;
+    private final WorkspaceMemberRepository workspaceMemberRepository;
 
     @Transactional
     public AuthResponse register(RegisterRequest request) {
@@ -51,6 +58,26 @@ public class AuthService {
                 .build();
 
         userRepository.save(user);
+
+        // Create default personal workspace for the new user
+        String workspaceName = (user.getFullName() != null && !user.getFullName().isBlank())
+                ? user.getFullName() + "'s Workspace"
+                : "Personal Workspace";
+
+        Workspace defaultWorkspace = Workspace.builder()
+                .name(workspaceName)
+                .owner(user)
+                .createdAt(Instant.now())
+                .build();
+        workspaceRepository.save(defaultWorkspace);
+
+        WorkspaceMember ownerMember = WorkspaceMember.builder()
+                .workspace(defaultWorkspace)
+                .user(user)
+                .role(WorkspaceRole.OWNER)
+                .joinedAt(Instant.now())
+                .build();
+        workspaceMemberRepository.save(ownerMember);
 
         String token = jwtService.generateToken(user.getId(), user.getEmail());
         String refreshToken = jwtService.generateRefreshToken(user);

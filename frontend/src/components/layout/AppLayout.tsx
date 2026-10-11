@@ -30,6 +30,7 @@ import { isToday, isOverdue, isUpcoming, getUserTimezone } from "../../utils/dat
 import { useCurrentUser, useUpdateTimezone } from "../../features/users/api/userQueries";
 import { Button } from "../ui/Button";
 import { cn } from "../../lib/cn";
+import { WorkspaceSwitcher } from "../../features/workspaces/components/WorkspaceSwitcher";
 
 type Props = {
   children: ReactNode;
@@ -259,6 +260,13 @@ export const AppLayout = ({ children, onOpenCreateTask, onOpenApiKeys, onOpenAct
             </button>
           </div>
         </div>
+
+        {/* Workspace Switcher */}
+        {!desktopCollapsed && (
+          <div className="mb-2">
+            <WorkspaceSwitcher />
+          </div>
+        )}
 
         {/* Command Palette Quick Trigger Button */}
         {desktopCollapsed ? (
