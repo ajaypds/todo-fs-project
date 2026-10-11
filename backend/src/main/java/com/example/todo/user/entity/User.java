@@ -33,4 +33,8 @@ public class User {
 
     @Column(nullable = false)
     private Instant createdAt;
+
+    public String getName() {
+        return fullName != null && !fullName.isBlank() ? fullName : email;
+    }
 }

@@ -25,5 +25,9 @@ export type Task = {
   projectId: string;
   labels?: Label[];
   subtasks?: Subtask[];
+  assignedToUserId?: string;
+  assignedToName?: string;
+  assignedToEmail?: string;
+  commentCount?: number;
   optimistic?: boolean;
 };

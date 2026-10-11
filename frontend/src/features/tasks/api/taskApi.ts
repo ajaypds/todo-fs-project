@@ -11,6 +11,7 @@ export type CreateTaskRequest = {
   labelIds?: string[];
   recurrenceType?: RecurrenceType;
   recurrenceInterval?: number;
+  assignedToUserId?: string | null;
 };
 
 export const getTasks = async (): Promise<PageResponse<Task>> => {

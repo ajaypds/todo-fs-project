@@ -40,4 +40,12 @@ public class TaskResponse {
     private String recurrenceType;
 
     private Integer recurrenceInterval;
+
+    private UUID assignedToUserId;
+
+    private String assignedToName;
+
+    private String assignedToEmail;
+
+    private int commentCount;
 }

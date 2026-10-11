@@ -28,4 +28,8 @@ public class Activity {
     @JoinColumn(nullable = false)
     @ManyToOne(fetch = FetchType.LAZY)
     private User user;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "task_id")
+    private com.example.todo.task.entity.Task task;
 }

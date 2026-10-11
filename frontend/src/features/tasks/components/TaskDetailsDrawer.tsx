@@ -31,9 +31,13 @@ import {
   Loader2,
   Check,
   Repeat,
+  UserCheck,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { cn } from "../../../lib/cn";
+import { TaskDiscussionStream } from "../../comments/components/TaskDiscussionStream";
+import { useWorkspaceStore } from "../../../store/workspaceStore";
+import { useWorkspaceMembers } from "../../workspaces/workspaceQueries";
 
 type Props = {
   task: Task | null;
@@ -66,12 +70,18 @@ export const TaskDetailsDrawer = ({
   const [completed, setCompleted] = useState(false);
   const [recurrenceType, setRecurrenceType] = useState<RecurrenceType>("NONE");
   const [recurrenceInterval, setRecurrenceInterval] = useState<number>(1);
+  const [assignedToUserId, setAssignedToUserId] = useState<string>("");
   const [newSubtaskTitle, setNewSubtaskTitle] = useState("");
   const [aiSuggestions, setAiSuggestions] = useState<string[]>([]);
   const [selectedSuggestions, setSelectedSuggestions] = useState<Set<number>>(
     new Set()
   );
   const [isAddingAiSubtasks, setIsAddingAiSubtasks] = useState(false);
+
+  const activeWorkspaceId = useWorkspaceStore((state) => state.activeWorkspaceId);
+  const { data: workspaceMembers = [] } = useWorkspaceMembers(
+    activeWorkspaceId ?? undefined
+  );
 
   useEffect(() => {
     if (!task) return;
@@ -84,6 +94,7 @@ export const TaskDetailsDrawer = ({
     setCompleted(task.completed || false);
     setRecurrenceType(task.recurrenceType || "NONE");
     setRecurrenceInterval(task.recurrenceInterval || 1);
+    setAssignedToUserId(task.assignedToUserId || "");
     setNewSubtaskTitle("");
     setAiSuggestions([]);
     setSelectedSuggestions(new Set());
@@ -118,6 +129,8 @@ export const TaskDetailsDrawer = ({
           completed,
           recurrenceType,
           recurrenceInterval: Number(recurrenceInterval) || 1,
+          assignedToUserId: assignedToUserId || null,
+          clearAssignee: !assignedToUserId,
         },
       },
       {
@@ -567,6 +580,26 @@ export const TaskDetailsDrawer = ({
             </Select>
           </div>
 
+          {/* Assignee */}
+          <div className="sm:col-span-2">
+            <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted mb-1.5">
+              <UserCheck size={13} />
+              <span>Assignee</span>
+            </div>
+            <Select
+              value={assignedToUserId}
+              onChange={(e) => setAssignedToUserId(e.target.value)}
+              className="text-xs"
+            >
+              <option value="">Unassigned</option>
+              {workspaceMembers.map((m) => (
+                <option key={m.userId} value={m.userId}>
+                  {m.fullName || m.email} ({m.role.toLowerCase()})
+                </option>
+              ))}
+            </Select>
+          </div>
+
           {/* Due Date */}
           <div className="sm:col-span-2">
             <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted mb-1.5">
@@ -717,6 +750,9 @@ export const TaskDetailsDrawer = ({
             })}
           </div>
         </div>
+
+        {/* Discussion & Activity Trail */}
+        <TaskDiscussionStream taskId={task.id} />
 
         {/* Timestamps */}
         <div className="pt-2 border-t border-border flex items-center justify-between text-xs text-muted">

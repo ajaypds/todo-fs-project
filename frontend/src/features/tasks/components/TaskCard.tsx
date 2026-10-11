@@ -1,4 +1,4 @@
-import { Trash2, Calendar, CheckSquare, Repeat } from "lucide-react";
+import { Trash2, Calendar, CheckSquare, Repeat, MessageSquare, User } from "lucide-react";
 import type { Task } from "../types/taskTypes";
 import type { Project } from "../../projects/projectTypes";
 import { PriorityBadge } from "../../../components/ui/PriorityBadge";
@@ -188,6 +188,30 @@ export const TaskCard = forwardRef<
                     <span>
                       {completedSubtasks}/{totalSubtasks}
                     </span>
+                  </span>
+                )}
+
+                {/* Assignee Badge */}
+                {task.assignedToName && (
+                  <span
+                    className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[11px] font-medium bg-accent/10 text-accent"
+                    title={`Assigned to ${task.assignedToName}`}
+                  >
+                    <User size={11} />
+                    <span className="truncate max-w-20">{task.assignedToName}</span>
+                  </span>
+                )}
+
+                {/* Comments Count Badge */}
+                {task.commentCount !== undefined && task.commentCount > 0 && (
+                  <span
+                    className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[11px] font-medium bg-secondary text-muted"
+                    title={`${task.commentCount} discussion ${
+                      task.commentCount === 1 ? "comment" : "comments"
+                    }`}
+                  >
+                    <MessageSquare size={11} className="text-accent" />
+                    <span>{task.commentCount}</span>
                   </span>
                 )}
               </div>

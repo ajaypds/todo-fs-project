@@ -5,6 +5,7 @@ import com.example.todo.activity.repository.ActivityRepository;
 import com.example.todo.task.event.TaskCreatedEvent;
 import com.example.todo.task.event.TaskDeletedEvent;
 import com.example.todo.task.event.TaskUpdatedEvent;
+import com.example.todo.task.repository.TaskRepository;
 import com.example.todo.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.event.EventListener;
@@ -18,6 +19,7 @@ public class ActivityEventListener {
 
     private final ActivityRepository repository;
     private final UserRepository userRepository;
+    private final TaskRepository taskRepository;
 
     @EventListener
     public void handleCreated(TaskCreatedEvent event) {
@@ -26,6 +28,7 @@ public class ActivityEventListener {
                 .message("Created task: " + event.getTitle())
                 .createdAt(Instant.now())
                 .user(userRepository.findById(event.getUserId()).orElse(null))
+                .task(taskRepository.findById(event.getTaskId()).orElse(null))
                 .build()
         );
     }
@@ -37,6 +40,7 @@ public class ActivityEventListener {
                 .message("Updated task: " + event.getTitle())
                 .createdAt(Instant.now())
                 .user(userRepository.findById(event.getUserId()).orElse(null))
+                .task(taskRepository.findById(event.getTaskId()).orElse(null))
                 .build()
         );
     }
