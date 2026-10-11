@@ -9,10 +9,11 @@ import { Input } from "../components/ui/Input";
 import { Button } from "../components/ui/Button";
 import { useLogin } from "../features/auth/authQueries";
 import { PageTransition } from "../components/ui/PageTransition";
+import toast from "react-hot-toast";
 
 const schema = z.object({
-  email: z.email(),
-  password: z.string().min(6),
+  email: z.string().trim().email("Please enter a valid email address"),
+  password: z.string().min(1, "Password is required"),
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -33,15 +34,25 @@ export const LoginPage = () => {
   const loginMutation = useLogin();
 
   const onSubmit = (values: FormValues) => {
-    loginMutation.mutate(values, {
-      onSuccess: (response) => {
-        setAuth(response.token, response.refreshToken);
-        navigate("/");
+    loginMutation.mutate(
+      {
+        email: values.email.toLowerCase(),
+        password: values.password,
       },
-      onError: () => {
-        alert("Login failed");
-      },
-    });
+      {
+        onSuccess: (response) => {
+          setAuth(response.token, response.refreshToken);
+          toast.success("Welcome back!");
+          navigate("/");
+        },
+        onError: (error: any) => {
+          const message =
+            error.response?.data?.message ||
+            "Invalid email or password. Please try again.";
+          toast.error(message);
+        },
+      }
+    );
   };
 
   return (

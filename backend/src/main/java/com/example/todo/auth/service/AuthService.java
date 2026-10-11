@@ -13,6 +13,7 @@ import com.example.todo.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -26,34 +27,55 @@ public class AuthService {
     private final JwtService jwtService;
     private final RefreshTokenRepository refreshTokenRepository;
 
+    @Transactional
     public AuthResponse register(RegisterRequest request) {
 
-        boolean exists = userRepository.findByEmail(request.getEmail()).isPresent();
+        String normalizedEmail = request.getEmail().trim().toLowerCase();
+
+        boolean exists = userRepository.findByEmail(normalizedEmail).isPresent();
 
         if (exists) {
             throw new BadRequestException("Email already exists");
         }
 
+        String timezone = (request.getTimezone() != null && !request.getTimezone().isBlank())
+                ? request.getTimezone().trim()
+                : "UTC";
+
         User user = User.builder()
-                .email(request.getEmail())
+                .email(normalizedEmail)
                 .password(passwordEncoder.encode(request.getPassword()))
-                .fullName(request.getFullName())
-                .timezone("UTC")
+                .fullName(request.getFullName().trim())
+                .timezone(timezone)
                 .createdAt(Instant.now())
                 .build();
 
         userRepository.save(user);
 
         String token = jwtService.generateToken(user.getId(), user.getEmail());
+        String refreshToken = jwtService.generateRefreshToken(user);
+
+        refreshTokenRepository.save(
+            RefreshToken.builder()
+                    .token(refreshToken)
+                    .user(user)
+                    .expiresAt(Instant.now().plus(7, ChronoUnit.DAYS))
+                    .revoked(false)
+                    .build()
+        );
 
         return AuthResponse.builder()
                 .token(token)
+                .refreshToken(refreshToken)
                 .build();
     }
 
+    @Transactional
     public AuthResponse login(LoginRequest request) {
 
-        User user = userRepository.findByEmail(request.getEmail())
+        String normalizedEmail = request.getEmail().trim().toLowerCase();
+
+        User user = userRepository.findByEmail(normalizedEmail)
                 .orElseThrow(() -> new UnauthorizedException("Invalid credentials"));
 
         boolean passwordMatches = passwordEncoder.matches(
@@ -83,6 +105,7 @@ public class AuthService {
                 .build();
     }
 
+    @Transactional
     public AuthResponse refresh(String refreshToken) {
 
         RefreshToken storedToken = refreshTokenRepository
