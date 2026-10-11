@@ -636,8 +636,8 @@ export const AppLayout = ({ children, onOpenCreateTask, onOpenApiKeys, onOpenAct
               onClick={onOpenCreateTask}
               className="
                 w-12 h-12 rounded-full
-                bg-primary text-primary-foreground
-                shadow-lg shadow-primary/25
+                bg-accent hover:bg-accent/90 text-white
+                shadow-lg shadow-accent/30
                 flex items-center justify-center
                 -mt-5
                 hover:scale-105 active:scale-95

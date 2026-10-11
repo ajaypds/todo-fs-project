@@ -590,9 +590,9 @@ export const DashboardPage = () => {
           className="
             hidden md:flex
             fixed bottom-8 right-8
-            w-13 h-13 rounded-full
-            bg-primary text-primary-foreground
-            shadow-lg
+            w-14 h-14 rounded-full
+            bg-accent hover:bg-accent/90 text-white
+            shadow-xl shadow-accent/30
             items-center justify-center
             hover:scale-105 active:scale-95
             cursor-pointer
@@ -600,8 +600,9 @@ export const DashboardPage = () => {
           "
           onClick={() => setTaskModalOpen(true)}
           title="Add task (or press 'n')"
+          aria-label="Add task"
         >
-          <Plus size={22} />
+          <Plus size={26} className="stroke-[2.5]" />
         </button>
       </PageTransition>
     </AppLayout>
