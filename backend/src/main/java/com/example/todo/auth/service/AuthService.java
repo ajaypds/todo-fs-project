@@ -2,7 +2,10 @@ package com.example.todo.auth.service;
 
 import com.example.todo.auth.dto.AuthResponse;
 import com.example.todo.auth.dto.LoginRequest;
+import com.example.todo.auth.dto.RefreshRequest;
 import com.example.todo.auth.dto.RegisterRequest;
+import com.example.todo.auth.dto.ResendVerificationRequest;
+import com.example.todo.auth.dto.VerifyEmailRequest;
 import com.example.todo.auth.entity.RefreshToken;
 import com.example.todo.auth.repository.RefreshTokenRepository;
 import com.example.todo.exception.BadRequestException;
@@ -16,13 +19,16 @@ import com.example.todo.workspace.entity.WorkspaceRole;
 import com.example.todo.workspace.repository.WorkspaceMemberRepository;
 import com.example.todo.workspace.repository.WorkspaceRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.security.SecureRandom;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class AuthService {
@@ -49,11 +55,17 @@ public class AuthService {
                 ? request.getTimezone().trim()
                 : "UTC";
 
+        String verificationCode = generateVerificationCode();
+        Instant codeExpiresAt = Instant.now().plus(15, ChronoUnit.MINUTES);
+
         User user = User.builder()
                 .email(normalizedEmail)
                 .password(passwordEncoder.encode(request.getPassword()))
                 .fullName(request.getFullName().trim())
                 .timezone(timezone)
+                .emailVerified(false)
+                .verificationCode(verificationCode)
+                .verificationCodeExpiresAt(codeExpiresAt)
                 .createdAt(Instant.now())
                 .build();
 
@@ -79,21 +91,13 @@ public class AuthService {
                 .build();
         workspaceMemberRepository.save(ownerMember);
 
-        String token = jwtService.generateToken(user.getId(), user.getEmail());
-        String refreshToken = jwtService.generateRefreshToken(user);
-
-        refreshTokenRepository.save(
-            RefreshToken.builder()
-                    .token(refreshToken)
-                    .user(user)
-                    .expiresAt(Instant.now().plus(7, ChronoUnit.DAYS))
-                    .revoked(false)
-                    .build()
-        );
+        // Log OTP to console banner
+        logVerificationCode(normalizedEmail, verificationCode);
 
         return AuthResponse.builder()
-                .token(token)
-                .refreshToken(refreshToken)
+                .emailVerificationRequired(true)
+                .email(normalizedEmail)
+                .message("Verification code sent to email")
                 .build();
     }
 
@@ -114,6 +118,10 @@ public class AuthService {
             throw new UnauthorizedException("Invalid credentials");
         }
 
+        if (!user.isEmailVerified()) {
+            throw new UnauthorizedException("Email not verified. Please verify your email before logging in.");
+        }
+
         String token = jwtService.generateToken(user.getId(), user.getEmail());
         String refreshToken = jwtService.generateRefreshToken(user);
 
@@ -130,6 +138,98 @@ public class AuthService {
                 .token(token)
                 .refreshToken(refreshToken)
                 .build();
+    }
+
+    @Transactional
+    public AuthResponse verifyEmail(VerifyEmailRequest request) {
+
+        String normalizedEmail = request.getEmail().trim().toLowerCase();
+
+        User user = userRepository.findByEmail(normalizedEmail)
+                .orElseThrow(() -> new BadRequestException("User not found with provided email"));
+
+        if (user.isEmailVerified()) {
+            throw new BadRequestException("Email is already verified");
+        }
+
+        if (user.getVerificationCode() == null || !user.getVerificationCode().equals(request.getCode().trim())) {
+            throw new BadRequestException("Invalid verification code");
+        }
+
+        if (user.getVerificationCodeExpiresAt() == null || user.getVerificationCodeExpiresAt().isBefore(Instant.now())) {
+            throw new BadRequestException("Verification code has expired. Please request a new one.");
+        }
+
+        user.setEmailVerified(true);
+        user.setVerificationCode(null);
+        user.setVerificationCodeExpiresAt(null);
+        userRepository.save(user);
+
+        String token = jwtService.generateToken(user.getId(), user.getEmail());
+        String refreshToken = jwtService.generateRefreshToken(user);
+
+        refreshTokenRepository.save(
+            RefreshToken.builder()
+                    .token(refreshToken)
+                    .user(user)
+                    .expiresAt(Instant.now().plus(7, ChronoUnit.DAYS))
+                    .revoked(false)
+                    .build()
+        );
+
+        return AuthResponse.builder()
+                .token(token)
+                .refreshToken(refreshToken)
+                .emailVerificationRequired(false)
+                .email(user.getEmail())
+                .message("Email verified successfully")
+                .build();
+    }
+
+    @Transactional
+    public AuthResponse resendVerification(ResendVerificationRequest request) {
+
+        String normalizedEmail = request.getEmail().trim().toLowerCase();
+
+        User user = userRepository.findByEmail(normalizedEmail)
+                .orElseThrow(() -> new BadRequestException("User not found with provided email"));
+
+        if (user.isEmailVerified()) {
+            throw new BadRequestException("Email is already verified");
+        }
+
+        String verificationCode = generateVerificationCode();
+        user.setVerificationCode(verificationCode);
+        user.setVerificationCodeExpiresAt(Instant.now().plus(15, ChronoUnit.MINUTES));
+        userRepository.save(user);
+
+        logVerificationCode(normalizedEmail, verificationCode);
+
+        return AuthResponse.builder()
+                .emailVerificationRequired(true)
+                .email(normalizedEmail)
+                .message("A new verification code has been generated and sent to email")
+                .build();
+    }
+
+    private String generateVerificationCode() {
+        SecureRandom random = new SecureRandom();
+        int code = 100000 + random.nextInt(900000);
+        return String.valueOf(code);
+    }
+
+    private void logVerificationCode(String email, String code) {
+        String banner = "\n" +
+                "============================================================\n" +
+                " [EMAIL VERIFICATION OTP]\n" +
+                " To: " + email + "\n" +
+                " Verification Code: " + code + "\n" +
+                " Expires in: 15 minutes\n" +
+                " (Email service is in console mode. Configure SMTP in application.yaml to send real emails)\n" +
+                "============================================================";
+
+        log.info(banner);
+        System.out.println(banner);
     }
 
     @Transactional

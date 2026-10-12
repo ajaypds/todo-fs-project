@@ -4,6 +4,8 @@ import com.example.todo.auth.dto.AuthResponse;
 import com.example.todo.auth.dto.LoginRequest;
 import com.example.todo.auth.dto.RefreshRequest;
 import com.example.todo.auth.dto.RegisterRequest;
+import com.example.todo.auth.dto.ResendVerificationRequest;
+import com.example.todo.auth.dto.VerifyEmailRequest;
 import com.example.todo.auth.service.AuthService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -30,6 +32,20 @@ public class AuthController {
             @Valid @RequestBody LoginRequest request
     ) {
         return authService.login(request);
+    }
+
+    @PostMapping("/verify-email")
+    public AuthResponse verifyEmail(
+            @Valid @RequestBody VerifyEmailRequest request
+    ) {
+        return authService.verifyEmail(request);
+    }
+
+    @PostMapping("/resend-verification")
+    public AuthResponse resendVerification(
+            @Valid @RequestBody ResendVerificationRequest request
+    ) {
+        return authService.resendVerification(request);
     }
 
     @PostMapping("/refresh")

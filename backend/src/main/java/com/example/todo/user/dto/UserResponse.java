@@ -14,5 +14,6 @@ public class UserResponse {
     private String email;
     private String fullName;
     private String timezone;
+    private boolean emailVerified;
     private Instant createdAt;
 }

@@ -62,9 +62,14 @@ export const RegisterPage = () => {
       },
       {
         onSuccess: (response) => {
-          setAuth(response.token, response.refreshToken);
-          toast.success("Welcome to TodoFlow! Your account has been created.");
-          navigate("/");
+          if (response.emailVerificationRequired) {
+            toast.success("Account created! Please verify your email with the 6-digit code.");
+            navigate(`/verify-email?email=${encodeURIComponent(values.email.toLowerCase())}`);
+          } else if (response.token && response.refreshToken) {
+            setAuth(response.token, response.refreshToken);
+            toast.success("Welcome to TodoFlow! Your account has been created.");
+            navigate("/");
+          }
         },
         onError: (error: any) => {
           const serverError =

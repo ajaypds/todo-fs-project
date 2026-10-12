@@ -3,6 +3,8 @@ package com.example.todo.auth.service;
 import com.example.todo.auth.dto.AuthResponse;
 import com.example.todo.auth.dto.LoginRequest;
 import com.example.todo.auth.dto.RegisterRequest;
+import com.example.todo.auth.dto.ResendVerificationRequest;
+import com.example.todo.auth.dto.VerifyEmailRequest;
 import com.example.todo.auth.entity.RefreshToken;
 import com.example.todo.auth.repository.RefreshTokenRepository;
 import com.example.todo.auth.security.JwtService;
@@ -24,11 +26,13 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.Optional;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -67,17 +71,17 @@ class AuthServiceTest {
     }
 
     @Test
-    void register_ShouldNormalizeEmailAndIssueBothTokens() {
+    void register_ShouldNormalizeEmailAndRequireVerification() {
         when(userRepository.findByEmail("test.user@example.com")).thenReturn(Optional.empty());
         when(passwordEncoder.encode("securePassword123")).thenReturn("encodedPassword");
-        when(jwtService.generateToken(any(), eq("test.user@example.com"))).thenReturn("access-token-xyz");
-        when(jwtService.generateRefreshToken(any())).thenReturn("refresh-token-xyz");
 
         AuthResponse response = authService.register(registerRequest);
 
         assertNotNull(response);
-        assertEquals("access-token-xyz", response.getToken());
-        assertEquals("refresh-token-xyz", response.getRefreshToken());
+        assertTrue(response.isEmailVerificationRequired());
+        assertEquals("test.user@example.com", response.getEmail());
+        assertNull(response.getToken());
+        assertNull(response.getRefreshToken());
 
         ArgumentCaptor<User> userCaptor = ArgumentCaptor.forClass(User.class);
         verify(userRepository).save(userCaptor.capture());
@@ -86,10 +90,14 @@ class AuthServiceTest {
         assertEquals("encodedPassword", savedUser.getPassword());
         assertEquals("Test User", savedUser.getFullName());
         assertEquals("Asia/Kolkata", savedUser.getTimezone());
+        assertFalse(savedUser.isEmailVerified());
+        assertNotNull(savedUser.getVerificationCode());
+        assertEquals(6, savedUser.getVerificationCode().length());
+        assertNotNull(savedUser.getVerificationCodeExpiresAt());
 
         verify(workspaceRepository).save(any(Workspace.class));
         verify(workspaceMemberRepository).save(any(WorkspaceMember.class));
-        verify(refreshTokenRepository).save(any(RefreshToken.class));
+        verify(refreshTokenRepository, never()).save(any(RefreshToken.class));
     }
 
     @Test
@@ -108,7 +116,7 @@ class AuthServiceTest {
     }
 
     @Test
-    void login_ShouldNormalizeEmailAndSucceed_WhenCredentialsAreValid() {
+    void login_ShouldNormalizeEmailAndSucceed_WhenCredentialsAreValidAndEmailVerified() {
         LoginRequest loginRequest = new LoginRequest();
         loginRequest.setEmail("  TEST.USER@EXAMPLE.COM ");
         loginRequest.setPassword("securePassword123");
@@ -119,6 +127,7 @@ class AuthServiceTest {
                 .password("encodedPassword")
                 .fullName("Test User")
                 .timezone("UTC")
+                .emailVerified(true)
                 .createdAt(Instant.now())
                 .build();
 
@@ -136,6 +145,30 @@ class AuthServiceTest {
     }
 
     @Test
+    void login_ShouldThrowUnauthorizedException_WhenEmailNotVerified() {
+        LoginRequest loginRequest = new LoginRequest();
+        loginRequest.setEmail("test.user@example.com");
+        loginRequest.setPassword("securePassword123");
+
+        User existingUser = User.builder()
+                .id(UUID.randomUUID())
+                .email("test.user@example.com")
+                .password("encodedPassword")
+                .emailVerified(false)
+                .build();
+
+        when(userRepository.findByEmail("test.user@example.com")).thenReturn(Optional.of(existingUser));
+        when(passwordEncoder.matches("securePassword123", "encodedPassword")).thenReturn(true);
+
+        UnauthorizedException exception = assertThrows(UnauthorizedException.class, () ->
+                authService.login(loginRequest)
+        );
+
+        assertEquals("Email not verified. Please verify your email before logging in.", exception.getMessage());
+        verify(refreshTokenRepository, never()).save(any(RefreshToken.class));
+    }
+
+    @Test
     void login_ShouldThrowUnauthorizedException_WhenPasswordDoesNotMatch() {
         LoginRequest loginRequest = new LoginRequest();
         loginRequest.setEmail("test.user@example.com");
@@ -145,6 +178,7 @@ class AuthServiceTest {
                 .id(UUID.randomUUID())
                 .email("test.user@example.com")
                 .password("encodedPassword")
+                .emailVerified(true)
                 .build();
 
         when(userRepository.findByEmail("test.user@example.com")).thenReturn(Optional.of(existingUser));
@@ -156,5 +190,159 @@ class AuthServiceTest {
 
         assertEquals("Invalid credentials", exception.getMessage());
         verify(refreshTokenRepository, never()).save(any(RefreshToken.class));
+    }
+
+    @Test
+    void verifyEmail_ShouldSucceed_WhenCodeIsValid() {
+        VerifyEmailRequest request = VerifyEmailRequest.builder()
+                .email("  Test.User@example.com  ")
+                .code("123456")
+                .build();
+
+        User unverifiedUser = User.builder()
+                .id(UUID.randomUUID())
+                .email("test.user@example.com")
+                .emailVerified(false)
+                .verificationCode("123456")
+                .verificationCodeExpiresAt(Instant.now().plus(10, ChronoUnit.MINUTES))
+                .build();
+
+        when(userRepository.findByEmail("test.user@example.com")).thenReturn(Optional.of(unverifiedUser));
+        when(jwtService.generateToken(unverifiedUser.getId(), unverifiedUser.getEmail())).thenReturn("token-123");
+        when(jwtService.generateRefreshToken(unverifiedUser)).thenReturn("refresh-123");
+
+        AuthResponse response = authService.verifyEmail(request);
+
+        assertNotNull(response);
+        assertEquals("token-123", response.getToken());
+        assertEquals("refresh-123", response.getRefreshToken());
+        assertFalse(response.isEmailVerificationRequired());
+        assertEquals("Email verified successfully", response.getMessage());
+
+        assertTrue(unverifiedUser.isEmailVerified());
+        assertNull(unverifiedUser.getVerificationCode());
+        assertNull(unverifiedUser.getVerificationCodeExpiresAt());
+        verify(userRepository).save(unverifiedUser);
+        verify(refreshTokenRepository).save(any(RefreshToken.class));
+    }
+
+    @Test
+    void verifyEmail_ShouldThrowBadRequest_WhenCodeIsInvalid() {
+        VerifyEmailRequest request = VerifyEmailRequest.builder()
+                .email("test.user@example.com")
+                .code("000000")
+                .build();
+
+        User unverifiedUser = User.builder()
+                .id(UUID.randomUUID())
+                .email("test.user@example.com")
+                .emailVerified(false)
+                .verificationCode("123456")
+                .verificationCodeExpiresAt(Instant.now().plus(10, ChronoUnit.MINUTES))
+                .build();
+
+        when(userRepository.findByEmail("test.user@example.com")).thenReturn(Optional.of(unverifiedUser));
+
+        BadRequestException ex = assertThrows(BadRequestException.class, () ->
+                authService.verifyEmail(request)
+        );
+
+        assertEquals("Invalid verification code", ex.getMessage());
+        assertFalse(unverifiedUser.isEmailVerified());
+        verify(refreshTokenRepository, never()).save(any(RefreshToken.class));
+    }
+
+    @Test
+    void verifyEmail_ShouldThrowBadRequest_WhenCodeExpired() {
+        VerifyEmailRequest request = VerifyEmailRequest.builder()
+                .email("test.user@example.com")
+                .code("123456")
+                .build();
+
+        User unverifiedUser = User.builder()
+                .id(UUID.randomUUID())
+                .email("test.user@example.com")
+                .emailVerified(false)
+                .verificationCode("123456")
+                .verificationCodeExpiresAt(Instant.now().minus(5, ChronoUnit.MINUTES))
+                .build();
+
+        when(userRepository.findByEmail("test.user@example.com")).thenReturn(Optional.of(unverifiedUser));
+
+        BadRequestException ex = assertThrows(BadRequestException.class, () ->
+                authService.verifyEmail(request)
+        );
+
+        assertEquals("Verification code has expired. Please request a new one.", ex.getMessage());
+        assertFalse(unverifiedUser.isEmailVerified());
+        verify(refreshTokenRepository, never()).save(any(RefreshToken.class));
+    }
+
+    @Test
+    void verifyEmail_ShouldThrowBadRequest_WhenAlreadyVerified() {
+        VerifyEmailRequest request = VerifyEmailRequest.builder()
+                .email("test.user@example.com")
+                .code("123456")
+                .build();
+
+        User verifiedUser = User.builder()
+                .email("test.user@example.com")
+                .emailVerified(true)
+                .build();
+
+        when(userRepository.findByEmail("test.user@example.com")).thenReturn(Optional.of(verifiedUser));
+
+        BadRequestException ex = assertThrows(BadRequestException.class, () ->
+                authService.verifyEmail(request)
+        );
+
+        assertEquals("Email is already verified", ex.getMessage());
+    }
+
+    @Test
+    void resendVerification_ShouldGenerateNewCodeAndExtendExpiry() {
+        ResendVerificationRequest request = ResendVerificationRequest.builder()
+                .email("  Test.User@example.com ")
+                .build();
+
+        User unverifiedUser = User.builder()
+                .email("test.user@example.com")
+                .emailVerified(false)
+                .verificationCode("111111")
+                .verificationCodeExpiresAt(Instant.now().minus(1, ChronoUnit.MINUTES))
+                .build();
+
+        when(userRepository.findByEmail("test.user@example.com")).thenReturn(Optional.of(unverifiedUser));
+
+        AuthResponse response = authService.resendVerification(request);
+
+        assertNotNull(response);
+        assertTrue(response.isEmailVerificationRequired());
+        assertEquals("test.user@example.com", response.getEmail());
+
+        assertNotNull(unverifiedUser.getVerificationCode());
+        assertEquals(6, unverifiedUser.getVerificationCode().length());
+        assertTrue(unverifiedUser.getVerificationCodeExpiresAt().isAfter(Instant.now()));
+        verify(userRepository).save(unverifiedUser);
+    }
+
+    @Test
+    void resendVerification_ShouldThrowBadRequest_WhenAlreadyVerified() {
+        ResendVerificationRequest request = ResendVerificationRequest.builder()
+                .email("test.user@example.com")
+                .build();
+
+        User verifiedUser = User.builder()
+                .email("test.user@example.com")
+                .emailVerified(true)
+                .build();
+
+        when(userRepository.findByEmail("test.user@example.com")).thenReturn(Optional.of(verifiedUser));
+
+        BadRequestException ex = assertThrows(BadRequestException.class, () ->
+                authService.resendVerification(request)
+        );
+
+        assertEquals("Email is already verified", ex.getMessage());
     }
 }
