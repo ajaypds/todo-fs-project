@@ -272,75 +272,81 @@ export const DashboardPage = () => {
 
         <div className="max-w-4xl mx-auto px-4 md:px-6 py-6 md:py-8">
           {/* Top Bar Header */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-            <div>
-              <div className="flex items-center gap-2.5">
-                {viewHeaderInfo.icon}
-                <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 mb-6">
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <span className="shrink-0 flex items-center justify-center">
+                  {viewHeaderInfo.icon}
+                </span>
+                <h1
+                  className="text-2xl sm:text-3xl font-bold tracking-tight truncate min-w-0"
+                  title={viewHeaderInfo.title}
+                >
                   {viewHeaderInfo.title}
                 </h1>
                 {selectedProject && (
                   <Button
                     variant="ghost"
                     onClick={() => setProjectToDelete(selectedProject)}
-                    className="text-red-500 hover:text-red-600 hover:bg-red-500/10 cursor-pointer ml-1 p-1.5 h-auto rounded-lg"
+                    className="text-red-500 hover:text-red-600 hover:bg-red-500/10 cursor-pointer ml-0.5 p-1.5 h-auto rounded-lg shrink-0"
                     title={`Delete project "${selectedProject.name}"`}
                   >
                     <Trash2 size={16} />
                   </Button>
                 )}
               </div>
-              <p className="text-xs text-muted mt-1">
+              <p className="text-xs text-muted mt-1 truncate">
                 {viewHeaderInfo.subtitle}
               </p>
             </div>
 
             {/* Action Buttons */}
-            <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
               <Button
                 variant="ghost"
                 onClick={() => setActivityDrawerOpen(true)}
-                className="gap-1.5 text-xs sm:text-sm text-muted hover:text-foreground cursor-pointer"
+                className="gap-1.5 text-xs sm:text-sm text-muted hover:text-foreground cursor-pointer px-2 sm:px-3"
                 title="View Activity Feed"
               >
                 <Activity size={15} />
-                <span>Activity</span>
+                <span className="hidden md:inline">Activity</span>
               </Button>
 
               <Button
                 variant="ghost"
                 onClick={() => setAiOpen(true)}
-                className="gap-1.5 text-xs sm:text-sm text-accent hover:bg-accent/10 cursor-pointer"
+                className="gap-1.5 text-xs sm:text-sm text-accent hover:bg-accent/10 cursor-pointer px-2 sm:px-3"
                 title="Open AI Natural Language Task Assistant"
               >
                 <Sparkles size={15} />
-                <span>AI Assistant</span>
+                <span className="hidden sm:inline">AI</span>
+                <span className="hidden lg:inline">Assistant</span>
               </Button>
 
               <Button
                 variant="ghost"
                 onClick={openDailyPlanner}
-                className="gap-1.5 text-xs sm:text-sm text-purple-600 dark:text-purple-400 hover:bg-purple-500/10 cursor-pointer"
+                className="gap-1.5 text-xs sm:text-sm text-purple-600 dark:text-purple-400 hover:bg-purple-500/10 cursor-pointer px-2 sm:px-3"
                 title="AI Daily Planner & Eisenhower Matrix"
               >
                 <CalendarCheck size={15} />
-                <span>Daily Planner</span>
+                <span className="hidden sm:inline">Planner</span>
               </Button>
 
               <Button
                 variant="ghost"
                 onClick={() => setCoachOpen(true)}
-                className="gap-1.5 text-xs sm:text-sm text-muted hover:text-foreground cursor-pointer"
+                className="gap-1.5 text-xs sm:text-sm text-muted hover:text-foreground cursor-pointer px-2 sm:px-3"
                 title="View AI Productivity Insights"
               >
                 <Brain size={15} />
-                <span className="hidden sm:inline">AI Insights</span>
+                <span className="hidden xl:inline">Insights</span>
               </Button>
 
               <Button
                 variant="primary"
                 onClick={() => setTaskModalOpen(true)}
-                className="gap-1.5 text-xs sm:text-sm cursor-pointer shadow-sm"
+                className="gap-1.5 text-xs sm:text-sm cursor-pointer shadow-sm px-3 sm:px-4 shrink-0 whitespace-nowrap"
               >
                 <Plus size={16} />
                 <span>Add Task</span>
