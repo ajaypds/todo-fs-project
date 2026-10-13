@@ -77,6 +77,11 @@ jobs:
 
             cd ~/todo-fs-project
 
+            echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+            echo "${{ secrets.GHCR_TOKEN }}" | sudo docker login ghcr.io -u ${{ github.actor }} --password-stdin 2>/dev/null || true
+
+            docker compose down
+
             docker compose pull
 
             docker compose up -d
