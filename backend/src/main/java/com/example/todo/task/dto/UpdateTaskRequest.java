@@ -36,4 +36,10 @@ public class UpdateTaskRequest {
     private UUID assignedToUserId;
 
     private Boolean clearAssignee;
+
+    private UUID projectId;
+
+    private String projectName;
+
+    private Boolean clearProject;
 }

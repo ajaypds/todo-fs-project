@@ -27,6 +27,8 @@ public class TaskResponse {
 
     private UUID projectId;
 
+    private String projectName;
+
     private Instant createdAt;
 
     private Instant updatedAt;

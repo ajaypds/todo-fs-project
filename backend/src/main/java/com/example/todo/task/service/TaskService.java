@@ -77,6 +77,17 @@ public class TaskService {
                         "Project not found"
                 );
             }
+        } else if (request.getProjectName() != null && !request.getProjectName().isBlank()) {
+            String pName = request.getProjectName().trim();
+            project = projectRepository.findByUser(user).stream()
+                    .filter(p -> p.getName().equalsIgnoreCase(pName))
+                    .findFirst()
+                    .orElseGet(() -> projectRepository.save(Project.builder()
+                            .name(pName)
+                            .user(user)
+                            .color("#6366f1")
+                            .build()
+                    ));
         }
 
         Set<Label> labels = request.getLabelIds() == null ? new HashSet<>() : new HashSet<>(labelRepository.findAllById(request.getLabelIds()));
@@ -113,12 +124,25 @@ public class TaskService {
         return mapToResponse(task);
     }
 
-    public Page<TaskResponse> getTasks(UUID userId, int page, int size) {
+    public Page<TaskResponse> getTasks(UUID userId, UUID projectId, int page, int size) {
 
         User user = userRepository.findById(userId)
                 .orElseThrow(() ->
                         new ResourceNotFoundException("User not found")
                 );
+
+        if (projectId != null) {
+            Project project = projectRepository.findById(projectId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Project not found"));
+            if (!project.getUser().getId().equals(userId)) {
+                throw new ResourceNotFoundException("Project not found");
+            }
+            return taskRepository.findByUserAndProjectOrderByPositionAsc(
+                    user,
+                    project,
+                    PageRequest.of(page, size)
+            ).map(this::mapToResponse);
+        }
 
         return taskRepository.findByUserOrderByPositionAsc(
                 user,
@@ -169,6 +193,29 @@ public class TaskService {
         } else if (request.getAssignedToUserId() != null) {
             User assignee = userRepository.findById(request.getAssignedToUserId()).orElse(null);
             task.setAssignedTo(assignee);
+        }
+
+        if (Boolean.TRUE.equals(request.getClearProject())) {
+            task.setProject(null);
+        } else if (request.getProjectId() != null) {
+            Project project = projectRepository.findById(request.getProjectId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Project not found"));
+            if (!project.getUser().getId().equals(userId)) {
+                throw new ResourceNotFoundException("Project not found");
+            }
+            task.setProject(project);
+        } else if (request.getProjectName() != null && !request.getProjectName().isBlank()) {
+            String pName = request.getProjectName().trim();
+            Project project = projectRepository.findByUser(task.getUser()).stream()
+                    .filter(p -> p.getName().equalsIgnoreCase(pName))
+                    .findFirst()
+                    .orElseGet(() -> projectRepository.save(Project.builder()
+                            .name(pName)
+                            .user(task.getUser())
+                            .color("#6366f1")
+                            .build()
+                    ));
+            task.setProject(project);
         }
 
         task.setUpdatedAt(Instant.now());
@@ -325,6 +372,7 @@ public class TaskService {
                 .createdAt(task.getCreatedAt())
                 .updatedAt(task.getUpdatedAt())
                 .projectId(task.getProject() != null ? task.getProject().getId() : null)
+                .projectName(task.getProject() != null ? task.getProject().getName() : null)
                 .position(task.getPosition())
                 .recurrenceType(task.getRecurrenceType() != null ? task.getRecurrenceType().name() : "NONE")
                 .recurrenceInterval(task.getRecurrenceInterval() != null ? task.getRecurrenceInterval() : 1)

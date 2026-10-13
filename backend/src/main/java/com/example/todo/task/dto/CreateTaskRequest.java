@@ -29,6 +29,8 @@ public class CreateTaskRequest {
 
     private UUID projectId;
 
+    private String projectName;
+
     private Set<UUID> labelIds;
 
     private com.example.todo.task.entity.RecurrenceType recurrenceType;
