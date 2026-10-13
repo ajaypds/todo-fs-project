@@ -16,9 +16,13 @@ import {
   Sun,
   X,
   ArrowRight,
+  CalendarCheck,
+  KeyRound,
+  Activity,
 } from "lucide-react";
 import { useCommandPaletteStore } from "../../store/commandPaletteStore";
 import { useViewStore } from "../../store/viewStore";
+import { useDailyPlannerStore } from "../../store/dailyPlannerStore";
 import { useTasks } from "../../features/tasks/api/taskQueries";
 import { useProjects } from "../../features/projects/projectQueries";
 import { useThemeStore } from "../../store/themeStore";
@@ -30,6 +34,8 @@ type Props = {
   onOpenAiInsights: () => void;
   onOpenCreateProject: () => void;
   onSelectTask: (taskId: string) => void;
+  onOpenApiKeys?: () => void;
+  onOpenActivity?: () => void;
 };
 
 type CommandItem = {
@@ -47,8 +53,11 @@ export const CommandPalette = ({
   onOpenAiInsights,
   onOpenCreateProject,
   onSelectTask,
+  onOpenApiKeys,
+  onOpenActivity,
 }: Props) => {
   const { isOpen, close, toggle } = useCommandPaletteStore();
+  const openDailyPlanner = useDailyPlannerStore((state) => state.open);
   const { setActiveView, setSelectedProjectId } = useViewStore();
   const { data: tasksData } = useTasks();
   const { data: projects = [] } = useProjects();
@@ -125,6 +134,18 @@ export const CommandPalette = ({
     });
 
     items.push({
+      id: "action-daily-planner",
+      title: "AI Daily Planner (Eisenhower Matrix)",
+      subtitle: "Categorize tasks into 4 quadrants & time blocks",
+      category: "Actions",
+      icon: <CalendarCheck size={16} className="text-purple-500" />,
+      onSelect: () => {
+        close();
+        openDailyPlanner();
+      },
+    });
+
+    items.push({
       id: "action-create-project",
       title: "Create new project",
       subtitle: "Group your tasks into a project",
@@ -135,6 +156,34 @@ export const CommandPalette = ({
         onOpenCreateProject();
       },
     });
+
+    if (onOpenApiKeys) {
+      items.push({
+        id: "action-api-keys",
+        title: "API Keys & MCP Integration",
+        subtitle: "Connect Claude Desktop, ChatGPT, Gemini, or Cursor via MCP",
+        category: "Actions",
+        icon: <KeyRound size={16} className="text-amber-500" />,
+        onSelect: () => {
+          close();
+          onOpenApiKeys();
+        },
+      });
+    }
+
+    if (onOpenActivity) {
+      items.push({
+        id: "action-activity-log",
+        title: "View Activity Log",
+        subtitle: "Audit trail of changes made across your workspace",
+        category: "Actions",
+        icon: <Activity size={16} className="text-emerald-500" />,
+        onSelect: () => {
+          close();
+          onOpenActivity();
+        },
+      });
+    }
 
     items.push({
       id: "action-toggle-theme",

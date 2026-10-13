@@ -9,6 +9,8 @@ export type Subtask = {
   createdAt: string;
 };
 
+export type RecurrenceType = "NONE" | "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY";
+
 export type Task = {
   id: string;
   title: string;
@@ -16,6 +18,8 @@ export type Task = {
   completed: boolean;
   priority: number;
   dueDate?: string;
+  recurrenceType?: RecurrenceType;
+  recurrenceInterval?: number;
   createdAt: string;
   updatedAt: string;
   projectId: string;

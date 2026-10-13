@@ -1,0 +1,23 @@
+{
+  "name": "todoflow-mcp-server",
+  "version": "1.0.0",
+  "description": "Model Context Protocol (MCP) Server for TodoFlow",
+  "type": "module",
+  "bin": {
+    "todoflow-mcp": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.6.1",
+    "axios": "^1.7.9",
+    "dotenv": "^16.4.7",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "typescript": "^5.7.3"
+  }
+}

@@ -5,7 +5,9 @@ import jakarta.validation.constraints.Size;
 import lombok.Getter;
 import lombok.Setter;
 
-import java.time.LocalDateTime;
+import com.example.todo.common.LenientInstantDeserializer;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import java.time.Instant;
 import java.util.Set;
 import java.util.UUID;
 
@@ -21,9 +23,14 @@ public class CreateTaskRequest {
 
     private Integer priority;
 
-    private LocalDateTime dueDate;
+    @JsonDeserialize(using = LenientInstantDeserializer.class)
+    private Instant dueDate;
 
     private UUID projectId;
 
     private Set<UUID> labelIds;
+
+    private com.example.todo.task.entity.RecurrenceType recurrenceType;
+
+    private Integer recurrenceInterval;
 }

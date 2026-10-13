@@ -14,7 +14,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 
 @Service
 @RequiredArgsConstructor
@@ -37,7 +38,8 @@ public class AuthService {
                 .email(request.getEmail())
                 .password(passwordEncoder.encode(request.getPassword()))
                 .fullName(request.getFullName())
-                .createdAt(LocalDateTime.now())
+                .timezone("UTC")
+                .createdAt(Instant.now())
                 .build();
 
         userRepository.save(user);
@@ -70,7 +72,7 @@ public class AuthService {
             RefreshToken.builder()
                     .token(refreshToken)
                     .user(user)
-                    .expiresAt(LocalDateTime.now().plusDays(7))
+                    .expiresAt(Instant.now().plus(7, ChronoUnit.DAYS))
                     .revoked(false)
                     .build()
         );
@@ -91,7 +93,7 @@ public class AuthService {
             throw new UnauthorizedException("Refresh token revoked");
         }
 
-        if (storedToken.getExpiresAt().isBefore(LocalDateTime.now())) {
+        if (storedToken.getExpiresAt().isBefore(Instant.now())) {
 
             throw new UnauthorizedException("Refresh token expired");
         }

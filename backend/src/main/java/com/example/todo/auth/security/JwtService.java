@@ -1,17 +1,14 @@
 package com.example.todo.auth.security;
 
 import com.example.todo.user.entity.User;
-import com.example.todo.user.repository.UserRepository;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.security.Keys;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import javax.crypto.SecretKey;
-import java.security.Key;
+import java.nio.charset.StandardCharsets;
 import java.util.Date;
 import java.util.UUID;
 
@@ -20,7 +17,7 @@ public class JwtService {
 
     private final String SECRET;
 
-    private final Key key;
+    private final SecretKey key;
 
     @Value("${jwt.expiration}")
     private long tokenExpiration;
@@ -30,7 +27,7 @@ public class JwtService {
 
     public JwtService(@Value("${jwt.secret}") String secret) {
         this.SECRET = secret;
-        this.key = Keys.hmacShaKeyFor(SECRET.getBytes());
+        this.key = Keys.hmacShaKeyFor(SECRET.getBytes(StandardCharsets.UTF_8));
     }
 
     public String generateToken(UUID userId, String username) {
@@ -40,7 +37,7 @@ public class JwtService {
                 .claim("user", username)
                 .issuedAt(new Date())
                 .expiration(new Date(System.currentTimeMillis() + tokenExpiration))
-                .signWith(key, SignatureAlgorithm.HS256)
+                .signWith(key)
                 .compact();
     }
 
@@ -67,7 +64,7 @@ public class JwtService {
     private Claims extractClaims(String token) {
 
         return Jwts.parser()
-                .verifyWith((SecretKey) key)
+                .verifyWith(key)
                 .build()
                 .parseSignedClaims(token)
                 .getPayload();
@@ -81,7 +78,7 @@ public class JwtService {
                 .subject(user.getEmail())
                 .issuedAt(new Date())
                 .expiration(new Date(System.currentTimeMillis() + refreshExpiration))
-                .signWith(key, SignatureAlgorithm.HS256)
+                .signWith(key)
                 .compact();
     }
 }

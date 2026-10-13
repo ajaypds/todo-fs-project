@@ -30,3 +30,7 @@ export const createProject = async (
 
     return response.data;
 };
+
+export const deleteProject = async (projectId: string): Promise<void> => {
+    await apiClient.delete(`/projects/${projectId}`);
+};

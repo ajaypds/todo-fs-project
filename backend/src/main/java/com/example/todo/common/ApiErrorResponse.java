@@ -3,13 +3,13 @@ package com.example.todo.common;
 import lombok.Builder;
 import lombok.Getter;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 
 @Getter
 @Builder
 public class ApiErrorResponse {
 
-    private LocalDateTime timestamp;
+    private Instant timestamp;
     private int status;
     private String message;
 }

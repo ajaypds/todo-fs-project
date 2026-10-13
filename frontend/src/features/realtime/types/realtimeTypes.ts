@@ -8,6 +8,8 @@ export type TaskRealtimeEvent = {
     taskId: string;
 
     title?: string;
+
+    userId?: string;
 };
 
 export type PresenceRealtimeEvent = {
@@ -17,6 +19,19 @@ export type PresenceRealtimeEvent = {
     | "USER_DISCONNECTED";
 
     username: string;
+
+    userId?: string;
+
+    activeSessions?: number;
+
+    online?: boolean;
+};
+
+export type UserPresenceResponse = {
+    userId: string;
+    username: string;
+    activeSessions: number;
+    online: boolean;
 };
 
 export type ActivityRealtimeEvent = {
@@ -25,6 +40,8 @@ export type ActivityRealtimeEvent = {
     | "ACTIVITY_CREATED";
 
     message: string;
+
+    userId?: string;
 };
 
 export type RealtimeConnectionStatus = "connected" | "connecting" | "disconnected";

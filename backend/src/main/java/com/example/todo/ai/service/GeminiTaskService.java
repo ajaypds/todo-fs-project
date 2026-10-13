@@ -1,7 +1,10 @@
 package com.example.todo.ai.service;
 
+import com.example.todo.ai.dto.DailyPlannerRequest;
+import com.example.todo.ai.dto.DailyPlannerResponse;
 import com.example.todo.ai.dto.DecomposeTaskRequest;
 import com.example.todo.ai.dto.DecomposeTaskResponse;
+import com.example.todo.ai.dto.EisenhowerMatrix;
 import com.example.todo.ai.dto.ParsedTaskResponse;
 import com.example.todo.ai.dto.ProductivityInsightRequest;
 import com.example.todo.ai.dto.ProductivityInsightResponse;
@@ -11,8 +14,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.stereotype.Service;
-import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.time.ZonedDateTime;
+import java.util.ArrayList;
+import java.util.Collections;
 
 @Service
 @RequiredArgsConstructor
@@ -22,13 +27,26 @@ public class GeminiTaskService implements AiTaskService {
 
     @Override
     public ParsedTaskResponse parseTask(String input) {
+        return parseTask(input, null);
+    }
 
-        LocalDateTime now = LocalDateTime.now(ZoneId.of("Asia/Kolkata"));
+    @Override
+    public ParsedTaskResponse parseTask(String input, String userTimezone) {
+        ZoneId zoneId;
+        try {
+            zoneId = (userTimezone != null && !userTimezone.isBlank())
+                    ? ZoneId.of(userTimezone)
+                    : ZoneId.of("UTC");
+        } catch (Exception e) {
+            zoneId = ZoneId.of("UTC");
+        }
+
+        ZonedDateTime now = ZonedDateTime.now(zoneId);
 
         String prompt = """
         Extract task details from the following input.
         
-        Current date and time (Asia/Kolkata): %s
+        Current date and time (%s): %s
         
         Interpret relative dates such as:
         - today
@@ -37,7 +55,7 @@ public class GeminiTaskService implements AiTaskService {
         - this Friday
         - next Monday
         
-        relative to the current date above.
+        relative to the current date and timezone above.
         
         Return ONLY valid JSON.
         
@@ -48,8 +66,8 @@ public class GeminiTaskService implements AiTaskService {
         - dueDate
         
         Rules:
-        - dueDate must be ISO-8601 LocalDateTime format
-        - Use Asia/Kolkata timezone when interpreting dates
+        - dueDate must be standard ISO-8601 UTC Instant format ending with Z (e.g. 2026-10-09T00:00:00Z) or null if no date specified
+        - Use %s timezone when interpreting relative dates
         - Priority must be one of: LOW, MEDIUM, HIGH
         - Do not invent information not present in the input
         - If a date is not specified, return null for dueDate
@@ -76,7 +94,7 @@ public class GeminiTaskService implements AiTaskService {
         - description should be 1-2 sentences maximum
         
         Input: %s
-        """.formatted(now, input);
+        """.formatted(zoneId.getId(), now, zoneId.getId(), input);
 
         return chatClient.prompt()
                 .user(prompt)
@@ -157,5 +175,110 @@ public class GeminiTaskService implements AiTaskService {
                 .user(prompt)
                 .call()
                 .entity(DecomposeTaskResponse.class);
+    }
+
+    @Override
+    public DailyPlannerResponse generateDailyPlan(DailyPlannerRequest request) {
+        if (request == null || request.getTasks() == null || request.getTasks().isEmpty()) {
+            return DailyPlannerResponse.builder()
+                    .summary("You have no active tasks currently on your plate. Enjoy the downtime or capture new goals!")
+                    .coachingTip("When you add new tasks, come back here to organize your day with the Eisenhower Matrix.")
+                    .matrix(new EisenhowerMatrix())
+                    .timeBlocks(Collections.emptyList())
+                    .build();
+        }
+
+        ObjectMapper objectMapper = new ObjectMapper();
+        String tasksJson;
+        try {
+            tasksJson = objectMapper.writeValueAsString(request.getTasks());
+        } catch (JsonProcessingException e) {
+            throw new PromptSerializationException("Failed to serialize daily planner task list");
+        }
+
+        ZoneId zoneId;
+        try {
+            zoneId = (request.getUserTimezone() != null && !request.getUserTimezone().isBlank())
+                    ? ZoneId.of(request.getUserTimezone())
+                    : ZoneId.of("Asia/Kolkata");
+        } catch (Exception e) {
+            zoneId = ZoneId.of("Asia/Kolkata");
+        }
+        ZonedDateTime now = ZonedDateTime.now(zoneId);
+
+        String prompt = """
+        You are an elite productivity strategist and executive coach specializing in the Eisenhower Matrix method and daily time blocking.
+
+        Current date & time (%s): %s
+
+        Analyze the user's tasks and create an actionable, structured Daily Plan.
+
+        1. Eisenhower Matrix Classification:
+        Evaluate each task's URGENCY (time sensitivity, imminent due dates, critical blockers) and IMPORTANCE (strategic value, high priority rating, long-term impact):
+        - Q1: Do First (Urgent & Important): High urgency and high importance (critical deadlines today/tomorrow, high priority bugs, critical deliverables).
+        - Q2: Schedule / Deep Work (Not Urgent, but Important): Strategic goals, design docs, learning, roadmap planning, high priority tasks without immediate panic deadlines.
+        - Q3: Delegate / Quick Batch (Urgent, but Not Important): Administrative tasks, quick low-impact requests, chores with near deadlines but low priority.
+        - Q4: Eliminate / Backlog (Not Urgent & Not Important): Low-priority tasks, nice-to-haves, busywork with distant or no deadlines.
+
+        For each classified task, provide:
+        - taskId: EXACT id from the task input
+        - title: task title
+        - rationale: 1 brief sentence explaining why it fits this quadrant
+        - urgencyScore: integer 1-10
+        - importanceScore: integer 1-10
+
+        2. Daily Time Blocks:
+        Synthesize 2-3 structured focus time blocks for today (e.g., Morning Focus, Afternoon Execution, End of Day Wrap-Up).
+        Assign relevant taskIds and taskTitles to the appropriate time blocks based on cognitive load and urgency.
+
+        3. Executive Summary & Coaching Advice:
+        - summary: 2-3 sentences summarizing the day's primary objective and realistic workload.
+        - coachingTip: 1 actionable tactical advice for today (e.g., "Tackle Q1 items before noon while cognitive energy is high, then protect 90 minutes for Q2 deep work.").
+
+        Return ONLY valid JSON matching this schema:
+        {
+          "summary": "...",
+          "coachingTip": "...",
+          "timeBlocks": [
+            {
+              "timePeriod": "Morning Focus (9:00 AM - 12:00 PM)",
+              "focusTheme": "High Priority & Urgent Execution",
+              "taskIds": ["..."],
+              "taskTitles": ["..."]
+            }
+          ],
+          "matrix": {
+            "doFirst": [
+              {
+                "taskId": "...",
+                "title": "...",
+                "rationale": "...",
+                "urgencyScore": 9,
+                "importanceScore": 9
+              }
+            ],
+            "schedule": [],
+            "delegate": [],
+            "eliminate": []
+          }
+        }
+
+        Input Tasks:
+        %s
+        """.formatted(zoneId.getId(), now, tasksJson);
+
+        DailyPlannerResponse response = chatClient
+                .prompt()
+                .user(prompt)
+                .call()
+                .entity(DailyPlannerResponse.class);
+
+        if (response.getMatrix() == null) {
+            response.setMatrix(new EisenhowerMatrix());
+        }
+        if (response.getTimeBlocks() == null) {
+            response.setTimeBlocks(new ArrayList<>());
+        }
+        return response;
     }
 }

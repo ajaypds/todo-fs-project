@@ -6,14 +6,11 @@ import {
   useDeleteTask,
   useReorderTasks,
 } from "../features/tasks/api/taskQueries";
-import type { PageResponse } from "../types/pagination";
 import { EmptyState } from "../components/ui/EmptyState";
 import { TaskSkeleton } from "../components/ui/TaskSkeleton";
 import toast from "react-hot-toast";
-import { useProjects } from "../features/projects/projectQueries";
 import { useViewStore } from "../store/viewStore";
 import { useCommandPaletteStore } from "../store/commandPaletteStore";
-import type { Task } from "../features/tasks/types/taskTypes";
 import type { DragStartEvent, DragEndEvent } from "@dnd-kit/core";
 import { DndContext, closestCenter, DragOverlay } from "@dnd-kit/core";
 import {
@@ -22,7 +19,6 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { SortableTaskCard } from "../features/tasks/components/SortableTaskCard";
-import { useQueryClient } from "@tanstack/react-query";
 import { TaskCard } from "../features/tasks/components/TaskCard";
 import { Input } from "../components/ui/Input";
 import {
@@ -35,20 +31,29 @@ import {
   Calendar,
   AlertCircle,
   Command,
+  CalendarCheck,
+  Activity,
+  Trash2,
 } from "lucide-react";
 import { PageTransition } from "../components/ui/PageTransition";
 import { useLabels } from "../features/labels/labelQueries";
 import { OnlineUsers } from "../features/users/components/OnlineUsers";
-import { ActivityFeed } from "../features/activity/components/ActivityFeed";
+import { ActivityDrawer } from "../features/activity/components/ActivityDrawer";
 import { useOnlineUsers } from "../features/realtime/api/presenceQueries";
 import { usePresenceStore } from "../store/presenceStore";
 import { useAiStore } from "../store/aiStore";
+import { useDailyPlannerStore } from "../store/dailyPlannerStore";
 import { Button } from "../components/ui/Button";
+import { Modal } from "../components/ui/Modal";
+import { useProjects, useDeleteProject } from "../features/projects/projectQueries";
+import type { Project } from "../features/projects/projectTypes";
 import { AiInsightsModal } from "../features/ai/components/AiInsightsModal";
 import AiAssistantDrawer from "../features/ai/components/AiAssistantDrawer";
+import AiDailyPlannerModal from "../features/ai/components/AiDailyPlannerModal";
 import CreateTaskModal from "../features/tasks/components/CreateTaskModal";
 import TaskDetailsDrawer from "../features/tasks/components/TaskDetailsDrawer";
 import CreateProjectModal from "../features/projects/components/CreateProjectModal";
+import ApiKeysModal from "../features/apikeys/components/ApiKeysModal";
 import CommandPalette from "../components/ui/CommandPalette";
 import { isToday, isUpcoming, isOverdue } from "../utils/date";
 
@@ -57,20 +62,28 @@ export const DashboardPage = () => {
   const updateTaskMutation = useUpdateTask();
   const deleteTaskMutation = useDeleteTask();
   const reorderTasksMutation = useReorderTasks();
-  const queryClient = useQueryClient();
 
   const [search, setSearch] = useState("");
-  const { activeView, selectedProjectId } = useViewStore();
+  const { activeView, selectedProjectId, setSelectedProjectId } = useViewStore();
   const openCommandPalette = useCommandPaletteStore((state) => state.open);
 
   const { data: projects = [] } = useProjects();
   const { data: labels = [] } = useLabels();
-  const { data: onlineUsers = [] } = useOnlineUsers();
-  const setUsers = usePresenceStore((state) => state.setUsers);
+  const { data: presence } = useOnlineUsers();
+  const setPresence = usePresenceStore((state) => state.setPresence);
+  const deleteProjectMutation = useDeleteProject();
 
   // Modals & Drawers state
+  const {
+    isOpen: dailyPlannerOpen,
+    open: openDailyPlanner,
+    close: closeDailyPlanner,
+  } = useDailyPlannerStore();
   const [taskModalOpen, setTaskModalOpen] = useState(false);
   const [projectModalOpen, setProjectModalOpen] = useState(false);
+  const [projectToDelete, setProjectToDelete] = useState<Project | null>(null);
+  const [activityDrawerOpen, setActivityDrawerOpen] = useState(false);
+  const [apiKeysModalOpen, setApiKeysModalOpen] = useState(false);
   const [aiOpen, setAiOpen] = useState(false);
   const [coachOpen, setCoachOpen] = useState(false);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
@@ -93,8 +106,14 @@ export const DashboardPage = () => {
   }, [tasks, selectedTaskId]);
 
   useEffect(() => {
-    setUsers(onlineUsers);
-  }, [onlineUsers, setUsers]);
+    if (presence) {
+      setPresence({
+        online: presence.online,
+        activeSessions: presence.activeSessions,
+        username: presence.username,
+      });
+    }
+  }, [presence, setPresence]);
 
   // Smart view + search filtering
   const filteredTasks = useMemo(() => {
@@ -147,21 +166,6 @@ export const DashboardPage = () => {
     const newIndex = filteredTasks.findIndex((task) => task.id === over.id);
 
     const reorderedTasks = arrayMove(filteredTasks, oldIndex, newIndex);
-
-    queryClient.setQueryData(
-      ["tasks"],
-      (old: PageResponse<Task> | undefined) => {
-        if (!old) {
-          return old;
-        }
-
-        return {
-          ...old,
-          content: reorderedTasks,
-        };
-      }
-    );
-
     reorderTasksMutation.mutate(reorderedTasks.map((task) => task.id));
   };
 
@@ -258,7 +262,11 @@ export const DashboardPage = () => {
   const activeTask = filteredTasks.find((task) => task.id === activeId);
 
   return (
-    <AppLayout>
+    <AppLayout
+      onOpenCreateTask={() => setTaskModalOpen(true)}
+      onOpenApiKeys={() => setApiKeysModalOpen(true)}
+      onOpenActivity={() => setActivityDrawerOpen(true)}
+    >
       <PageTransition>
         <OnlineUsers />
 
@@ -271,6 +279,16 @@ export const DashboardPage = () => {
                 <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
                   {viewHeaderInfo.title}
                 </h1>
+                {selectedProject && (
+                  <Button
+                    variant="ghost"
+                    onClick={() => setProjectToDelete(selectedProject)}
+                    className="text-red-500 hover:text-red-600 hover:bg-red-500/10 cursor-pointer ml-1 p-1.5 h-auto rounded-lg"
+                    title={`Delete project "${selectedProject.name}"`}
+                  >
+                    <Trash2 size={16} />
+                  </Button>
+                )}
               </div>
               <p className="text-xs text-muted mt-1">
                 {viewHeaderInfo.subtitle}
@@ -281,12 +299,32 @@ export const DashboardPage = () => {
             <div className="flex items-center gap-2 flex-wrap">
               <Button
                 variant="ghost"
+                onClick={() => setActivityDrawerOpen(true)}
+                className="gap-1.5 text-xs sm:text-sm text-muted hover:text-foreground cursor-pointer"
+                title="View Activity Feed"
+              >
+                <Activity size={15} />
+                <span>Activity</span>
+              </Button>
+
+              <Button
+                variant="ghost"
                 onClick={() => setAiOpen(true)}
                 className="gap-1.5 text-xs sm:text-sm text-accent hover:bg-accent/10 cursor-pointer"
                 title="Open AI Natural Language Task Assistant"
               >
                 <Sparkles size={15} />
                 <span>AI Assistant</span>
+              </Button>
+
+              <Button
+                variant="ghost"
+                onClick={openDailyPlanner}
+                className="gap-1.5 text-xs sm:text-sm text-purple-600 dark:text-purple-400 hover:bg-purple-500/10 cursor-pointer"
+                title="AI Daily Planner & Eisenhower Matrix"
+              >
+                <CalendarCheck size={15} />
+                <span>Daily Planner</span>
               </Button>
 
               <Button
@@ -422,11 +460,6 @@ export const DashboardPage = () => {
               </DragOverlay>
             </DndContext>
           )}
-
-          {/* Activity Feed Section */}
-          <div className="mt-12 pt-8 border-t border-border">
-            <ActivityFeed />
-          </div>
         </div>
 
         {/* Drawers & Modals */}
@@ -466,6 +499,73 @@ export const DashboardPage = () => {
           tasks={tasks}
         />
 
+        <AiDailyPlannerModal
+          open={dailyPlannerOpen}
+          onClose={closeDailyPlanner}
+          tasks={tasks}
+          projects={projects}
+          onSelectTask={(taskId) => {
+            closeDailyPlanner();
+            setSelectedTaskId(taskId);
+          }}
+        />
+
+        {/* Activity Drawer */}
+        <ActivityDrawer
+          open={activityDrawerOpen}
+          onClose={() => setActivityDrawerOpen(false)}
+        />
+
+        {/* Delete Project Confirmation Modal */}
+        <Modal
+          open={!!projectToDelete}
+          onClose={() => setProjectToDelete(null)}
+          title="Delete Project"
+        >
+          <div className="space-y-4">
+            <p className="text-sm text-foreground/80">
+              Are you sure you want to delete project{" "}
+              <strong className="text-foreground font-semibold">
+                "{projectToDelete?.name}"
+              </strong>
+              ?
+            </p>
+            <div className="p-3 bg-secondary/50 rounded-xl text-xs text-muted border border-border">
+              Tasks in this project will not be deleted; they will be safely unassigned and moved to your Inbox.
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button
+                variant="ghost"
+                onClick={() => setProjectToDelete(null)}
+                disabled={deleteProjectMutation.isPending}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="danger"
+                disabled={deleteProjectMutation.isPending}
+                onClick={() => {
+                  if (!projectToDelete) return;
+                  deleteProjectMutation.mutate(projectToDelete.id, {
+                    onSuccess: () => {
+                      toast.success(`Project "${projectToDelete.name}" deleted`);
+                      if (selectedProjectId === projectToDelete.id) {
+                        setSelectedProjectId(null);
+                      }
+                      setProjectToDelete(null);
+                    },
+                    onError: () => {
+                      toast.error("Failed to delete project");
+                    },
+                  });
+                }}
+              >
+                Delete Project
+              </Button>
+            </div>
+          </div>
+        </Modal>
+
         {/* Command Palette (Spotlight / Ctrl+K) */}
         <CommandPalette
           onOpenAddTask={() => setTaskModalOpen(true)}
@@ -473,24 +573,36 @@ export const DashboardPage = () => {
           onOpenAiInsights={() => setCoachOpen(true)}
           onOpenCreateProject={() => setProjectModalOpen(true)}
           onSelectTask={(taskId) => setSelectedTaskId(taskId)}
+          onOpenApiKeys={() => setApiKeysModalOpen(true)}
+          onOpenActivity={() => setActivityDrawerOpen(true)}
         />
 
-        {/* Floating Action Button for quick task add */}
+        {/* API Keys & MCP Integration Modal */}
+        {apiKeysModalOpen && (
+          <ApiKeysModal
+            open={apiKeysModalOpen}
+            onClose={() => setApiKeysModalOpen(false)}
+          />
+        )}
+
+        {/* Floating Action Button for quick task add (desktop only, mobile uses bottom nav + button) */}
         <button
           className="
-            fixed bottom-6 right-6 md:bottom-8 md:right-8
-            w-13 h-13 rounded-full
-            bg-primary text-primary-foreground
-            shadow-lg
-            flex items-center justify-center
+            hidden md:flex
+            fixed bottom-8 right-8
+            w-14 h-14 rounded-full
+            bg-accent hover:bg-accent/90 text-white
+            shadow-xl shadow-accent/30
+            items-center justify-center
             hover:scale-105 active:scale-95
             cursor-pointer
             transition-all duration-200 z-30
           "
           onClick={() => setTaskModalOpen(true)}
           title="Add task (or press 'n')"
+          aria-label="Add task"
         >
-          <Plus size={22} />
+          <Plus size={26} className="stroke-[2.5]" />
         </button>
       </PageTransition>
     </AppLayout>

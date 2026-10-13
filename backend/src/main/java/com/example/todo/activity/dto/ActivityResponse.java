@@ -3,7 +3,7 @@ package com.example.todo.activity.dto;
 import lombok.Builder;
 import lombok.Getter;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.UUID;
 
 @Getter
@@ -16,5 +16,5 @@ public class ActivityResponse {
 
     private String message;
 
-    private LocalDateTime createdAt;
+    private Instant createdAt;
 }

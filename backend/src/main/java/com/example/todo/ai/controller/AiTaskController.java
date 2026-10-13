@@ -16,7 +16,7 @@ public class AiTaskController {
     @PostMapping("/parse-task")
     public ParsedTaskResponse
     parseTask(@RequestBody ParseTaskRequest request) {
-        return aiTaskService.parseTask(request.getInput());
+        return aiTaskService.parseTask(request.getInput(), request.getTimezone());
     }
 
     @PostMapping("/productivity-coach")
@@ -29,5 +29,11 @@ public class AiTaskController {
     public DecomposeTaskResponse
     decomposeTask(@RequestBody @Valid DecomposeTaskRequest request) {
         return aiTaskService.decomposeTask(request);
+    }
+
+    @PostMapping("/daily-planner")
+    public DailyPlannerResponse
+    generateDailyPlan(@RequestBody DailyPlannerRequest request) {
+        return aiTaskService.generateDailyPlan(request);
     }
 }

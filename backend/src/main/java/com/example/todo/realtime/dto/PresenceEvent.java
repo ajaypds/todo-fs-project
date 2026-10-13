@@ -11,4 +11,7 @@ public class PresenceEvent {
 
     private String type;
     private String username;
+    private String userId;
+    private Integer activeSessions;
+    private Boolean online;
 }

@@ -24,7 +24,7 @@ public class TaskRealtimePublisher {
                                     .title(event.getTitle())
                                     .build();
 
-        messagingTemplate.convertAndSend("/topic/tasks", payload);
+        messagingTemplate.convertAndSend("/topic/users/" + event.getUserId() + "/tasks", payload);
     }
 
     @EventListener
@@ -37,7 +37,7 @@ public class TaskRealtimePublisher {
                         .title(event.getTitle())
                         .build();
 
-        messagingTemplate.convertAndSend("/topic/tasks", payload);
+        messagingTemplate.convertAndSend("/topic/users/" + event.getUserId() + "/tasks", payload);
     }
 
     @EventListener
@@ -49,6 +49,6 @@ public class TaskRealtimePublisher {
                         .taskId(event.getTaskId())
                         .build();
 
-        messagingTemplate.convertAndSend("/topic/tasks", payload);
+        messagingTemplate.convertAndSend("/topic/users/" + event.getUserId() + "/tasks", payload);
     }
 }
