@@ -26,6 +26,7 @@ public class ProjectController {
     private final ProjectService projectService;
 
     @PostMapping
+    @ResponseStatus(HttpStatus.CREATED)
     public ProjectResponse createProject(
             @AuthenticationPrincipal
             CustomUserDetails userDetails,
