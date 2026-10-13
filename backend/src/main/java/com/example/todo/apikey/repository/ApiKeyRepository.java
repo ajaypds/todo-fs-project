@@ -1,6 +1,7 @@
 package com.example.todo.apikey.repository;
 
 import com.example.todo.apikey.entity.ApiKey;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
@@ -11,6 +12,7 @@ import java.util.UUID;
 @Repository
 public interface ApiKeyRepository extends JpaRepository<ApiKey, UUID> {
 
+    @EntityGraph(attributePaths = {"user"})
     Optional<ApiKey> findByKeyHash(String keyHash);
 
     List<ApiKey> findByUserIdOrderByCreatedAtDesc(UUID userId);

@@ -54,16 +54,27 @@ public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
     private String extractApiKey(HttpServletRequest request) {
         String xApiKey = request.getHeader("X-API-Key");
         if (xApiKey != null && !xApiKey.isBlank()) {
-            return xApiKey.trim();
+            String key = xApiKey.trim();
+            if (key.regionMatches(true, 0, "Bearer ", 0, 7)) {
+                key = key.substring(7).trim();
+            }
+            return key;
         }
 
         String authHeader = request.getHeader("Authorization");
-        if (authHeader != null) {
-            if (authHeader.startsWith("Bearer todo_live_")) {
-                return authHeader.substring(7).trim();
+        if (authHeader != null && !authHeader.isBlank()) {
+            String token = authHeader.trim();
+            if (token.regionMatches(true, 0, "Bearer ", 0, 7)) {
+                token = token.substring(7).trim();
+            } else if (token.regionMatches(true, 0, "ApiKey ", 0, 7)) {
+                token = token.substring(7).trim();
             }
-            if (authHeader.startsWith("ApiKey ")) {
-                return authHeader.substring(7).trim();
+            // Strip accidental duplicate "Bearer " if user pasted with prefix
+            if (token.regionMatches(true, 0, "Bearer ", 0, 7)) {
+                token = token.substring(7).trim();
+            }
+            if (token.startsWith("todo_live_")) {
+                return token;
             }
         }
 

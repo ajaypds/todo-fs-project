@@ -12,6 +12,7 @@ import com.example.todo.task.service.TaskService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
@@ -25,6 +26,7 @@ public class TaskController {
     private final TaskService taskService;
 
     @PostMapping
+    @ResponseStatus(HttpStatus.CREATED)
     public TaskResponse createTask(
             @AuthenticationPrincipal
             CustomUserDetails userDetails,

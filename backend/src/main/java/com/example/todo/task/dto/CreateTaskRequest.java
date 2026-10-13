@@ -21,6 +21,7 @@ public class CreateTaskRequest {
 
     private String description;
 
+    @JsonDeserialize(using = com.example.todo.common.LenientPriorityDeserializer.class)
     private Integer priority;
 
     @JsonDeserialize(using = LenientInstantDeserializer.class)
