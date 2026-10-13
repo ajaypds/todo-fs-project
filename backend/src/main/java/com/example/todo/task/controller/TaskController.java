@@ -46,6 +46,9 @@ public class TaskController {
             @AuthenticationPrincipal
             CustomUserDetails userDetails,
 
+            @RequestParam(required = false)
+            UUID projectId,
+
             @RequestParam(defaultValue = "0")
             int page,
 
@@ -55,6 +58,7 @@ public class TaskController {
 
         return taskService.getTasks(
                 userDetails.getUserId(),
+                projectId,
                 page,
                 size
         );
