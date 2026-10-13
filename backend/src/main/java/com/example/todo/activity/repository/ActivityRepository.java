@@ -11,4 +11,5 @@ public interface ActivityRepository extends JpaRepository<Activity, UUID> {
 
     List<Activity> findAllByOrderByCreatedAtDesc();
     List<Activity> findByUserOrderByCreatedAtDesc(User user);
+    List<Activity> findByTaskIdOrderByCreatedAtDesc(UUID taskId);
 }

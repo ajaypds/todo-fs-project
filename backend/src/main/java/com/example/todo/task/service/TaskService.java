@@ -84,6 +84,11 @@ public class TaskService {
         RecurrenceType recurrenceType = request.getRecurrenceType() != null ? request.getRecurrenceType() : RecurrenceType.NONE;
         Integer recurrenceInterval = request.getRecurrenceInterval() != null && request.getRecurrenceInterval() > 0 ? request.getRecurrenceInterval() : 1;
 
+        User assignedTo = null;
+        if (request.getAssignedToUserId() != null) {
+            assignedTo = userRepository.findById(request.getAssignedToUserId()).orElse(null);
+        }
+
         Task task = Task.builder()
                 .user(user)
                 .title(request.getTitle())
@@ -98,6 +103,7 @@ public class TaskService {
                 .labels(labels)
                 .recurrenceType(recurrenceType)
                 .recurrenceInterval(recurrenceInterval)
+                .assignedTo(assignedTo)
                 .build();
 
         taskRepository.save(task);
@@ -156,6 +162,13 @@ public class TaskService {
         if(request.getLabelIds() != null){
             Set<Label> labels = new HashSet<>(labelRepository.findAllById(request.getLabelIds()));
             task.setLabels(labels);
+        }
+
+        if (Boolean.TRUE.equals(request.getClearAssignee())) {
+            task.setAssignedTo(null);
+        } else if (request.getAssignedToUserId() != null) {
+            User assignee = userRepository.findById(request.getAssignedToUserId()).orElse(null);
+            task.setAssignedTo(assignee);
         }
 
         task.setUpdatedAt(Instant.now());
@@ -299,6 +312,8 @@ public class TaskService {
     }
 
     private TaskResponse mapToResponse(Task task) {
+        User assignedTo = task.getAssignedTo();
+        int commentCount = task.getComments() != null ? task.getComments().size() : 0;
 
         return TaskResponse.builder()
                 .id(task.getId())
@@ -313,6 +328,10 @@ public class TaskService {
                 .position(task.getPosition())
                 .recurrenceType(task.getRecurrenceType() != null ? task.getRecurrenceType().name() : "NONE")
                 .recurrenceInterval(task.getRecurrenceInterval() != null ? task.getRecurrenceInterval() : 1)
+                .assignedToUserId(assignedTo != null ? assignedTo.getId() : null)
+                .assignedToName(assignedTo != null ? assignedTo.getName() : null)
+                .assignedToEmail(assignedTo != null ? assignedTo.getEmail() : null)
+                .commentCount(commentCount)
                 .labels(task.getLabels().stream()
                         .map(label -> LabelResponse
                                         .builder()

@@ -31,6 +31,19 @@ public class User {
     @Column(nullable = false, length = 50)
     private String timezone = "UTC";
 
+    @Builder.Default
+    @Column(nullable = false)
+    private boolean emailVerified = false;
+
+    @Column(length = 10)
+    private String verificationCode;
+
+    private Instant verificationCodeExpiresAt;
+
     @Column(nullable = false)
     private Instant createdAt;
+
+    public String getName() {
+        return fullName != null && !fullName.isBlank() ? fullName : email;
+    }
 }

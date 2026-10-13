@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { X } from "lucide-react";
 import { useIsMobile } from "../../hooks/useIsMobile";
@@ -14,14 +15,18 @@ type Props = {
 const Drawer = ({ open, onClose, title, children }: Props) => {
   const isMobile = useIsMobile();
 
-  return (
+  if (typeof document === "undefined") {
+    return null;
+  }
+
+  return createPortal(
     <AnimatePresence>
       {open && (
         <>
           {/* Backdrop */}
           <motion.div
             onClick={onClose}
-            className="fixed inset-0 bg-black/50 backdrop-blur-xs z-40"
+            className="fixed inset-0 bg-black/50 backdrop-blur-xs z-[99]"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -31,7 +36,7 @@ const Drawer = ({ open, onClose, title, children }: Props) => {
           {/* Drawer / Bottom Sheet */}
           <motion.div
             className={cn(
-              "fixed z-50 bg-card shadow-2xl flex flex-col overflow-y-auto overscroll-contain",
+              "fixed z-[100] bg-card shadow-2xl flex flex-col overflow-y-auto overscroll-contain",
               isMobile
                 ? "inset-x-0 bottom-0 max-h-[92vh] w-full rounded-t-3xl border-t border-border px-5 pt-3 pb-8"
                 : "top-0 right-0 h-full w-full sm:w-125 border-l border-border p-6"
@@ -81,7 +86,8 @@ const Drawer = ({ open, onClose, title, children }: Props) => {
           </motion.div>
         </>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body
   );
 };
 

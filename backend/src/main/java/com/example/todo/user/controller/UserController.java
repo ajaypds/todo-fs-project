@@ -29,6 +29,7 @@ public class UserController {
                 .email(user.getEmail())
                 .fullName(user.getFullName())
                 .timezone(user.getTimezone())
+                .emailVerified(user.isEmailVerified())
                 .createdAt(user.getCreatedAt())
                 .build();
     }
@@ -53,6 +54,7 @@ public class UserController {
                 .email(user.getEmail())
                 .fullName(user.getFullName())
                 .timezone(user.getTimezone())
+                .emailVerified(user.isEmailVerified())
                 .createdAt(user.getCreatedAt())
                 .build();
     }

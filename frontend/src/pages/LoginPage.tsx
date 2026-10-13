@@ -9,16 +9,20 @@ import { Input } from "../components/ui/Input";
 import { Button } from "../components/ui/Button";
 import { useLogin } from "../features/auth/authQueries";
 import { PageTransition } from "../components/ui/PageTransition";
+import toast from "react-hot-toast";
+
+import { useState } from "react";
 
 const schema = z.object({
-  email: z.email(),
-  password: z.string().min(6),
+  email: z.string().trim().email("Please enter a valid email address"),
+  password: z.string().min(1, "Password is required"),
 });
 
 type FormValues = z.infer<typeof schema>;
 
 export const LoginPage = () => {
   const navigate = useNavigate();
+  const [unverifiedEmail, setUnverifiedEmail] = useState<string | null>(null);
 
   const setAuth = useAuthStore((state) => state.setAuth);
 
@@ -33,15 +37,31 @@ export const LoginPage = () => {
   const loginMutation = useLogin();
 
   const onSubmit = (values: FormValues) => {
-    loginMutation.mutate(values, {
-      onSuccess: (response) => {
-        setAuth(response.token, response.refreshToken);
-        navigate("/");
+    setUnverifiedEmail(null);
+    loginMutation.mutate(
+      {
+        email: values.email.toLowerCase(),
+        password: values.password,
       },
-      onError: () => {
-        alert("Login failed");
-      },
-    });
+      {
+        onSuccess: (response) => {
+          if (response.token && response.refreshToken) {
+            setAuth(response.token, response.refreshToken);
+            toast.success("Welcome back!");
+            navigate("/");
+          }
+        },
+        onError: (error: any) => {
+          const message =
+            error.response?.data?.message ||
+            "Invalid email or password. Please try again.";
+          if (typeof message === "string" && message.toLowerCase().includes("not verified")) {
+            setUnverifiedEmail(values.email.toLowerCase());
+          }
+          toast.error(message);
+        },
+      }
+    );
   };
 
   return (
@@ -54,6 +74,26 @@ export const LoginPage = () => {
             // className="bg-white p-8 rounded-lg shadow-md w-96"
           >
             <h1 className="text-2xl font-bold mb-6">Login</h1>
+
+            {unverifiedEmail && (
+              <div className="mb-4 p-3.5 rounded-lg border border-amber-500/30 bg-amber-500/10 text-xs text-amber-700 dark:text-amber-300 flex flex-col gap-2">
+                <span className="font-medium">
+                  Your email ({unverifiedEmail}) has not been verified yet.
+                </span>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="w-full text-xs py-1.5 h-auto font-medium"
+                  onClick={() =>
+                    navigate(
+                      `/verify-email?email=${encodeURIComponent(unverifiedEmail)}`
+                    )
+                  }
+                >
+                  Verify Email with Code
+                </Button>
+              </div>
+            )}
 
             <div className="mb-4">
               <Input

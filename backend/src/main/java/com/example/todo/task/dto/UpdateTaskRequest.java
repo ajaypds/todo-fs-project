@@ -31,4 +31,8 @@ public class UpdateTaskRequest {
     private com.example.todo.task.entity.RecurrenceType recurrenceType;
 
     private Integer recurrenceInterval;
+
+    private UUID assignedToUserId;
+
+    private Boolean clearAssignee;
 }

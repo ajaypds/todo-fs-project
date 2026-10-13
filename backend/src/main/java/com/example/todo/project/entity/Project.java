@@ -1,6 +1,7 @@
 package com.example.todo.project.entity;
 
 import com.example.todo.user.entity.User;
+import com.example.todo.workspace.entity.Workspace;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -23,6 +24,10 @@ public class Project {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(nullable = false)
     private User user;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "workspace_id")
+    private Workspace workspace;
 
     @Column(nullable = false)
     private String name;

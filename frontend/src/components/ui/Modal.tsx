@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { useEffect } from "react";
+import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import { cn } from "../../lib/cn";
 
@@ -21,27 +22,33 @@ export const Modal = ({
   className = "",
 }: Props) => {
   useEffect(() => {
+    if (!open) return;
+
     const handleEscape = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         onClose();
       }
     };
 
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
     window.addEventListener("keydown", handleEscape);
 
     return () => {
       window.removeEventListener("keydown", handleEscape);
+      document.body.style.overflow = originalOverflow;
     };
-  }, [onClose]);
+  }, [open, onClose]);
 
-  if (!open) {
+  if (!open || typeof document === "undefined") {
     return null;
   }
 
-  return (
+  return createPortal(
     <div
       onClick={onClose}
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-xs p-0 sm:p-6 overflow-y-auto"
+      className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-xs p-0 sm:p-6 overflow-y-auto"
     >
       <div
         onClick={(e) => e.stopPropagation()}
@@ -75,7 +82,8 @@ export const Modal = ({
           {children}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 

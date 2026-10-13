@@ -33,4 +33,6 @@ public class CreateTaskRequest {
     private com.example.todo.task.entity.RecurrenceType recurrenceType;
 
     private Integer recurrenceInterval;
+
+    private UUID assignedToUserId;
 }
