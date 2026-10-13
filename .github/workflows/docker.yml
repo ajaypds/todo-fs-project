@@ -31,3 +31,9 @@ jobs:
           docker build \
             -t todo-frontend \
             ./frontend
+
+      - name: Build MCP Server Image
+        run: |
+          docker build \
+            -t todo-mcp-server \
+            ./mcp-server

@@ -49,6 +49,31 @@ services:
 
     restart: unless-stopped
 
+  mcp-server:
+    # build:
+    #   context: ./mcp-server
+    image: ghcr.io/ajaypds/todo-mcp-server:latest
+    container_name: todo-mcp-server
+    ports:
+      - "127.0.0.1:3001:3001"
+
+    depends_on:
+      - backend
+
+    environment:
+      PORT: "3001"
+      MCP_TRANSPORT: "sse"
+      TODOFLOW_BASE_URL: "http://backend:8080"
+      TODOFLOW_API_KEY: "${TODOFLOW_API_KEY:-}"
+
+    restart: unless-stopped
+
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3001/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
 volumes:
   postgres_data:
 
