@@ -52,15 +52,15 @@ jobs:
           docker push \
             ghcr.io/${{ github.repository_owner }}/todo-frontend:latest
 
-      - name: Copy docker-compose.yml to EC2
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USER }}
-          key: ${{ secrets.EC2_SSH_KEY }}
-          source: "docker-compose.yml"
-          target: "todo-fs-project"
-          overwrite: true
+      # - name: Copy docker-compose.yml to EC2
+      #   uses: appleboy/scp-action@v0.1.7
+      #   with:
+      #     host: ${{ secrets.EC2_HOST }}
+      #     username: ${{ secrets.EC2_USER }}
+      #     key: ${{ secrets.EC2_SSH_KEY }}
+      #     source: "docker-compose.yml"
+      #     target: "todo-fs-project"
+      #     overwrite: true
 
       - name: Deploy to EC2
 
