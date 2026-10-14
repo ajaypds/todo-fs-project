@@ -159,4 +159,20 @@ public class OAuthControllerTest {
                 .andExpect(jsonPath("$.authorization_endpoint").value("http://localhost/oauth2/authorize"))
                 .andExpect(jsonPath("$.token_endpoint").value("http://localhost/oauth2/token"));
     }
+
+    @Test
+    void testRegisterEndpoint() throws Exception {
+        when(oAuthService.registerClient(any())).thenReturn(Map.of(
+                "client_id", "client_12345",
+                "client_secret", "secret_12345",
+                "client_name", "Test Client"
+        ));
+
+        mockMvc.perform(post("/oauth2/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"client_name\":\"Test Client\"}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.client_id").value("client_12345"))
+                .andExpect(jsonPath("$.client_name").value("Test Client"));
+    }
 }

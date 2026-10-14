@@ -235,6 +235,20 @@ public class OAuthController {
     }
 
     /**
+     * RFC 7591 Dynamic Client Registration Endpoint.
+     */
+    @PostMapping(
+            value = {"/oauth2/register", "/oauth/register", "/api/v1/oauth2/register", "/api/v1/oauth/register"},
+            consumes = MediaType.APPLICATION_JSON_VALUE,
+            produces = MediaType.APPLICATION_JSON_VALUE
+    )
+    public ResponseEntity<Map<String, Object>> registerEndpoint(@RequestBody(required = false) Map<String, Object> request) {
+        Map<String, Object> body = request != null ? request : Map.of();
+        Map<String, Object> registered = oAuthService.registerClient(body);
+        return ResponseEntity.status(HttpStatus.CREATED).body(registered);
+    }
+
+    /**
      * RFC 8414 Authorization Server Metadata / OpenID Discovery Endpoint.
      */
     @GetMapping(
