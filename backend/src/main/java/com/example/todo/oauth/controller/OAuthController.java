@@ -245,6 +245,24 @@ public class OAuthController {
         return ResponseEntity.ok(oAuthService.getDiscoveryMetadata(baseUrl));
     }
 
+    /**
+     * RFC 9728 OAuth 2.0 Protected Resource Metadata Endpoint.
+     */
+    @GetMapping(
+            value = {
+                    "/.well-known/oauth-protected-resource",
+                    "/.well-known/oauth-protected-resource/**",
+                    "/mcp/.well-known/oauth-protected-resource"
+            },
+            produces = MediaType.APPLICATION_JSON_VALUE
+    )
+    public ResponseEntity<Map<String, Object>> protectedResourceMetadataEndpoint(HttpServletRequest request) {
+        String scheme = request.getHeader("X-Forwarded-Proto") != null ? request.getHeader("X-Forwarded-Proto") : request.getScheme();
+        String host = request.getHeader("Host") != null ? request.getHeader("Host") : request.getServerName();
+        String baseUrl = scheme + "://" + host;
+        return ResponseEntity.ok(oAuthService.getProtectedResourceMetadata(baseUrl));
+    }
+
     // --- HTML Rendering Helpers ---
 
     private String renderAuthorizeForm(

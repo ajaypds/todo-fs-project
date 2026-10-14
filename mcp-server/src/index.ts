@@ -14,14 +14,21 @@ dotenv.config();
 const BASE_URL = process.env.TODOFLOW_BASE_URL || "http://localhost:8080";
 const DEFAULT_API_KEY = process.env.TODOFLOW_API_KEY || "";
 
-function createApiClient(apiKey?: string): AxiosInstance {
-  const effectiveKey = apiKey || DEFAULT_API_KEY;
+function createApiClient(token?: string): AxiosInstance {
+  const effective = token || DEFAULT_API_KEY;
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+  if (effective) {
+    if (effective.startsWith("todo_live_")) {
+      headers["X-API-Key"] = effective;
+    } else {
+      headers["Authorization"] = `Bearer ${effective}`;
+    }
+  }
   return axios.create({
     baseURL: BASE_URL,
-    headers: {
-      "Content-Type": "application/json",
-      ...(effectiveKey ? { "X-API-Key": effectiveKey } : {}),
-    },
+    headers,
     timeout: 10000,
   });
 }
@@ -560,6 +567,52 @@ async function startHttpServer(port: number = 3001) {
       health: "/health",
     });
   });
+
+  // RFC 8414 OAuth 2.0 Authorization Server Metadata
+  app.get(
+    [
+      "/.well-known/oauth-authorization-server",
+      "/mcp/.well-known/oauth-authorization-server",
+      "/.well-known/openid-configuration",
+    ],
+    (req: Request, res: Response) => {
+      const proto = req.headers["x-forwarded-proto"] || req.protocol || "https";
+      const host = req.headers["host"] || req.get("host") || "todoflow.ddns.net";
+      const baseUrl = `${proto}://${host}`;
+      res.json({
+        issuer: baseUrl,
+        authorization_endpoint: `${baseUrl}/oauth2/authorize`,
+        token_endpoint: `${baseUrl}/oauth2/token`,
+        revocation_endpoint: `${baseUrl}/oauth2/revoke`,
+        response_types_supported: ["code"],
+        grant_types_supported: ["authorization_code", "refresh_token"],
+        code_challenge_methods_supported: ["S256"],
+        token_endpoint_auth_methods_supported: ["client_secret_post", "client_secret_basic", "none"],
+        scopes_supported: ["read", "write", "all"],
+      });
+    }
+  );
+
+  // RFC 9728 OAuth 2.0 Protected Resource Metadata
+  app.get(
+    [
+      "/.well-known/oauth-protected-resource",
+      "/.well-known/oauth-protected-resource/*",
+      "/mcp/.well-known/oauth-protected-resource",
+    ],
+    (req: Request, res: Response) => {
+      const proto = req.headers["x-forwarded-proto"] || req.protocol || "https";
+      const host = req.headers["host"] || req.get("host") || "todoflow.ddns.net";
+      const baseUrl = `${proto}://${host}`;
+      res.json({
+        resource: `${baseUrl}/mcp`,
+        authorization_servers: [baseUrl],
+        scopes_supported: ["read", "write", "all"],
+        bearer_methods_supported: ["header"],
+        resource_documentation: baseUrl,
+      });
+    }
+  );
 
   // --------------------------------------------------------------------------
   // TRANSPORT 1: Streamable HTTP (Unified POST / GET / DELETE on /mcp)

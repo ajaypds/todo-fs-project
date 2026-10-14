@@ -282,4 +282,14 @@ public class OAuthService {
         metadata.put("scopes_supported", List.of("read", "write", "all"));
         return metadata;
     }
+
+    public Map<String, Object> getProtectedResourceMetadata(String baseUrl) {
+        Map<String, Object> metadata = new LinkedHashMap<>();
+        metadata.put("resource", baseUrl + "/mcp");
+        metadata.put("authorization_servers", List.of(baseUrl));
+        metadata.put("scopes_supported", List.of("read", "write", "all"));
+        metadata.put("bearer_methods_supported", List.of("header"));
+        metadata.put("resource_documentation", baseUrl);
+        return metadata;
+    }
 }
