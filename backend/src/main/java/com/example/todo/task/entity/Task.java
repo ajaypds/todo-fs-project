@@ -11,6 +11,7 @@ import com.example.todo.label.entity.Label;
 import com.example.todo.user.entity.User;
 import com.example.todo.project.entity.Project;
 import jakarta.persistence.*;
+import org.hibernate.annotations.BatchSize;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -71,6 +72,7 @@ public class Task {
     private Instant updatedAt;
 
     @Builder.Default
+    @BatchSize(size = 50)
     @ManyToMany
     @JoinTable(name = "task_labels", joinColumns = @JoinColumn(name = "task_id"), inverseJoinColumns = @JoinColumn(name = "label_id"))
     private Set<Label> labels = new HashSet<>();
@@ -80,11 +82,13 @@ public class Task {
     private User assignedTo;
 
     @Builder.Default
+    @BatchSize(size = 50)
     @OneToMany(mappedBy = "task", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("position ASC, createdAt ASC")
     private List<Subtask> subtasks = new ArrayList<>();
 
     @Builder.Default
+    @BatchSize(size = 50)
     @OneToMany(mappedBy = "task", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("createdAt ASC")
     private List<com.example.todo.comment.entity.TaskComment> comments = new ArrayList<>();
