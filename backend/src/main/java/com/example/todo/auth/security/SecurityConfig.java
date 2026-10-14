@@ -54,6 +54,11 @@ public class SecurityConfig {
 
                         .requestMatchers(
                                 "/api/v1/auth/**",
+                                "/oauth2/**",
+                                "/oauth/**",
+                                "/api/v1/oauth2/**",
+                                "/api/v1/oauth/**",
+                                "/.well-known/**",
                                 "/actuator/**",
                                 "/ws/**"
                         ).permitAll()
