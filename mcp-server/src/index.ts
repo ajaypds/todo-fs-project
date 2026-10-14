@@ -29,7 +29,7 @@ function createApiClient(token?: string): AxiosInstance {
   return axios.create({
     baseURL: BASE_URL,
     headers,
-    timeout: 10000,
+    timeout: 30000,
   });
 }
 
@@ -173,8 +173,19 @@ function createMcpServer(apiKey?: string): McpServer {
     async (args) => {
       try {
         const results: any[] = [];
+        const projectCache = new Map<string, string | undefined>();
+
         for (const item of args.tasks) {
-          const resolvedProjectId = await resolveOrCreateProject(apiClient, item.projectName);
+          let resolvedProjectId: string | undefined;
+          if (item.projectName && item.projectName.trim()) {
+            const key = item.projectName.trim().toLowerCase();
+            if (projectCache.has(key)) {
+              resolvedProjectId = projectCache.get(key);
+            } else {
+              resolvedProjectId = await resolveOrCreateProject(apiClient, item.projectName);
+              projectCache.set(key, resolvedProjectId);
+            }
+          }
           const payload = {
             title: item.title,
             description: item.description,
@@ -240,19 +251,38 @@ function createMcpServer(apiKey?: string): McpServer {
     },
     async (args) => {
       try {
-        const { data } = await apiClient.get<any>("/api/v1/tasks");
-        let tasks: any[] = data?.content || [];
+        let taskUrl = "/api/v1/tasks?size=100";
 
-        // Filter by project
-        if (args.projectName) {
+        // Filter by project server-side
+        if (args.projectName && args.projectName.trim()) {
           const { data: projects } = await apiClient.get<Array<{ id: string; name: string }>>("/api/v1/projects");
           const match = projects.find(
             (p) => p.name.trim().toLowerCase() === args.projectName?.trim().toLowerCase()
           );
           if (match) {
-            tasks = tasks.filter((t) => t.projectId === match.id);
+            taskUrl = `/api/v1/tasks?projectId=${match.id}&size=100`;
+          } else {
+            return {
+              content: [
+                {
+                  type: "text",
+                  text: JSON.stringify(
+                    {
+                      count: 0,
+                      tasks: [],
+                      message: `Project '${args.projectName}' was not found.`,
+                    },
+                    null,
+                    2
+                  ),
+                },
+              ],
+            };
           }
         }
+
+        const { data } = await apiClient.get<any>(taskUrl);
+        let tasks: any[] = data?.content || [];
 
         // Filter by completion
         if (args.completed !== undefined) {
