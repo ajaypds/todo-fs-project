@@ -237,7 +237,14 @@ public class OAuthController {
     /**
      * RFC 8414 Authorization Server Metadata / OpenID Discovery Endpoint.
      */
-    @GetMapping(value = {"/.well-known/oauth-authorization-server", "/.well-known/openid-configuration"}, produces = MediaType.APPLICATION_JSON_VALUE)
+    @GetMapping(
+            value = {
+                    "/.well-known/oauth-authorization-server",
+                    "/.well-known/oauth-authorization-server/**",
+                    "/.well-known/openid-configuration"
+            },
+            produces = MediaType.APPLICATION_JSON_VALUE
+    )
     public ResponseEntity<Map<String, Object>> discoveryEndpoint(HttpServletRequest request) {
         String scheme = request.getHeader("X-Forwarded-Proto") != null ? request.getHeader("X-Forwarded-Proto") : request.getScheme();
         String host = request.getHeader("Host") != null ? request.getHeader("Host") : request.getServerName();
