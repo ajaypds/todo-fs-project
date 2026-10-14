@@ -572,6 +572,7 @@ async function startHttpServer(port: number = 3001) {
   app.get(
     [
       "/.well-known/oauth-authorization-server",
+      "/.well-known/oauth-authorization-server/{*path}",
       "/mcp/.well-known/oauth-authorization-server",
       "/.well-known/openid-configuration",
     ],
@@ -597,7 +598,7 @@ async function startHttpServer(port: number = 3001) {
   app.get(
     [
       "/.well-known/oauth-protected-resource",
-      "/.well-known/oauth-protected-resource/*",
+      "/.well-known/oauth-protected-resource/{*path}",
       "/mcp/.well-known/oauth-protected-resource",
     ],
     (req: Request, res: Response) => {
