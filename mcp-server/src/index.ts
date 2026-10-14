@@ -1,6 +1,8 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
+import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
+import { randomUUID } from "node:crypto";
 import express, { type Request, type Response } from "express";
 import cors from "cors";
 import axios, { type AxiosInstance } from "axios";
@@ -476,19 +478,48 @@ function createMcpServer(apiKey?: string): McpServer {
   return server;
 }
 
+// Helper to extract API key from headers or query params
+function extractApiKey(req: Request): string {
+  const authHeader = req.headers["authorization"];
+  let reqApiKey =
+    (req.headers["x-api-key"] as string) ||
+    (req.query.apiKey as string) ||
+    (req.query.key as string);
+
+  if (!reqApiKey && authHeader) {
+    if (authHeader.startsWith("Bearer ")) {
+      reqApiKey = authHeader.substring(7).trim();
+    } else {
+      reqApiKey = authHeader.trim();
+    }
+  }
+
+  return reqApiKey || DEFAULT_API_KEY;
+}
+
 // Session store for SSE connections
-interface SessionRecord {
+interface SseSessionRecord {
   server: McpServer;
   transport: SSEServerTransport;
   apiKey?: string;
   createdAt: Date;
 }
 
-const activeSessions = new Map<string, SessionRecord>();
+// Session store for Streamable HTTP connections
+interface StreamableSessionRecord {
+  server: McpServer;
+  transport: StreamableHTTPServerTransport;
+  apiKey?: string;
+  createdAt: Date;
+}
+
+const activeSseSessions = new Map<string, SseSessionRecord>();
+const activeStreamableSessions = new Map<string, StreamableSessionRecord>();
 
 /**
- * Starts Express HTTP Server supporting Server-Sent Events (SSE).
- * Connects remote clients like ChatGPT and mobile MCP connectors.
+ * Starts Express HTTP Server supporting both:
+ * 1. Server-Sent Events (SSE) on /sse & /message (ChatGPT, Claude Mobile)
+ * 2. Unified Streamable HTTP on /mcp (MCP v1.6+ clients)
  */
 async function startHttpServer(port: number = 3001) {
   const app = express();
@@ -500,44 +531,117 @@ async function startHttpServer(port: number = 3001) {
   app.get(["/health", "/mcp/health"], (_req: Request, res: Response) => {
     res.json({
       status: "UP",
-      activeSessions: activeSessions.size,
-      mode: "sse",
+      activeSessions: {
+        sse: activeSseSessions.size,
+        streamableHttp: activeStreamableSessions.size,
+      },
+      transports: ["sse", "streamableHttp", "stdio"],
       timestamp: new Date().toISOString(),
     });
   });
 
   // Server metadata / discoverability endpoint
-  app.get(["/", "/mcp"], (_req: Request, res: Response) => {
+  app.get(["/", "/info", "/mcp/info"], (_req: Request, res: Response) => {
     res.json({
       name: "TodoFlow Remote MCP Server",
       version: "1.0.0",
       status: "running",
-      endpoints: {
-        sse: "/sse (or /mcp/sse)",
-        message: "/message (or /mcp/message)",
-        health: "/health",
+      transports: {
+        sse: {
+          handshake: "/sse (or /mcp/sse)",
+          messages: "/message (or /mcp/message)",
+          description: "Server-Sent Events transport for ChatGPT and Claude Mobile",
+        },
+        streamableHttp: {
+          endpoint: "/mcp (or /streamable)",
+          description: "Unified Streamable HTTP transport (POST/GET/DELETE) for MCP v1.6+ clients",
+        },
       },
+      health: "/health",
     });
   });
 
-  // SSE Stream initialization endpoint
-  app.get(["/sse", "/mcp/sse"], async (req: Request, res: Response) => {
-    // Extract API key from headers or query parameters (multi-tenant support)
-    const authHeader = req.headers["authorization"];
-    let reqApiKey =
-      (req.headers["x-api-key"] as string) ||
-      (req.query.apiKey as string) ||
-      (req.query.key as string);
-
-    if (!reqApiKey && authHeader) {
-      if (authHeader.startsWith("Bearer ")) {
-        reqApiKey = authHeader.substring(7).trim();
-      } else {
-        reqApiKey = authHeader.trim();
-      }
+  // --------------------------------------------------------------------------
+  // TRANSPORT 1: Streamable HTTP (Unified POST / GET / DELETE on /mcp)
+  // --------------------------------------------------------------------------
+  app.all(["/mcp", "/mcp/streamable", "/streamable"], async (req: Request, res: Response) => {
+    // If it's a GET request without session header or without SSE accept header, return info
+    if (
+      req.method === "GET" &&
+      !req.headers["mcp-session-id"] &&
+      !req.query.sessionId &&
+      !req.headers.accept?.includes("text/event-stream")
+    ) {
+      res.json({
+        name: "TodoFlow Streamable HTTP MCP Endpoint",
+        version: "1.0.0",
+        endpoint: "/mcp",
+        supportedMethods: ["POST", "GET", "DELETE"],
+        transport: "streamableHttp",
+      });
+      return;
     }
 
-    const apiKey = reqApiKey || DEFAULT_API_KEY;
+    const incomingSessionId = (req.headers["mcp-session-id"] as string) || (req.query.sessionId as string);
+    let session = incomingSessionId ? activeStreamableSessions.get(incomingSessionId) : null;
+
+    if (!session) {
+      // If client sent an explicit session ID that doesn't exist, return 404
+      if (incomingSessionId) {
+        res.status(404).json({ error: `Streamable HTTP session '${incomingSessionId}' not found or expired` });
+        return;
+      }
+
+      // New session initialization (POST)
+      const apiKey = extractApiKey(req);
+      let newServer: McpServer;
+
+      const transport = new StreamableHTTPServerTransport({
+        sessionIdGenerator: () => randomUUID(),
+        enableJsonResponse: true,
+        onsessioninitialized: (sid: string) => {
+          activeStreamableSessions.set(sid, {
+            server: newServer,
+            transport,
+            apiKey,
+            createdAt: new Date(),
+          });
+          console.log(`[MCP-StreamableHTTP] Session initialized: ${sid} (hasApiKey: ${Boolean(apiKey)})`);
+        },
+        onsessionclosed: (sid: string) => {
+          activeStreamableSessions.delete(sid);
+          console.log(`[MCP-StreamableHTTP] Session closed: ${sid}`);
+        },
+      });
+
+      newServer = createMcpServer(apiKey);
+      await newServer.connect(transport);
+      session = {
+        server: newServer,
+        transport,
+        apiKey,
+        createdAt: new Date(),
+      };
+    }
+
+    try {
+      await session.transport.handleRequest(req, res, req.body);
+      if (session.transport.sessionId && !activeStreamableSessions.has(session.transport.sessionId)) {
+        activeStreamableSessions.set(session.transport.sessionId, session);
+      }
+    } catch (err: any) {
+      console.error(`[MCP-StreamableHTTP] Error handling request:`, err?.message || err);
+      if (!res.headersSent) {
+        res.status(500).json({ error: err?.message || "Internal error handling Streamable HTTP request" });
+      }
+    }
+  });
+
+  // --------------------------------------------------------------------------
+  // TRANSPORT 2: HTTP with Server-Sent Events (SSE on /sse & /message)
+  // --------------------------------------------------------------------------
+  app.get(["/sse", "/mcp/sse"], async (req: Request, res: Response) => {
+    const apiKey = extractApiKey(req);
 
     // Direct client to the matching message endpoint (supports Nginx reverse proxy prefixes)
     const forwardedPrefix = ((req.headers["x-forwarded-prefix"] as string) || "").replace(/\/$/, "");
@@ -547,7 +651,7 @@ async function startHttpServer(port: number = 3001) {
     const server = createMcpServer(apiKey);
 
     const sessionId = transport.sessionId;
-    activeSessions.set(sessionId, {
+    activeSseSessions.set(sessionId, {
       server,
       transport,
       apiKey,
@@ -558,18 +662,17 @@ async function startHttpServer(port: number = 3001) {
 
     res.on("close", () => {
       console.log(`[MCP-SSE] Session disconnected: ${sessionId}`);
-      activeSessions.delete(sessionId);
+      activeSseSessions.delete(sessionId);
     });
 
     try {
       await server.connect(transport);
     } catch (err: any) {
       console.error(`[MCP-SSE] Error connecting session ${sessionId}:`, err?.message || err);
-      activeSessions.delete(sessionId);
+      activeSseSessions.delete(sessionId);
     }
   });
 
-  // Client message handling endpoint (JSON-RPC)
   app.post(["/message", "/mcp/message"], async (req: Request, res: Response) => {
     const sessionId = req.query.sessionId as string;
     if (!sessionId) {
@@ -577,7 +680,7 @@ async function startHttpServer(port: number = 3001) {
       return;
     }
 
-    const session = activeSessions.get(sessionId);
+    const session = activeSseSessions.get(sessionId);
     if (!session) {
       res.status(404).json({ error: `Session '${sessionId}' not found or expired` });
       return;
@@ -594,10 +697,11 @@ async function startHttpServer(port: number = 3001) {
   });
 
   app.listen(port, () => {
-    console.log(`TodoFlow Remote MCP Server is listening on port ${port} (SSE mode)`);
-    console.log(`  - Health Check:   http://localhost:${port}/health`);
-    console.log(`  - SSE Endpoint:   http://localhost:${port}/sse (or /mcp/sse)`);
-    console.log(`  - Backend URL:    ${BASE_URL}`);
+    console.log(`TodoFlow Remote MCP Server is listening on port ${port}`);
+    console.log(`  - Health Check:     http://localhost:${port}/health`);
+    console.log(`  - SSE Transport:    http://localhost:${port}/sse (or /mcp/sse)`);
+    console.log(`  - Streamable HTTP:  http://localhost:${port}/mcp (or /streamable)`);
+    console.log(`  - Backend URL:      ${BASE_URL}`);
   });
 }
 
@@ -613,13 +717,17 @@ async function startStdioServer() {
 }
 
 async function main() {
-  const isSseMode =
+  const isHttpMode =
     process.env.MCP_TRANSPORT === "sse" ||
+    process.env.MCP_TRANSPORT === "http" ||
+    process.env.MCP_TRANSPORT === "streamableHttp" ||
     process.env.MCP_MODE === "sse" ||
+    process.env.MCP_MODE === "http" ||
     Boolean(process.env.PORT) ||
-    process.argv.includes("--sse");
+    process.argv.includes("--sse") ||
+    process.argv.includes("--http");
 
-  if (isSseMode) {
+  if (isHttpMode) {
     const port = parseInt(process.env.PORT || "3001", 10);
     await startHttpServer(port);
   } else {
