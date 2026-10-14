@@ -232,6 +232,11 @@ public class TaskService {
         return mapToResponse(task);
     }
 
+    public TaskResponse getTask(UUID userId, UUID taskId) {
+        Task task = getOwnedTask(userId, taskId);
+        return mapToResponse(task);
+    }
+
     public void deleteTask(UUID userId, UUID taskId) {
 
         Task task = getOwnedTask(userId, taskId);

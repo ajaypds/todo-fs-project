@@ -64,6 +64,20 @@ public class TaskController {
         );
     }
 
+    @GetMapping("/{taskId}")
+    public TaskResponse getTask(
+            @AuthenticationPrincipal
+            CustomUserDetails userDetails,
+
+            @PathVariable
+            UUID taskId
+    ) {
+        return taskService.getTask(
+                userDetails.getUserId(),
+                taskId
+        );
+    }
+
     @PutMapping("/{taskId}")
     public TaskResponse updateTask(
             @AuthenticationPrincipal
