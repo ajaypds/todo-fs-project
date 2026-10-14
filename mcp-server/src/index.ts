@@ -584,6 +584,7 @@ async function startHttpServer(port: number = 3001) {
         issuer: baseUrl,
         authorization_endpoint: `${baseUrl}/oauth2/authorize`,
         token_endpoint: `${baseUrl}/oauth2/token`,
+        registration_endpoint: `${baseUrl}/oauth2/register`,
         revocation_endpoint: `${baseUrl}/oauth2/revoke`,
         response_types_supported: ["code"],
         grant_types_supported: ["authorization_code", "refresh_token"],
@@ -648,6 +649,23 @@ async function startHttpServer(port: number = 3001) {
 
       // New session initialization (POST)
       const apiKey = extractApiKey(req);
+      if (!apiKey) {
+        res
+          .status(401)
+          .setHeader(
+            "WWW-Authenticate",
+            'Bearer realm="todoflow", error="invalid_token", error_description="Missing Bearer access token or API key"'
+          )
+          .json({
+            jsonrpc: "2.0",
+            error: {
+              code: -32001,
+              message: "Unauthorized: Missing Authorization Bearer token or X-API-Key header",
+            },
+            id: req.body?.id || null,
+          });
+        return;
+      }
       let newServer: McpServer;
 
       const transport = new StreamableHTTPServerTransport({
@@ -696,6 +714,16 @@ async function startHttpServer(port: number = 3001) {
   // --------------------------------------------------------------------------
   app.get(["/sse", "/mcp/sse"], async (req: Request, res: Response) => {
     const apiKey = extractApiKey(req);
+    if (!apiKey) {
+      res
+        .status(401)
+        .setHeader(
+          "WWW-Authenticate",
+          'Bearer realm="todoflow", error="invalid_token", error_description="Missing Bearer access token or API key"'
+        )
+        .json({ error: "Unauthorized: Missing Authorization Bearer token or X-API-Key header" });
+      return;
+    }
 
     // Direct client to the matching message endpoint (supports Nginx reverse proxy prefixes)
     const forwardedPrefix = ((req.headers["x-forwarded-prefix"] as string) || "").replace(/\/$/, "");

@@ -252,6 +252,7 @@ public class OAuthService {
             return false;
         }
 
+        // Strict OAuth 2.1 compliance: Require S256 (RFC 7636 / RFC 9700)
         if ("S256".equalsIgnoreCase(method) || method == null) {
             try {
                 MessageDigest digest = MessageDigest.getInstance("SHA-256");
@@ -262,11 +263,56 @@ public class OAuthService {
                 log.error("PKCE S256 calculation failed", e);
                 return false;
             }
-        } else if ("plain".equalsIgnoreCase(method)) {
-            return codeVerifier.equals(codeChallenge);
         }
 
         return false;
+    }
+
+    /**
+     * RFC 7591 Dynamic Client Registration.
+     * Allows automated clients like ChatGPT / Claude / MCP connectors to dynamically register themselves.
+     */
+    @Transactional
+    public Map<String, Object> registerClient(Map<String, Object> request) {
+        String clientName = request.containsKey("client_name") && request.get("client_name") != null
+                ? request.get("client_name").toString()
+                : "ChatGPT / MCP Integration";
+
+        Object urisObj = request.get("redirect_uris");
+        List<String> redirectUrisList = new ArrayList<>();
+        if (urisObj instanceof List<?>) {
+            for (Object u : (List<?>) urisObj) {
+                if (u != null) {
+                    redirectUrisList.add(u.toString());
+                }
+            }
+        }
+        String redirectUris = redirectUrisList.isEmpty()
+                ? "https://chatgpt.com,https://chat.openai.com,https://todoflow.ddns.net,http://localhost"
+                : String.join(",", redirectUrisList);
+
+        String clientId = "client_" + UUID.randomUUID().toString().replace("-", "").substring(0, 16);
+        String clientSecret = UUID.randomUUID().toString().replace("-", "") + UUID.randomUUID().toString().replace("-", "");
+
+        OAuthClient client = OAuthClient.builder()
+                .clientId(clientId)
+                .clientSecret(clientSecret)
+                .clientName(clientName)
+                .redirectUris(redirectUris)
+                .scopes("read write all")
+                .build();
+        clientRepository.save(client);
+
+        Map<String, Object> response = new LinkedHashMap<>();
+        response.put("client_id", clientId);
+        response.put("client_secret", clientSecret);
+        response.put("client_name", clientName);
+        response.put("redirect_uris", redirectUrisList.isEmpty() ? List.of("https://chatgpt.com", "https://chat.openai.com") : redirectUrisList);
+        response.put("grant_types", List.of("authorization_code", "refresh_token"));
+        response.put("response_types", List.of("code"));
+        response.put("token_endpoint_auth_method", "client_secret_post");
+        response.put("code_challenge_methods_supported", List.of("S256"));
+        return response;
     }
 
     public Map<String, Object> getDiscoveryMetadata(String baseUrl) {
@@ -274,10 +320,11 @@ public class OAuthService {
         metadata.put("issuer", baseUrl);
         metadata.put("authorization_endpoint", baseUrl + "/oauth2/authorize");
         metadata.put("token_endpoint", baseUrl + "/oauth2/token");
+        metadata.put("registration_endpoint", baseUrl + "/oauth2/register");
         metadata.put("revocation_endpoint", baseUrl + "/oauth2/revoke");
         metadata.put("response_types_supported", List.of("code"));
         metadata.put("grant_types_supported", List.of("authorization_code", "refresh_token"));
-        metadata.put("code_challenge_methods_supported", List.of("S256", "plain"));
+        metadata.put("code_challenge_methods_supported", List.of("S256"));
         metadata.put("token_endpoint_auth_methods_supported", List.of("client_secret_post", "client_secret_basic", "none"));
         metadata.put("scopes_supported", List.of("read", "write", "all"));
         return metadata;

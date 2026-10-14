@@ -25,9 +25,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
-import java.util.Base64;
-import java.util.Optional;
-import java.util.UUID;
+import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
@@ -220,5 +218,22 @@ public class OAuthServiceTest {
         assertEquals("new-access-token", response.getAccessToken());
         assertEquals("new-refresh-token", response.getRefreshToken());
         assertTrue(token.isRevoked());
+    }
+
+    @Test
+    void testRegisterClient_Success() {
+        when(clientRepository.save(any(OAuthClient.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        Map<String, Object> request = Map.of(
+                "client_name", "Dynamic ChatGPT",
+                "redirect_uris", List.of("https://chatgpt.com/callback")
+        );
+
+        Map<String, Object> response = oAuthService.registerClient(request);
+
+        assertNotNull(response.get("client_id"));
+        assertNotNull(response.get("client_secret"));
+        assertEquals("Dynamic ChatGPT", response.get("client_name"));
+        assertEquals(List.of("https://chatgpt.com/callback"), response.get("redirect_uris"));
     }
 }
