@@ -3,6 +3,8 @@
 <p align="center">
   <img src="https://img.shields.io/badge/Java-21-orange?style=for-the-badge&logo=openjdk" alt="Java 21" />
   <img src="https://img.shields.io/badge/Spring%20Boot-3.5-brightgreen?style=for-the-badge&logo=springboot" alt="Spring Boot 3.5" />
+  <img src="https://img.shields.io/badge/OAuth-2.1%20PKCE-0052CC?style=for-the-badge" alt="OAuth 2.1 PKCE" />
+  <img src="https://img.shields.io/badge/MCP-v1.6+-8A2BE2?style=for-the-badge" alt="Model Context Protocol" />
   <img src="https://img.shields.io/badge/Kotlin-2.0-7F52FF?style=for-the-badge&logo=kotlin" alt="Kotlin" />
   <img src="https://img.shields.io/badge/Android-Jetpack%20Compose-3DDC84?style=for-the-badge&logo=android" alt="Android" />
   <img src="https://img.shields.io/badge/React-19-61DAFB?style=for-the-badge&logo=react" alt="React 19" />
@@ -12,7 +14,7 @@
   <img src="https://img.shields.io/badge/Docker-Enabled-2496ED?style=for-the-badge&logo=docker" alt="Docker" />
 </p>
 
-**TodoFlow** is a modern, production-grade productivity SaaS platform inspired by Todoist, Notion, and Linear. It combines a modular monolith backend architecture, reactive single-page client design, a high-performance native Android application with local-first SQLite caching, real-time WebSocket collaboration, and native generative AI intelligence into a cohesive workflow.
+**TodoFlow** is a modern, production-grade productivity SaaS platform inspired by Todoist, Notion, and Linear. It combines a modular monolith backend architecture, reactive single-page client design, a high-performance native Android application with local-first SQLite caching, real-time WebSocket collaboration, native generative AI intelligence, an **OAuth 2.1 compliant authorization server**, and a **Model Context Protocol (MCP) server** for AI agent orchestration.
 
 ---
 
@@ -28,15 +30,31 @@
    - [Running with Docker Compose](#running-with-docker-compose)
    - [Running Locally for Development](#running-locally-for-development)
    - [Running the Android App](#running-the-android-app)
-6. [Native AI Capabilities](#native-ai-capabilities)
-7. [Database Migrations & Flyway](#database-migrations--flyway)
-8. [API & Authentication](#api--authentication)
-9. [CI/CD & Deployment](#cicd--deployment)
-10. [Modules & License](#modules--license)
+6. [Model Context Protocol (MCP) Integration](#model-context-protocol-mcp-integration)
+7. [OAuth 2.1 Authorization Server](#oauth-21-authorization-server)
+8. [Native AI Capabilities](#native-ai-capabilities)
+9. [Database Migrations & Flyway](#database-migrations--flyway)
+10. [API & Authentication](#api--authentication)
+11. [CI/CD & Deployment](#cicd--deployment)
+12. [Modules & License](#modules--license)
 
 ---
 
 ## Key Features
+
+### 🔌 Model Context Protocol (MCP) Server
+- **Standardized AI Integration**: Connect AI agents and assistants (Claude Desktop, Cursor, Gemini, ChatGPT) directly to your TodoFlow workspace using the official `@modelcontextprotocol/sdk`.
+- **Dual-Transport Architecture**:
+  - **Local Stdio Transport**: Zero-config pipe for local desktop IDEs and CLI agents.
+  - **Remote Multi-Session HTTP & SSE**: Multi-tenant streaming via Server-Sent Events (`/sse`) and Streamable HTTP (`/mcp`) for remote agents and web hooks.
+- **16 Comprehensive Tools**: Full CRUD over tasks, batch creation, subtask decomposition, project resolution, label assignment, threaded comments, and executive daily briefings.
+
+### 🛡️ Enterprise OAuth 2.1 Authorization Server
+- **Strict OAuth 2.1 Compliance**: Implements RFC 6749, RFC 7636, RFC 7009, RFC 7591, and RFC 8414.
+- **Mandatory PKCE**: Proof Key for Code Exchange (`code_challenge` / `code_verifier` with `S256` or `plain`) enforced for all clients, eliminating authorization code interception attacks.
+- **Dynamic Client Registration (RFC 7591)**: Allows automated agents like ChatGPT Custom GPTs or Claude connectors to dynamically register client credentials.
+- **Discovery Metadata (RFC 8414)**: Published at `/.well-known/oauth-authorization-server` and `/.well-known/openid-configuration` for zero-configuration integration.
+- **Interactive Consent Screen**: Clean, responsive consent and authentication UI for third-party approval.
 
 ### 📱 High-Performance Native Android App
 - **Local-First SQLite Architecture**: Built on Kotlin 2.0+ and Jetpack Compose with Write-Ahead Logging (WAL) and B-Tree indexing for instant (<5ms) rendering and offline persistence.
@@ -67,13 +85,6 @@
 - **Activity Stream Drawer**: Comprehensive activity feed tracking created, completed, and modified items in a slide-out drawer.
 - **Optimistic UI Mutations**: Instant client updates powered by TanStack Query with automated cache rollback and toast notifications on network failure.
 
-### 🎨 Modern UI & Ergonomics
-- **Command Palette (`Ctrl + K` / `Cmd + K`)**: Instant keyboard navigation, task search, project switching, and action execution.
-- **Keyboard Shortcuts**: Rapid task creation hotkey (`N`), quick escape dismissal, and accessible tab traversal.
-- **Responsive Mobile Navigation**: Collapsible sidebar, mobile bottom navigation bar with quick-add action button, and touch-friendly drag-to-dismiss bottom sheets.
-- **CSS-First Theming**: Full dark mode and light mode support built on Tailwind CSS v4 design tokens.
-- **Timezone Awareness**: Timestamp persistence standardized to UTC `Instant` with automatic browser timezone localization.
-
 ---
 
 ## Architecture Overview
@@ -81,36 +92,42 @@
 TodoFlow is engineered as an extensible **modular monolith** with clean boundary separation:
 
 ```text
-┌─────────────────────────────────┐       ┌─────────────────────────────────┐
-│           Web Client            │       │       Native Android App        │
-│ React 19 + TypeScript + Tailwind│       │   Kotlin + Compose + SQLite WAL │
-└────────────────┬────────────────┘       └────────────────┬────────────────┘
-                 │                                         │
-        HTTPS / REST / WebSocket                           │ HTTPS / REST
-                 │                                         │
-                 ▼                                         ▼
-┌───────────────────────────────────────────────────────────────────────────┐
-│                          Spring Boot 3.5 Backend                          │
-│                                                                           │
-│  ┌──────────────────┐  ┌──────────────────┐  ┌─────────────────────────┐  │
-│  │   Auth & RBAC    │  │  Tasks & Recur   │  │ Projects (CRUD + Color) │  │
-│  └──────────────────┘  └──────────────────┘  └─────────────────────────┘  │
-│  ┌──────────────────┐  ┌──────────────────┐  ┌─────────────────────────┐  │
-│  │  Activity Stream │  │ Realtime (STOMP) │  │  API Keys & Subtasks    │  │
-│  └──────────────────┘  └──────────────────┘  └─────────────────────────┘  │
-│  ┌─────────────────────────────────────────────────────────────────────┐  │
-│  │ Spring AI / Google Gemini 3.5 Integration                           │  │
-│  └─────────────────────────────────────────────────────────────────────┘  │
-│                                                                           │
-│  Application Events (Decoupled Domain Event Bus)                          │
-└────────────────────────────────────┬──────────────────────────────────────┘
-                                     │
-                  ┌──────────────────┴──────────────────┐
-                  ▼                                     ▼
-      ┌───────────────────────┐             ┌───────────────────────┐
-      │ PostgreSQL 16 (Flyway)│             │   Google Gemini API   │
-      │ Tasks, Projects, Users│             │  Flash 3.5 GenAI LLM  │
-      └───────────────────────┘             └───────────────────────┘
+┌───────────────────────┐  ┌───────────────────────┐  ┌───────────────────────┐
+│       Web Client      │  │   Native Android App  │  │ AI Agents (MCP / IDE) │
+│ React 19 + TypeScript │  │   Kotlin 2.0+ Compose │  │ Claude, Cursor, GPTs  │
+└───────────┬───────────┘  └───────────┬───────────┘  └───────────┬───────────┘
+            │                          │                          │
+   HTTPS / WebSocket / REST            │ HTTPS / REST             │ Stdio / SSE / Streamable HTTP
+            │                          │                          │
+            ▼                          ▼                          ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                          TodoFlow Platform Ingress                          │
+│                      Nginx Reverse Proxy / TLS Gateway                      │
+└──────────────────────────────────────┬──────────────────────────────────────┘
+                                       │
+       ┌───────────────────────────────┴───────────────────────────────┐
+       ▼                                                               ▼
+┌─────────────────────────────────────────┐  ┌────────────────────────────────┐
+│         Spring Boot 3.5 Backend         │  │     TodoFlow Node.js MCP Server│
+│                                         │  │     (@modelcontextprotocol/sdk)│
+│ ┌────────────────┐  ┌─────────────────┐ │  │                                │
+│ │  OAuth 2.1     │  │  Tasks & Recur  │ │  │ ┌────────────────────────────┐ │
+│ │  PKCE Engine   │  │  Engine         │ │  │ │ 16 Productivity Tools     │ │
+│ └────────────────┘  └─────────────────┘ │  │ │ - Tasks CRUD, Batch, Recur│ │
+│ ┌────────────────┐  ┌─────────────────┐ │  │ │ - Subtasks & Checklists   │ │
+│ │  API Key Auth  │  │  Projects (CRUD)│ │  │ │ - Projects, Labels, Brief │ │
+│ └────────────────┘  └─────────────────┘ │  │ └────────────────────────────┘ │
+│ ┌────────────────┐  ┌─────────────────┐ │  │  Stdio / SSE / Streamable HTTP │
+│ │ Realtime STOMP │  │ Spring AI Gemini│ │  └────────────────┬───────────────┘
+│ └────────────────┘  └─────────────────┘ │                   │
+└──────────────────┬──────────────────────┘                   │ REST (X-API-Key / Bearer)
+                   │                                          │
+                   ├──────────────────────────────────────────┘
+                   ▼
+       ┌───────────────────────┐             ┌───────────────────────┐
+       │ PostgreSQL 16 (Flyway)│             │   Google Gemini API   │
+       │ Tasks, Projects, Users│             │  Flash 3.5 GenAI LLM  │
+       └───────────────────────┘             └───────────────────────┘
 ```
 
 ---
@@ -120,10 +137,12 @@ TodoFlow is engineered as an extensible **modular monolith** with clean boundary
 | Layer | Technologies |
 |---|---|
 | **Backend** | Java 21, Spring Boot 3.5.x, Spring Data JPA, Spring Security, Hibernate, Spring Events, Flyway |
-| **Android App** | Kotlin 2.0+, Jetpack Compose, Material Design 3, SQLite OpenHelper (WAL), StateFlow, Coroutines, Retrofit, Kotlinx Serialization |
+| **OAuth 2.1** | RFC 6749, RFC 7636 (PKCE), RFC 7009 (Revocation), RFC 7591 (Registration), RFC 8414 (Metadata) |
+| **MCP Server** | Node.js 20+, TypeScript, `@modelcontextprotocol/sdk`, Express, Zod, Axios |
+| **Android App** | Kotlin 2.0+, Jetpack Compose, Material Design 3, SQLite OpenHelper (WAL), StateFlow, Coroutines, Retrofit |
 | **Frontend** | React 19, TypeScript, Vite, Tailwind CSS v4, Zustand, TanStack Query, Framer Motion, dnd-kit |
 | **Realtime** | WebSocket, STOMP, SockJS |
-| **AI Integration** | Spring AI, Google GenAI (`gemini-3.5-flash`) |
+| **AI Integration** | Spring AI, Google GenAI (`gemini-3.5-flash`), Model Context Protocol |
 | **Database** | PostgreSQL 16 (compatible with local PostgreSQL & cloud providers like Supabase) |
 | **DevOps & Infra** | Docker, Docker Compose, Nginx, Let's Encrypt TLS, GitHub Actions CI/CD |
 
@@ -136,6 +155,7 @@ todo-app/
 ├── backend/                       # Spring Boot 3.5 application
 │   ├── src/main/java/com/example/todo/
 │   │   ├── auth/                 # JWT authentication & security filters
+│   │   ├── oauth/                # OAuth 2.1 Authorization Server (PKCE, Discovery, Tokens)
 │   │   ├── task/                 # Tasks, recurring engine, subtasks
 │   │   ├── project/              # Project organization & management
 │   │   ├── label/                # Label entities & tagging
@@ -145,17 +165,16 @@ todo-app/
 │   │   └── realtime/             # WebSocket handlers & presence
 │   └── src/main/resources/
 │       ├── db/migration/         # Flyway SQL migrations (V1 .. V12)
-│       ├── application.yaml      # Common configuration
-│       ├── application-dev.yaml  # Development profile
-│       └── application-prod.yaml # Production profile
+│       └── application.yaml      # Configuration profiles
+├── mcp-server/                    # Model Context Protocol (MCP) Server
+│   ├── src/
+│   │   └── index.ts              # 16 MCP Tools + Stdio, SSE, and Streamable HTTP Transports
+│   ├── package.json
+│   └── Dockerfile                # Multi-stage container build
 ├── android/                       # Native Android application
 │   ├── app/src/main/
 │   │   ├── java/com/example/todoflow/
-│   │   │   ├── data/
-│   │   │   │   ├── local/        # SQLite OpenHelper (WAL), entities, SessionManager
-│   │   │   │   ├── model/        # Kotlinx Serialization DTOs
-│   │   │   │   ├── remote/       # Retrofit API interface & client
-│   │   │   │   └── repository/   # Offline-first repository with optimistic updates
+│   │   │   ├── data/             # SQLite OpenHelper (WAL), entities, SessionManager, Retrofit
 │   │   │   ├── theme/            # Material 3 colors, typography, dynamic theming
 │   │   │   └── ui/               # Compose screens: Login, Tasks, Dialogs, Rows
 │   │   └── res/                  # Adaptive icons, splash screen, string resources
@@ -167,7 +186,6 @@ todo-app/
 │   │   ├── features/             # Feature slices (tasks, projects, AI, etc.)
 │   │   ├── store/                # Zustand client state stores
 │   │   └── realtime/             # STOMP socket client & lifecycle hooks
-│   ├── package.json
 │   └── vite.config.ts
 ├── infra/                         # Infrastructure & reverse proxy
 │   └── nginx/                    # Nginx reverse proxy configuration
@@ -186,14 +204,14 @@ Ensure you have installed:
 - **Node.js 20+** and **npm**
 - **Docker & Docker Compose**
 - **Maven 3.9+** (or use the included wrapper `./mvnw`)
-- **Android Studio** (Ladybug / Hedgehog or newer with Android SDK 35) for mobile development
+- **Android Studio** (Ladybug or newer with Android SDK 35) for mobile development
 - A **Google Gemini API Key** (from [Google AI Studio](https://aistudio.google.com/))
 
 ---
 
 ### Environment Configuration
 
-Create a root `.env` file in the root directory (or configure the environment variables in your deployment):
+Create a root `.env` file:
 
 ```env
 # Database Settings
@@ -207,34 +225,33 @@ DB_PASSWORD=postgres
 # Security & AI
 JWT_SECRET=your_super_secret_jwt_key_with_at_least_256_bits_length
 GEMINI_API_KEY=your_gemini_api_key_here
-```
 
-For frontend local development, check `frontend/.env.development`:
-```env
-VITE_API_BASE_URL=http://localhost:8080/api/v1
+# MCP Settings (Optional for Docker)
+MCP_PORT=3001
+MCP_TRANSPORT=sse
 ```
 
 ---
 
 ### Running with Docker Compose
 
-To start the database, backend, and frontend together:
+To start the database, backend, frontend, and remote MCP server together:
 
 ```bash
 docker-compose up -d
 ```
 
-- **Application URL**: `http://localhost` (routed through Nginx reverse proxy on port 80)
-  - Frontend SPA served at `/`
-  - Backend REST API routed at `/api/v1`
-  - Real-time WebSockets & STOMP routed at `/ws`
+- **Web Application**: `http://localhost/`
+- **Backend API**: `http://localhost/api/v1`
+- **WebSocket Gateway**: `http://localhost/ws`
+- **MCP Server (Streamable HTTP)**: `http://localhost:3001/mcp`
+- **MCP Server (SSE Handshake)**: `http://localhost:3001/sse`
 
 ---
 
 ### Running Locally for Development
 
 #### 1. Start Database
-You can spin up just PostgreSQL via Docker:
 ```bash
 docker run -d \
   --name todo-postgres \
@@ -250,7 +267,6 @@ docker run -d \
 cd backend
 mvn spring-boot:run -Dspring-boot.run.profiles=dev
 ```
-*Note: Flyway will automatically execute database migrations (`V1` through `V12`) on startup.*
 
 #### 3. Start Frontend
 ```bash
@@ -258,23 +274,115 @@ cd frontend
 npm install
 npm run dev
 ```
-Open [http://localhost:5173](http://localhost:5173) in your browser.
+
+#### 4. Start MCP Server (Local Stdio or HTTP)
+```bash
+cd mcp-server
+npm install
+npm run build
+
+# Run in Stdio mode for Claude/Cursor:
+TODOFLOW_BASE_URL=http://localhost:8080/api/v1 TODOFLOW_API_KEY=your_key node dist/index.js
+
+# Or run in Remote SSE / Streamable HTTP mode:
+MCP_TRANSPORT=sse PORT=3001 npm start
+```
 
 ---
 
 ### Running the Android App
 
-1. Open **Android Studio** and select **Open** -> choose the `android/` directory.
+1. Open **Android Studio** and select **Open** -> choose `android/`.
 2. Wait for Gradle sync to complete.
-3. Configure the backend URL in the app's login screen:
-   - For an **Android Emulator**: `http://10.0.2.2:8080/`
-   - For a **Physical Device**: `http://<your-lan-ip>:8080/` (or your live production backend URL)
-4. Select your device or emulator and click **Run** (`Shift + F10`).
-5. To execute unit tests:
+3. Configure the backend URL in the login screen:
+   - **Android Emulator**: `http://10.0.2.2:8080/`
+   - **Physical Device**: `http://<your-lan-ip>:8080/`
+4. Select your device and click **Run** (`Shift + F10`).
+5. Run unit tests:
    ```bash
    cd android
    ./gradlew test
    ```
+
+---
+
+## Model Context Protocol (MCP) Integration
+
+TodoFlow includes a first-class Model Context Protocol server located in `mcp-server/`. It equips LLM agents with tools to observe, manage, and coordinate your tasks.
+
+### Registered MCP Tools (16)
+
+| Tool Name | Description |
+|---|---|
+| `todoflow_create_task` | Create a task with priority, due date, project, recurrence, and subtasks. |
+| `todoflow_create_tasks_batch` | Bulk create multiple tasks at once. |
+| `todoflow_list_tasks` | Query tasks with filtering by project, completion status, due date, or search term. |
+| `todoflow_get_task` | Retrieve complete task details including description, subtasks, labels, and comments. |
+| `todoflow_update_task` | Modify title, description, priority, due date, or project of an existing task. |
+| `todoflow_delete_task` | Permanently delete a task. |
+| `todoflow_complete_task` | Mark a task as completed (triggers recurring task engine if applicable). |
+| `todoflow_add_subtasks` | Add checklist subtasks under a task. |
+| `todoflow_toggle_subtask` | Toggle completion status of an individual subtask. |
+| `todoflow_list_projects` | Retrieve all projects with their colors and task counts. |
+| `todoflow_create_project` | Create a new project with custom name and color hex. |
+| `todoflow_list_labels` | Retrieve all labels in the user's workspace. |
+| `todoflow_create_label` | Create a new label with custom color. |
+| `todoflow_add_comment` | Post a discussion comment or note to a task. |
+| `todoflow_list_comments` | Retrieve threaded comments on a task. |
+| `todoflow_daily_briefing` | Generate an executive daily summary of overdue, today's, and high-priority tasks. |
+
+### Connecting to Claude Desktop
+
+Add this entry to your `claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "todoflow": {
+      "command": "node",
+      "args": ["<PATH_TO_TODO_APP>/mcp-server/dist/index.js"],
+      "env": {
+        "TODOFLOW_BASE_URL": "http://localhost:8080/api/v1",
+        "TODOFLOW_API_KEY": "todo_live_your_api_key_here"
+      }
+    }
+  }
+}
+```
+
+### Connecting to Cursor
+
+Navigate to **Cursor Settings → Features → MCP Servers** and click **Add New MCP Server**:
+- **Name**: `todoflow`
+- **Type**: `command`
+- **Command**:
+  ```bash
+  TODOFLOW_BASE_URL=http://localhost:8080/api/v1 TODOFLOW_API_KEY=todo_live_... node <PATH_TO_TODO_APP>/mcp-server/dist/index.js
+  ```
+
+---
+
+## OAuth 2.1 Authorization Server
+
+TodoFlow incorporates a built-in **OAuth 2.1 compliant authorization server** implemented in `backend/src/main/java/com/example/todo/oauth/`. It enables secure, delegated access for third-party AI agents (such as custom ChatGPT GPTs, Claude Web, and automation scripts) without exposing user passwords.
+
+### Security Highlights
+- **PKCE Required (RFC 7636)**: Authorization code requests require `code_challenge` (`S256` or `plain`) and `code_challenge_method`.
+- **Dynamic Client Registration (RFC 7591)**: Automated agents can register themselves dynamically via `POST /oauth2/register`.
+- **Metadata Discovery (RFC 8414)**: Standards-compliant metadata published at `/.well-known/oauth-authorization-server` and `/.well-known/openid-configuration`.
+- **Token Revocation (RFC 7009)**: Secure token revocation via `POST /oauth2/revoke`.
+
+### OAuth 2.1 Endpoints
+
+| Endpoint | Method | Description |
+|---|---|---|
+| `/.well-known/oauth-authorization-server` | `GET` | RFC 8414 Server Discovery metadata |
+| `/.well-known/openid-configuration` | `GET` | OpenID Connect discovery document |
+| `/oauth2/authorize` | `GET` | Interactive authorization login & consent screen |
+| `/oauth2/authorize` | `POST` | Processes consent and issues authorization code |
+| `/oauth2/token` | `POST` | Exchanges authorization code & PKCE verifier for JWT |
+| `/oauth2/revoke` | `POST` | Revokes an access or refresh token (RFC 7009) |
+| `/oauth2/register` | `POST` | Dynamic client registration (RFC 7591) |
 
 ---
 
@@ -310,9 +418,10 @@ Database schema changes are tracked with versioned SQL migrations located in `ba
 
 ## API & Authentication
 
-TodoFlow supports dual authentication:
+TodoFlow supports three flexible authentication mechanisms:
 1. **JWT Bearer Authentication**: Short-lived access tokens with automatic refresh token rotation (`/api/v1/auth/login`, `/api/v1/auth/refresh`).
-2. **API Key Authentication**: Sent via `X-API-Key: todo_live_...` header for external automation and scripts.
+2. **OAuth 2.1 Bearer Tokens**: Standard authorization code flow with PKCE for third-party tools (`/oauth2/*`).
+3. **API Key Authentication**: Sent via `X-API-Key: todo_live_...` header for scripts, background automations, and MCP.
 
 ### Key API Endpoints
 - `POST /api/v1/auth/register` — Register a new user
@@ -334,7 +443,7 @@ TodoFlow supports dual authentication:
 
 ## CI/CD & Deployment
 
-- **GitHub Actions Workflows**: Automated linting, test suites, and Docker image builds (`ghcr.io/ajaypds/todo-backend`, `ghcr.io/ajaypds/todo-frontend`).
+- **GitHub Actions Workflows**: Automated linting, test suites, and Docker image builds (`ghcr.io/ajaypds/todo-backend`, `ghcr.io/ajaypds/todo-frontend`, `ghcr.io/ajaypds/todo-mcp-server`).
 - **Production Deployment**: Runs on AWS EC2 with Nginx reverse proxy, automatic SSL via Let's Encrypt, and Dynamic DNS.
 - **Production Profiles**: Supports cloud databases (such as Supabase PostgreSQL) via `application-prod.yaml` and environment variables.
 
@@ -342,7 +451,8 @@ TodoFlow supports dual authentication:
 
 ## Modules & License
 
-- **Backend (`backend/`)**: Spring Boot 3.5 application source, JPA entities, event listeners, and Flyway migrations.
+- **Backend (`backend/`)**: Spring Boot 3.5 application source, JPA entities, OAuth 2.1 server, and Flyway migrations.
+- **MCP Server (`mcp-server/`)**: Model Context Protocol server exposing 16 productivity tools via stdio, SSE, and Streamable HTTP.
 - **Android (`android/`)**: Native Kotlin 2.0+ Jetpack Compose mobile app with local-first SQLite database.
 - **Frontend (`frontend/`)**: React 19 SPA, Tailwind CSS v4 components, Zustand stores, and TanStack queries.
 
