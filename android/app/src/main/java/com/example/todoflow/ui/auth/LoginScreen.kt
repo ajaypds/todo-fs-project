@@ -5,12 +5,9 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.ui.res.painterResource
-import com.example.todoflow.R
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -19,7 +16,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -27,6 +24,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.todoflow.R
 
 @Composable
 fun LoginScreen(
@@ -36,6 +34,13 @@ fun LoginScreen(
     val uiState by viewModel.uiState.collectAsState()
     var isPasswordVisible by remember { mutableStateOf(false) }
     var isServerSettingsExpanded by remember { mutableStateOf(false) }
+
+    // If a connection error occurs, automatically reveal the server settings so user can check/fix URL
+    LaunchedEffect(uiState.isConnectionError) {
+        if (uiState.isConnectionError) {
+            isServerSettingsExpanded = true
+        }
+    }
 
     Box(
         modifier = modifier
@@ -59,9 +64,9 @@ fun LoginScreen(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                // App Logo Icon
+                // App Logo Icon (original unpadded logo for crisp, clear in-app display)
                 Image(
-                    painter = painterResource(id = R.drawable.splash_icon),
+                    painter = painterResource(id = R.drawable.app_logo),
                     contentDescription = "TodoFlow Logo",
                     modifier = Modifier
                         .size(72.dp)
@@ -89,23 +94,33 @@ fun LoginScreen(
                         colors = CardDefaults.cardColors(
                             containerColor = MaterialTheme.colorScheme.errorContainer
                         ),
-                        shape = RoundedCornerShape(8.dp)
+                        shape = RoundedCornerShape(12.dp)
                     ) {
                         Row(
-                            modifier = Modifier.padding(12.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            modifier = Modifier.padding(14.dp),
+                            verticalAlignment = Alignment.Top,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
                             Icon(
-                                Icons.Default.ErrorOutline,
+                                imageVector = if (uiState.isConnectionError) Icons.Default.CloudOff else Icons.Default.ErrorOutline,
                                 contentDescription = null,
-                                tint = MaterialTheme.colorScheme.error
+                                tint = MaterialTheme.colorScheme.error,
+                                modifier = Modifier.size(22.dp)
                             )
-                            Text(
-                                text = uiState.errorMessage.orEmpty(),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onErrorContainer
-                            )
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = if (uiState.isConnectionError) "Server Connection Failed" else "Authentication Error",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onErrorContainer
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = uiState.errorMessage.orEmpty(),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.9f)
+                                )
+                            }
                         }
                     }
                 }
@@ -165,14 +180,23 @@ fun LoginScreen(
                 }
 
                 AnimatedVisibility(visible = isServerSettingsExpanded) {
-                    OutlinedTextField(
-                        value = uiState.serverUrl,
-                        onValueChange = { viewModel.onServerUrlChanged(it) },
-                        label = { Text("Server Base URL") },
-                        leadingIcon = { Icon(Icons.Default.Dns, contentDescription = null) },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        OutlinedTextField(
+                            value = uiState.serverUrl,
+                            onValueChange = { viewModel.onServerUrlChanged(it) },
+                            label = { Text("Server Base URL") },
+                            placeholder = { Text("https://todoflow.ddns.net/") },
+                            leadingIcon = { Icon(Icons.Default.Dns, contentDescription = null) },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Text(
+                            text = "Tip: For local emulator use http://10.0.2.2:8080/, or use your local machine IP.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                            fontSize = 11.sp
+                        )
+                    }
                 }
 
                 // Sign In Button
