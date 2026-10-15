@@ -38,6 +38,29 @@ public class ProjectService {
         projectRepository.delete(project);
     }
 
+    @Transactional
+    public ProjectResponse updateProject(UUID userId, UUID projectId, CreateProjectRequest request) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+        Project project = projectRepository.findById(projectId)
+                .orElseThrow(() -> new ResourceNotFoundException("Project not found"));
+
+        if (!project.getUser().getId().equals(user.getId())) {
+            throw new UnauthorizedException("You are not allowed to update this project");
+        }
+
+        if (request.getName() != null && !request.getName().isBlank()) {
+            project.setName(request.getName());
+        }
+        if (request.getColor() != null && !request.getColor().isBlank()) {
+            project.setColor(request.getColor());
+        }
+
+        projectRepository.save(project);
+        return mapToResponse(project);
+    }
+
     public ProjectResponse createProject(UUID userId, CreateProjectRequest request) {
 
         User user = userRepository.findById(userId)
