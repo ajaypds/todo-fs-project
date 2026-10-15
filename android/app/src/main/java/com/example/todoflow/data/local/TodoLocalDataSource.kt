@@ -100,6 +100,34 @@ class TodoLocalDataSource(private val dbHelper: TodoDbHelper) {
                 tasks.add(cursorToTask(it))
             }
         }
+
+        if (tasks.isNotEmpty()) {
+            val subtasksByTaskId = mutableMapOf<String, MutableList<SubtaskEntity>>()
+            val subtaskCursor = db.query(
+                TodoDbHelper.TABLE_SUBTASKS,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "${TodoDbHelper.COL_SUBTASK_POSITION} ASC, ${TodoDbHelper.COL_SUBTASK_ID} ASC"
+            )
+            subtaskCursor.use { sc ->
+                while (sc.moveToNext()) {
+                    val subtask = SubtaskEntity(
+                        id = sc.getString(sc.getColumnIndexOrThrow(TodoDbHelper.COL_SUBTASK_ID)),
+                        taskId = sc.getString(sc.getColumnIndexOrThrow(TodoDbHelper.COL_SUBTASK_TASK_ID)),
+                        title = sc.getString(sc.getColumnIndexOrThrow(TodoDbHelper.COL_SUBTASK_TITLE)),
+                        completed = sc.getInt(sc.getColumnIndexOrThrow(TodoDbHelper.COL_SUBTASK_COMPLETED)) == 1,
+                        position = sc.getInt(sc.getColumnIndexOrThrow(TodoDbHelper.COL_SUBTASK_POSITION))
+                    )
+                    subtasksByTaskId.getOrPut(subtask.taskId) { mutableListOf() }.add(subtask)
+                }
+            }
+            return@withContext tasks.map { t ->
+                t.copy(subtasks = subtasksByTaskId[t.id] ?: emptyList())
+            }
+        }
         tasks
     }
 
@@ -172,6 +200,29 @@ class TodoLocalDataSource(private val dbHelper: TodoDbHelper) {
             values,
             SQLiteDatabase.CONFLICT_REPLACE
         )
+
+        if (task.subtasks.isNotEmpty()) {
+            db.delete(
+                TodoDbHelper.TABLE_SUBTASKS,
+                "${TodoDbHelper.COL_SUBTASK_TASK_ID} = ?",
+                arrayOf(task.id)
+            )
+            for (subtask in task.subtasks) {
+                val sValues = ContentValues().apply {
+                    put(TodoDbHelper.COL_SUBTASK_ID, subtask.id)
+                    put(TodoDbHelper.COL_SUBTASK_TASK_ID, task.id)
+                    put(TodoDbHelper.COL_SUBTASK_TITLE, subtask.title)
+                    put(TodoDbHelper.COL_SUBTASK_COMPLETED, if (subtask.completed) 1 else 0)
+                    put(TodoDbHelper.COL_SUBTASK_POSITION, subtask.position)
+                }
+                db.insertWithOnConflict(
+                    TodoDbHelper.TABLE_SUBTASKS,
+                    null,
+                    sValues,
+                    SQLiteDatabase.CONFLICT_REPLACE
+                )
+            }
+        }
     }
 
     suspend fun updateTaskCompleted(taskId: String, completed: Boolean) = withContext(Dispatchers.IO) {
@@ -194,6 +245,11 @@ class TodoLocalDataSource(private val dbHelper: TodoDbHelper) {
         db.delete(
             TodoDbHelper.TABLE_TASKS,
             "${TodoDbHelper.COL_TASK_ID} = ?",
+            arrayOf(taskId)
+        )
+        db.delete(
+            TodoDbHelper.TABLE_SUBTASKS,
+            "${TodoDbHelper.COL_SUBTASK_TASK_ID} = ?",
             arrayOf(taskId)
         )
         notifyTasksChanged()
@@ -283,8 +339,51 @@ class TodoLocalDataSource(private val dbHelper: TodoDbHelper) {
         notifyProjectsChanged()
     }
 
+    suspend fun updateSubtaskCompleted(subtaskId: String, completed: Boolean) = withContext(Dispatchers.IO) {
+        val db = dbHelper.writableDatabase
+        val values = ContentValues().apply {
+            put(TodoDbHelper.COL_SUBTASK_COMPLETED, if (completed) 1 else 0)
+        }
+        db.update(
+            TodoDbHelper.TABLE_SUBTASKS,
+            values,
+            "${TodoDbHelper.COL_SUBTASK_ID} = ?",
+            arrayOf(subtaskId)
+        )
+        notifyTasksChanged()
+    }
+
+    suspend fun upsertSubtask(subtask: SubtaskEntity) = withContext(Dispatchers.IO) {
+        val db = dbHelper.writableDatabase
+        val values = ContentValues().apply {
+            put(TodoDbHelper.COL_SUBTASK_ID, subtask.id)
+            put(TodoDbHelper.COL_SUBTASK_TASK_ID, subtask.taskId)
+            put(TodoDbHelper.COL_SUBTASK_TITLE, subtask.title)
+            put(TodoDbHelper.COL_SUBTASK_COMPLETED, if (subtask.completed) 1 else 0)
+            put(TodoDbHelper.COL_SUBTASK_POSITION, subtask.position)
+        }
+        db.insertWithOnConflict(
+            TodoDbHelper.TABLE_SUBTASKS,
+            null,
+            values,
+            SQLiteDatabase.CONFLICT_REPLACE
+        )
+        notifyTasksChanged()
+    }
+
+    suspend fun deleteSubtask(subtaskId: String) = withContext(Dispatchers.IO) {
+        val db = dbHelper.writableDatabase
+        db.delete(
+            TodoDbHelper.TABLE_SUBTASKS,
+            "${TodoDbHelper.COL_SUBTASK_ID} = ?",
+            arrayOf(subtaskId)
+        )
+        notifyTasksChanged()
+    }
+
     suspend fun clearAll() = withContext(Dispatchers.IO) {
         val db = dbHelper.writableDatabase
+        db.delete(TodoDbHelper.TABLE_SUBTASKS, null, null)
         db.delete(TodoDbHelper.TABLE_TASKS, null, null)
         db.delete(TodoDbHelper.TABLE_PROJECTS, null, null)
         notifyTasksChanged()

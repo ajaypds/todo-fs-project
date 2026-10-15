@@ -391,7 +391,10 @@ fun TasksScreen(
                             canMoveUp = index > 0,
                             canMoveDown = index < tasks.size - 1,
                             onMoveUp = { viewModel.moveTask(task.id, up = true) },
-                            onMoveDown = { viewModel.moveTask(task.id, up = false) }
+                            onMoveDown = { viewModel.moveTask(task.id, up = false) },
+                            onToggleSubtask = { subtask -> viewModel.toggleSubtask(task.id, subtask) },
+                            onCreateSubtask = { title -> viewModel.createSubtask(task.id, title) },
+                            onDeleteSubtask = { subtaskId -> viewModel.deleteSubtask(task.id, subtaskId) }
                         )
                     }
 

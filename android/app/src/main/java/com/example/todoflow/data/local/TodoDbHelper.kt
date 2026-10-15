@@ -8,7 +8,7 @@ class TodoDbHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME, 
 
     companion object {
         const val DATABASE_NAME = "todoflow.db"
-        const val DATABASE_VERSION = 1
+        const val DATABASE_VERSION = 2
 
         const val TABLE_TASKS = "tasks"
         const val COL_TASK_ID = "id"
@@ -23,6 +23,13 @@ class TodoDbHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME, 
         const val COL_TASK_COMMENT_COUNT = "comment_count"
         const val COL_TASK_UPDATED_AT = "updated_at"
         const val COL_TASK_IS_SYNCED = "is_synced"
+
+        const val TABLE_SUBTASKS = "subtasks"
+        const val COL_SUBTASK_ID = "id"
+        const val COL_SUBTASK_TASK_ID = "task_id"
+        const val COL_SUBTASK_TITLE = "title"
+        const val COL_SUBTASK_COMPLETED = "completed"
+        const val COL_SUBTASK_POSITION = "position"
 
         const val TABLE_PROJECTS = "projects"
         const val COL_PROJECT_ID = "id"
@@ -70,11 +77,40 @@ class TodoDbHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME, 
             )
             """.trimIndent()
         )
+
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS $TABLE_SUBTASKS (
+                $COL_SUBTASK_ID TEXT PRIMARY KEY,
+                $COL_SUBTASK_TASK_ID TEXT NOT NULL,
+                $COL_SUBTASK_TITLE TEXT NOT NULL,
+                $COL_SUBTASK_COMPLETED INTEGER NOT NULL DEFAULT 0,
+                $COL_SUBTASK_POSITION INTEGER NOT NULL DEFAULT 0
+            )
+            """.trimIndent()
+        )
+        db.execSQL("CREATE INDEX IF NOT EXISTS idx_subtasks_task ON $TABLE_SUBTASKS($COL_SUBTASK_TASK_ID)")
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-        db.execSQL("DROP TABLE IF EXISTS $TABLE_TASKS")
-        db.execSQL("DROP TABLE IF EXISTS $TABLE_PROJECTS")
-        onCreate(db)
+        if (oldVersion < 2) {
+            db.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS $TABLE_SUBTASKS (
+                    $COL_SUBTASK_ID TEXT PRIMARY KEY,
+                    $COL_SUBTASK_TASK_ID TEXT NOT NULL,
+                    $COL_SUBTASK_TITLE TEXT NOT NULL,
+                    $COL_SUBTASK_COMPLETED INTEGER NOT NULL DEFAULT 0,
+                    $COL_SUBTASK_POSITION INTEGER NOT NULL DEFAULT 0
+                )
+                """.trimIndent()
+            )
+            db.execSQL("CREATE INDEX IF NOT EXISTS idx_subtasks_task ON $TABLE_SUBTASKS($COL_SUBTASK_TASK_ID)")
+        } else {
+            db.execSQL("DROP TABLE IF EXISTS $TABLE_SUBTASKS")
+            db.execSQL("DROP TABLE IF EXISTS $TABLE_TASKS")
+            db.execSQL("DROP TABLE IF EXISTS $TABLE_PROJECTS")
+            onCreate(db)
+        }
     }
 }

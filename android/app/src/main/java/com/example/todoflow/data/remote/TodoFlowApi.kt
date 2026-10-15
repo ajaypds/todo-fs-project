@@ -44,6 +44,25 @@ interface TodoFlowApi {
     @DELETE("api/v1/tasks/{taskId}")
     suspend fun deleteTask(@Path("taskId") taskId: String): Response<Unit>
 
+    @POST("api/v1/tasks/{taskId}/subtasks")
+    suspend fun createSubtask(
+        @Path("taskId") taskId: String,
+        @Body request: com.example.todoflow.data.model.CreateSubtaskRequest
+    ): com.example.todoflow.data.model.SubtaskDto
+
+    @retrofit2.http.PATCH("api/v1/tasks/{taskId}/subtasks/{subtaskId}")
+    suspend fun updateSubtask(
+        @Path("taskId") taskId: String,
+        @Path("subtaskId") subtaskId: String,
+        @Body request: com.example.todoflow.data.model.UpdateSubtaskRequest
+    ): com.example.todoflow.data.model.SubtaskDto
+
+    @DELETE("api/v1/tasks/{taskId}/subtasks/{subtaskId}")
+    suspend fun deleteSubtask(
+        @Path("taskId") taskId: String,
+        @Path("subtaskId") subtaskId: String
+    ): Response<Unit>
+
     @POST("api/v1/tasks/reorder")
     suspend fun reorderTasks(@Body request: com.example.todoflow.data.model.ReorderTasksRequest): Response<Unit>
 

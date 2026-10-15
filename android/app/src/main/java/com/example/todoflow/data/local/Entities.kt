@@ -1,5 +1,13 @@
 package com.example.todoflow.data.local
 
+data class SubtaskEntity(
+    val id: String,
+    val taskId: String,
+    val title: String,
+    val completed: Boolean = false,
+    val position: Int = 0
+)
+
 data class TaskEntity(
     val id: String,
     val title: String,
@@ -12,7 +20,8 @@ data class TaskEntity(
     val position: Int = 0,
     val commentCount: Int = 0,
     val updatedAt: String? = null,
-    val isSynced: Boolean = true
+    val isSynced: Boolean = true,
+    val subtasks: List<SubtaskEntity> = emptyList()
 )
 
 data class ProjectEntity(
@@ -20,3 +29,4 @@ data class ProjectEntity(
     val name: String,
     val color: String? = null
 )
+

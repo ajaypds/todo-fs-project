@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.todoflow.data.local.ProjectEntity
 import com.example.todoflow.data.local.SessionManager
+import com.example.todoflow.data.local.SubtaskEntity
 import com.example.todoflow.data.local.TaskEntity
 import com.example.todoflow.data.local.TaskFilterType
 import com.example.todoflow.data.local.ThemeMode
@@ -138,6 +139,25 @@ class TasksViewModel(
     fun toggleTask(task: TaskEntity) {
         viewModelScope.launch {
             taskRepository.toggleTaskCompleted(task.id, task.completed)
+        }
+    }
+
+    fun toggleSubtask(taskId: String, subtask: SubtaskEntity) {
+        viewModelScope.launch {
+            taskRepository.toggleSubtaskCompleted(taskId, subtask.id, subtask.completed)
+        }
+    }
+
+    fun createSubtask(taskId: String, title: String) {
+        if (title.isBlank()) return
+        viewModelScope.launch {
+            taskRepository.createSubtask(taskId, title.trim())
+        }
+    }
+
+    fun deleteSubtask(taskId: String, subtaskId: String) {
+        viewModelScope.launch {
+            taskRepository.deleteSubtask(taskId, subtaskId)
         }
     }
 

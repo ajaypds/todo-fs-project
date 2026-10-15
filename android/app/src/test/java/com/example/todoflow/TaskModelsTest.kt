@@ -70,4 +70,37 @@ class TaskModelsTest {
         val color = parseHexColor("#FF0000")
         assertNotNull(color)
     }
+
+    @Test
+    fun testSubtaskSerialization() {
+        val jsonPayload = """
+            {
+                "id": "123e4567-e89b-12d3-a456-426614174000",
+                "title": "Build Android App",
+                "completed": false,
+                "subtasks": [
+                    {
+                        "id": "sub-1",
+                        "title": "Setup SQLite",
+                        "completed": true,
+                        "position": 0
+                    },
+                    {
+                        "id": "sub-2",
+                        "title": "Add UI Accordion",
+                        "completed": false,
+                        "position": 1
+                    }
+                ]
+            }
+        """.trimIndent()
+
+        val task = json.decodeFromString<TaskDto>(jsonPayload)
+        assertEquals(2, task.subtasks.size)
+        assertEquals("Setup SQLite", task.subtasks[0].title)
+        assertEquals(true, task.subtasks[0].completed)
+        assertEquals("Add UI Accordion", task.subtasks[1].title)
+        assertEquals(false, task.subtasks[1].completed)
+    }
 }
+

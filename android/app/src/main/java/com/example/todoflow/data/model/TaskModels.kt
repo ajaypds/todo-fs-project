@@ -69,3 +69,16 @@ data class UpdateTaskRequest(
 data class ReorderTasksRequest(
     val taskIds: List<String>
 )
+
+@Serializable
+data class CreateSubtaskRequest(
+    val title: String
+)
+
+@Serializable
+data class UpdateSubtaskRequest(
+    val title: String? = null,
+    val completed: Boolean? = null,
+    val position: Int? = null
+)
+

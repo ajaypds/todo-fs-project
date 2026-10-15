@@ -1,11 +1,14 @@
 package com.example.todoflow.data.repository
 
 import com.example.todoflow.data.local.ProjectEntity
+import com.example.todoflow.data.local.SubtaskEntity
 import com.example.todoflow.data.local.TaskEntity
 import com.example.todoflow.data.local.TaskFilterType
 import com.example.todoflow.data.local.TodoLocalDataSource
+import com.example.todoflow.data.model.CreateSubtaskRequest
 import com.example.todoflow.data.model.CreateTaskRequest
 import com.example.todoflow.data.model.TaskDto
+import com.example.todoflow.data.model.UpdateSubtaskRequest
 import com.example.todoflow.data.model.UpdateTaskRequest
 import com.example.todoflow.data.remote.ApiClient
 import kotlinx.coroutines.Dispatchers
@@ -215,6 +218,64 @@ class TaskRepository(
         localDataSource.clearAll()
     }
 
+    suspend fun toggleSubtaskCompleted(taskId: String, subtaskId: String, completed: Boolean): Result<Unit> = withContext(Dispatchers.IO) {
+        val newStatus = !completed
+        // 1. Optimistic local update
+        localDataSource.updateSubtaskCompleted(subtaskId, newStatus)
+
+        // 2. Background sync
+        try {
+            val api = apiClient.getApi()
+            api.updateSubtask(taskId, subtaskId, UpdateSubtaskRequest(completed = newStatus))
+            Result.success(Unit)
+        } catch (e: Exception) {
+            // Revert on error
+            localDataSource.updateSubtaskCompleted(subtaskId, completed)
+            Result.failure(e)
+        }
+    }
+
+    suspend fun createSubtask(taskId: String, title: String): Result<SubtaskEntity> = withContext(Dispatchers.IO) {
+        val tempId = "temp_sub_" + UUID.randomUUID().toString()
+        val localSubtask = SubtaskEntity(
+            id = tempId,
+            taskId = taskId,
+            title = title,
+            completed = false,
+            position = 999
+        )
+        localDataSource.upsertSubtask(localSubtask)
+
+        try {
+            val api = apiClient.getApi()
+            val created = api.createSubtask(taskId, CreateSubtaskRequest(title = title))
+            val confirmed = SubtaskEntity(
+                id = created.id,
+                taskId = taskId,
+                title = created.title,
+                completed = created.completed,
+                position = created.position ?: 0
+            )
+            localDataSource.deleteSubtask(tempId)
+            localDataSource.upsertSubtask(confirmed)
+            Result.success(confirmed)
+        } catch (e: Exception) {
+            localDataSource.deleteSubtask(tempId)
+            Result.failure(e)
+        }
+    }
+
+    suspend fun deleteSubtask(taskId: String, subtaskId: String): Result<Unit> = withContext(Dispatchers.IO) {
+        localDataSource.deleteSubtask(subtaskId)
+        try {
+            val api = apiClient.getApi()
+            api.deleteSubtask(taskId, subtaskId)
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     private fun dtoToEntity(dto: TaskDto): TaskEntity {
         return TaskEntity(
             id = dto.id,
@@ -228,7 +289,16 @@ class TaskRepository(
             position = dto.position ?: 0,
             commentCount = dto.commentCount,
             updatedAt = dto.updatedAt,
-            isSynced = true
+            isSynced = true,
+            subtasks = dto.subtasks.map {
+                SubtaskEntity(
+                    id = it.id,
+                    taskId = dto.id,
+                    title = it.title,
+                    completed = it.completed,
+                    position = it.position ?: 0
+                )
+            }
         )
     }
 }
