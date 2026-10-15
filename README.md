@@ -3,6 +3,8 @@
 <p align="center">
   <img src="https://img.shields.io/badge/Java-21-orange?style=for-the-badge&logo=openjdk" alt="Java 21" />
   <img src="https://img.shields.io/badge/Spring%20Boot-3.5-brightgreen?style=for-the-badge&logo=springboot" alt="Spring Boot 3.5" />
+  <img src="https://img.shields.io/badge/Kotlin-2.0-7F52FF?style=for-the-badge&logo=kotlin" alt="Kotlin" />
+  <img src="https://img.shields.io/badge/Android-Jetpack%20Compose-3DDC84?style=for-the-badge&logo=android" alt="Android" />
   <img src="https://img.shields.io/badge/React-19-61DAFB?style=for-the-badge&logo=react" alt="React 19" />
   <img src="https://img.shields.io/badge/TypeScript-5.7-blue?style=for-the-badge&logo=typescript" alt="TypeScript" />
   <img src="https://img.shields.io/badge/Tailwind%20CSS-v4-38B2AC?style=for-the-badge&logo=tailwind-css" alt="Tailwind CSS v4" />
@@ -10,7 +12,7 @@
   <img src="https://img.shields.io/badge/Docker-Enabled-2496ED?style=for-the-badge&logo=docker" alt="Docker" />
 </p>
 
-**TodoFlow** is a modern, production-grade productivity SaaS platform inspired by Todoist, Notion, and Linear. It combines a modular monolith backend architecture, reactive single-page client design, real-time WebSocket collaboration, and native generative AI intelligence into a cohesive workflow.
+**TodoFlow** is a modern, production-grade productivity SaaS platform inspired by Todoist, Notion, and Linear. It combines a modular monolith backend architecture, reactive single-page client design, a high-performance native Android application with local-first SQLite caching, real-time WebSocket collaboration, and native generative AI intelligence into a cohesive workflow.
 
 ---
 
@@ -25,6 +27,7 @@
    - [Environment Configuration](#environment-configuration)
    - [Running with Docker Compose](#running-with-docker-compose)
    - [Running Locally for Development](#running-locally-for-development)
+   - [Running the Android App](#running-the-android-app)
 6. [Native AI Capabilities](#native-ai-capabilities)
 7. [Database Migrations & Flyway](#database-migrations--flyway)
 8. [API & Authentication](#api--authentication)
@@ -35,7 +38,15 @@
 
 ## Key Features
 
-### 📋 Task & Project Management
+### 📱 High-Performance Native Android App
+- **Local-First SQLite Architecture**: Built on Kotlin 2.0+ and Jetpack Compose with Write-Ahead Logging (WAL) and B-Tree indexing for instant (<5ms) rendering and offline persistence.
+- **Stale-While-Revalidate Sync**: Background synchronization updates cache while keeping the UI responsive with 0ms perceived latency.
+- **Nested Subtasks Checklist**: Interactive subtask pill (`1/3 subtasks`), expandable accordion checklist, independent completion toggling, and inline subtask creation and deletion.
+- **Task Reordering & Position Retention**: Manual reordering (▲/▼) synced with backend; completion toggling preserves list position without moving tasks to the bottom.
+- **Project Lifecycle Management**: Create, edit, color-code, and delete projects directly from the mobile app.
+- **Theme & System Polish**: System / Light / Dark theme switcher, edge-to-edge layout with full dark mode status bar contrast, and Android 12+ adaptive launcher and splash screen icons.
+
+### 📋 Task & Project Management (Web)
 - **Workspace-First Experience**: Clean, distraction-free dashboard with dedicated sidebar navigation, custom projects, color accents, and task count badges.
 - **Hierarchical Subtasks & Checklists**: Decompose tasks into ordered checklist items with live visual progress bars.
 - **Recurring Tasks Engine**: Automatic next-instance scheduling upon task completion supporting Daily, Weekly, Monthly, and Yearly intervals with interval steppers and forward-rolling due dates.
@@ -70,37 +81,36 @@
 TodoFlow is engineered as an extensible **modular monolith** with clean boundary separation:
 
 ```text
-┌─────────────────────────────────────────────────────────────┐
-│                       Web Browser                           │
-│             React 19 + TypeScript + Tailwind v4             │
-└──────────────────────────────┬──────────────────────────────┘
-                               │
-                      HTTPS / REST / WebSocket (STOMP)
-                               │
-                               ▼
-┌─────────────────────────────────────────────────────────────┐
-│                    Spring Boot 3.5 Backend                  │
-│                                                             │
-│  ┌──────────────────┐  ┌──────────────────┐  ┌───────────┐  │
-│  │   Auth & RBAC    │  │  Tasks & Recur   │  │ Projects  │  │
-│  └──────────────────┘  └──────────────────┘  └───────────┘  │
-│  ┌──────────────────┐  ┌──────────────────┐  ┌───────────┐  │
-│  │  Activity Stream │  │ Realtime (STOMP) │  │  API Keys │  │
-│  └──────────────────┘  └──────────────────┘  └───────────┘  │
-│  ┌───────────────────────────────────────────────────────┐  │
-│  │ Spring AI / Google Gemini 3.5 Integration             │  │
-│  └───────────────────────────────────────────────────────┘  │
-│                                                             │
-│  Application Events (Decoupled Domain Event Bus)            │
-└──────────────────────────────┬──────────────────────────────┘
-                               │
-            ┌──────────────────┴──────────────────┐
-            ▼                                     ▼
-┌───────────────────────────────┐     ┌───────────────────────┐
-│     PostgreSQL 16 (Flyway)    │     │   Google Gemini API   │
-│   Tasks, Projects, Users,     │     │  Flash 3.5 GenAI LLM  │
-│   Recurrence, Keys, Audit     │     └───────────────────────┘
-└───────────────────────────────┘
+┌─────────────────────────────────┐       ┌─────────────────────────────────┐
+│           Web Client            │       │       Native Android App        │
+│ React 19 + TypeScript + Tailwind│       │   Kotlin + Compose + SQLite WAL │
+└────────────────┬────────────────┘       └────────────────┬────────────────┘
+                 │                                         │
+        HTTPS / REST / WebSocket                           │ HTTPS / REST
+                 │                                         │
+                 ▼                                         ▼
+┌───────────────────────────────────────────────────────────────────────────┐
+│                          Spring Boot 3.5 Backend                          │
+│                                                                           │
+│  ┌──────────────────┐  ┌──────────────────┐  ┌─────────────────────────┐  │
+│  │   Auth & RBAC    │  │  Tasks & Recur   │  │ Projects (CRUD + Color) │  │
+│  └──────────────────┘  └──────────────────┘  └─────────────────────────┘  │
+│  ┌──────────────────┐  ┌──────────────────┐  ┌─────────────────────────┐  │
+│  │  Activity Stream │  │ Realtime (STOMP) │  │  API Keys & Subtasks    │  │
+│  └──────────────────┘  └──────────────────┘  └─────────────────────────┘  │
+│  ┌─────────────────────────────────────────────────────────────────────┐  │
+│  │ Spring AI / Google Gemini 3.5 Integration                           │  │
+│  └─────────────────────────────────────────────────────────────────────┘  │
+│                                                                           │
+│  Application Events (Decoupled Domain Event Bus)                          │
+└────────────────────────────────────┬──────────────────────────────────────┘
+                                     │
+                  ┌──────────────────┴──────────────────┐
+                  ▼                                     ▼
+      ┌───────────────────────┐             ┌───────────────────────┐
+      │ PostgreSQL 16 (Flyway)│             │   Google Gemini API   │
+      │ Tasks, Projects, Users│             │  Flash 3.5 GenAI LLM  │
+      └───────────────────────┘             └───────────────────────┘
 ```
 
 ---
@@ -110,9 +120,10 @@ TodoFlow is engineered as an extensible **modular monolith** with clean boundary
 | Layer | Technologies |
 |---|---|
 | **Backend** | Java 21, Spring Boot 3.5.x, Spring Data JPA, Spring Security, Hibernate, Spring Events, Flyway |
+| **Android App** | Kotlin 2.0+, Jetpack Compose, Material Design 3, SQLite OpenHelper (WAL), StateFlow, Coroutines, Retrofit, Kotlinx Serialization |
+| **Frontend** | React 19, TypeScript, Vite, Tailwind CSS v4, Zustand, TanStack Query, Framer Motion, dnd-kit |
 | **Realtime** | WebSocket, STOMP, SockJS |
 | **AI Integration** | Spring AI, Google GenAI (`gemini-3.5-flash`) |
-| **Frontend** | React 19, TypeScript, Vite, Tailwind CSS v4, Zustand, TanStack Query, Framer Motion, dnd-kit |
 | **Database** | PostgreSQL 16 (compatible with local PostgreSQL & cloud providers like Supabase) |
 | **DevOps & Infra** | Docker, Docker Compose, Nginx, Let's Encrypt TLS, GitHub Actions CI/CD |
 
@@ -137,6 +148,18 @@ todo-app/
 │       ├── application.yaml      # Common configuration
 │       ├── application-dev.yaml  # Development profile
 │       └── application-prod.yaml # Production profile
+├── android/                       # Native Android application
+│   ├── app/src/main/
+│   │   ├── java/com/example/todoflow/
+│   │   │   ├── data/
+│   │   │   │   ├── local/        # SQLite OpenHelper (WAL), entities, SessionManager
+│   │   │   │   ├── model/        # Kotlinx Serialization DTOs
+│   │   │   │   ├── remote/       # Retrofit API interface & client
+│   │   │   │   └── repository/   # Offline-first repository with optimistic updates
+│   │   │   ├── theme/            # Material 3 colors, typography, dynamic theming
+│   │   │   └── ui/               # Compose screens: Login, Tasks, Dialogs, Rows
+│   │   └── res/                  # Adaptive icons, splash screen, string resources
+│   └── build.gradle.kts          # Gradle build configuration
 ├── frontend/                      # React 19 + TypeScript + Vite SPA
 │   ├── src/
 │   │   ├── api/                  # Axios HTTP client & interceptors
@@ -163,6 +186,7 @@ Ensure you have installed:
 - **Node.js 20+** and **npm**
 - **Docker & Docker Compose**
 - **Maven 3.9+** (or use the included wrapper `./mvnw`)
+- **Android Studio** (Ladybug / Hedgehog or newer with Android SDK 35) for mobile development
 - A **Google Gemini API Key** (from [Google AI Studio](https://aistudio.google.com/))
 
 ---
@@ -238,6 +262,22 @@ Open [http://localhost:5173](http://localhost:5173) in your browser.
 
 ---
 
+### Running the Android App
+
+1. Open **Android Studio** and select **Open** -> choose the `android/` directory.
+2. Wait for Gradle sync to complete.
+3. Configure the backend URL in the app's login screen:
+   - For an **Android Emulator**: `http://10.0.2.2:8080/`
+   - For a **Physical Device**: `http://<your-lan-ip>:8080/` (or your live production backend URL)
+4. Select your device or emulator and click **Run** (`Shift + F10`).
+5. To execute unit tests:
+   ```bash
+   cd android
+   ./gradlew test
+   ```
+
+---
+
 ## Native AI Capabilities
 
 TodoFlow integrates directly with Google Gemini through Spring AI, providing intelligent automation while keeping credentials safely protected on the backend:
@@ -282,6 +322,7 @@ TodoFlow supports dual authentication:
 - `PATCH /api/v1/tasks/{id}/complete` — Complete task (handles recurrence)
 - `POST /api/v1/tasks/{id}/subtasks` — Add checklist subtask
 - `GET /api/v1/projects` — List user projects
+- `PUT /api/v1/projects/{id}` — Update project name and color
 - `DELETE /api/v1/projects/{id}` — Delete project
 - `POST /api/v1/ai/parse-task` — Natural language task parser
 - `POST /api/v1/ai/smart-planner` — AI Eisenhower Matrix daily planner
@@ -302,6 +343,7 @@ TodoFlow supports dual authentication:
 ## Modules & License
 
 - **Backend (`backend/`)**: Spring Boot 3.5 application source, JPA entities, event listeners, and Flyway migrations.
+- **Android (`android/`)**: Native Kotlin 2.0+ Jetpack Compose mobile app with local-first SQLite database.
 - **Frontend (`frontend/`)**: React 19 SPA, Tailwind CSS v4 components, Zustand stores, and TanStack queries.
 
 This project is licensed under the MIT License.
