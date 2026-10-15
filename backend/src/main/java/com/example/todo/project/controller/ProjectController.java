@@ -46,6 +46,19 @@ public class ProjectController {
         return projectService.getProjects(userDetails.getUserId());
     }
 
+    @PutMapping("/{projectId}")
+    public ProjectResponse updateProject(
+            @AuthenticationPrincipal
+            CustomUserDetails userDetails,
+            @PathVariable
+            UUID projectId,
+            @Valid
+            @RequestBody
+            CreateProjectRequest request
+    ) {
+        return projectService.updateProject(userDetails.getUserId(), projectId, request);
+    }
+
     @DeleteMapping("/{projectId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deleteProject(

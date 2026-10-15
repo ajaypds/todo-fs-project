@@ -512,6 +512,398 @@ function createMcpServer(apiKey?: string): McpServer {
     }
   );
 
+  // TOOL 8: Get task details
+  server.tool(
+    "todoflow_get_task",
+    "Get full details of a specific task including description, subtasks, checklist progress, priority, due date, project, and labels.",
+    {
+      taskId: z.string().describe("UUID of the task to retrieve"),
+    },
+    async (args) => {
+      try {
+        const { data: task } = await apiClient.get<any>(`/api/v1/tasks/${args.taskId}`);
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify(task, null, 2),
+            },
+          ],
+        };
+      } catch (error: any) {
+        return {
+          isError: true,
+          content: [
+            {
+              type: "text",
+              text: `Failed to get task '${args.taskId}': ${error?.response?.data?.message || error?.message}`,
+            },
+          ],
+        };
+      }
+    }
+  );
+
+  // TOOL 9: Update task
+  server.tool(
+    "todoflow_update_task",
+    "Update an existing task in TodoFlow (title, description, priority, due date, project, or completion).",
+    {
+      taskId: z.string().describe("UUID of the task to update"),
+      title: z.string().optional().describe("Updated task title"),
+      description: z.string().optional().describe("Updated markdown description"),
+      priority: z.number().min(1).max(4).optional().describe("Priority level: 1 (Low), 2 (Medium), 3 (High), 4 (Urgent)"),
+      dueDate: z.string().optional().describe("Due date in ISO format (e.g. '2026-10-20T18:00:00Z' or '2026-10-20')"),
+      completed: z.boolean().optional().describe("Completion status"),
+      projectName: z.string().optional().describe("Move task to this project (automatically created if it doesn't exist)"),
+      projectId: z.string().optional().describe("Move task to this project ID"),
+      clearProject: z.boolean().optional().describe("Set to true to remove project and move task to Inbox"),
+    },
+    async (args) => {
+      try {
+        let resolvedProjectId = args.projectId;
+        if (!resolvedProjectId && args.projectName) {
+          resolvedProjectId = await resolveOrCreateProject(apiClient, args.projectName);
+        }
+
+        const payload: Record<string, any> = {};
+        if (args.title !== undefined) payload.title = args.title;
+        if (args.description !== undefined) payload.description = args.description;
+        if (args.priority !== undefined) payload.priority = args.priority;
+        if (args.dueDate !== undefined) payload.dueDate = args.dueDate;
+        if (args.completed !== undefined) payload.completed = args.completed;
+        if (args.clearProject) {
+          payload.clearProject = true;
+        } else if (resolvedProjectId) {
+          payload.projectId = resolvedProjectId;
+        }
+
+        const { data: updated } = await apiClient.put<any>(`/api/v1/tasks/${args.taskId}`, payload);
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Task '${updated.title}' updated successfully.\n` + JSON.stringify(updated, null, 2),
+            },
+          ],
+        };
+      } catch (error: any) {
+        return {
+          isError: true,
+          content: [
+            {
+              type: "text",
+              text: `Failed to update task '${args.taskId}': ${error?.response?.data?.message || error?.message}`,
+            },
+          ],
+        };
+      }
+    }
+  );
+
+  // TOOL 10: Delete task
+  server.tool(
+    "todoflow_delete_task",
+    "Permanently delete a task by ID from TodoFlow.",
+    {
+      taskId: z.string().describe("UUID of the task to delete"),
+    },
+    async (args) => {
+      try {
+        await apiClient.delete(`/api/v1/tasks/${args.taskId}`);
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Task '${args.taskId}' has been permanently deleted.`,
+            },
+          ],
+        };
+      } catch (error: any) {
+        return {
+          isError: true,
+          content: [
+            {
+              type: "text",
+              text: `Failed to delete task '${args.taskId}': ${error?.response?.data?.message || error?.message}`,
+            },
+          ],
+        };
+      }
+    }
+  );
+
+  // TOOL 11: Toggle or update subtask
+  server.tool(
+    "todoflow_toggle_subtask",
+    "Update or toggle completion of a subtask checklist item on a task.",
+    {
+      taskId: z.string().describe("UUID of the parent task"),
+      subtaskId: z.string().describe("UUID of the subtask"),
+      completed: z.boolean().optional().describe("Completion status of the subtask (default: true)"),
+      title: z.string().optional().describe("Optional new title for the subtask"),
+    },
+    async (args) => {
+      try {
+        const payload: Record<string, any> = {};
+        if (args.completed !== undefined) {
+          payload.completed = args.completed;
+        } else {
+          payload.completed = true;
+        }
+        if (args.title) payload.title = args.title;
+
+        const { data: updated } = await apiClient.patch<any>(
+          `/api/v1/tasks/${args.taskId}/subtasks/${args.subtaskId}`,
+          payload
+        );
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Subtask '${updated.title}' is now marked as ${updated.completed ? "completed" : "incomplete"}.`,
+            },
+          ],
+        };
+      } catch (error: any) {
+        return {
+          isError: true,
+          content: [
+            {
+              type: "text",
+              text: `Failed to update subtask: ${error?.response?.data?.message || error?.message}`,
+            },
+          ],
+        };
+      }
+    }
+  );
+
+  // TOOL 12: Add comment
+  server.tool(
+    "todoflow_add_comment",
+    "Add a note, progress update, or comment to a task.",
+    {
+      taskId: z.string().describe("UUID of the task"),
+      content: z.string().describe("Comment or note in markdown or plaintext"),
+    },
+    async (args) => {
+      try {
+        const { data: comment } = await apiClient.post<any>(`/api/v1/tasks/${args.taskId}/comments`, {
+          content: args.content,
+        });
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Added comment to task (Comment ID: ${comment.id}).`,
+            },
+          ],
+        };
+      } catch (error: any) {
+        return {
+          isError: true,
+          content: [
+            {
+              type: "text",
+              text: `Failed to add comment: ${error?.response?.data?.message || error?.message}`,
+            },
+          ],
+        };
+      }
+    }
+  );
+
+  // TOOL 13: List comments
+  server.tool(
+    "todoflow_list_comments",
+    "List all comments and notes on a task.",
+    {
+      taskId: z.string().describe("UUID of the task"),
+    },
+    async (args) => {
+      try {
+        const { data: comments } = await apiClient.get<any[]>(`/api/v1/tasks/${args.taskId}/comments`);
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify(comments, null, 2),
+            },
+          ],
+        };
+      } catch (error: any) {
+        return {
+          isError: true,
+          content: [
+            {
+              type: "text",
+              text: `Failed to list comments: ${error?.response?.data?.message || error?.message}`,
+            },
+          ],
+        };
+      }
+    }
+  );
+
+  // TOOL 14: List labels
+  server.tool(
+    "todoflow_list_labels",
+    "List all available labels/tags in TodoFlow.",
+    {},
+    async () => {
+      try {
+        const { data: labels } = await apiClient.get<any[]>("/api/v1/labels");
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify(labels, null, 2),
+            },
+          ],
+        };
+      } catch (error: any) {
+        return {
+          isError: true,
+          content: [
+            {
+              type: "text",
+              text: `Failed to list labels: ${error?.response?.data?.message || error?.message}`,
+            },
+          ],
+        };
+      }
+    }
+  );
+
+  // TOOL 15: Create label
+  server.tool(
+    "todoflow_create_label",
+    "Create a new label/tag in TodoFlow.",
+    {
+      name: z.string().describe("Label name (e.g. 'Urgent', 'Bug', 'Work')"),
+      color: z.string().optional().describe("Hex color code (e.g. '#ef4444'). Default: '#3b82f6'"),
+    },
+    async (args) => {
+      try {
+        const { data: label } = await apiClient.post<any>("/api/v1/labels", {
+          name: args.name,
+          color: args.color || "#3b82f6",
+        });
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Label '${label.name}' created successfully with ID: ${label.id}.`,
+            },
+          ],
+        };
+      } catch (error: any) {
+        return {
+          isError: true,
+          content: [
+            {
+              type: "text",
+              text: `Failed to create label: ${error?.response?.data?.message || error?.message}`,
+            },
+          ],
+        };
+      }
+    }
+  );
+
+  // TOOL 16: Executive Daily Briefing
+  server.tool(
+    "todoflow_daily_briefing",
+    "Get an executive daily briefing of tasks: overdue items, today's priority schedule, upcoming deadlines, and key statistics.",
+    {
+      timeZone: z.string().optional().describe("User's timezone string (e.g. 'UTC', 'America/New_York', 'Asia/Kolkata'). Default: 'UTC'"),
+    },
+    async (args) => {
+      try {
+        const { data } = await apiClient.get<any>("/api/v1/tasks?size=100");
+        const tasks: any[] = data?.content || [];
+
+        const now = new Date();
+        const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+        const endOfToday = startOfToday + 24 * 60 * 60 * 1000;
+        const endOfWeek = startOfToday + 7 * 24 * 60 * 60 * 1000;
+
+        const overdue: any[] = [];
+        const dueToday: any[] = [];
+        const upcomingThisWeek: any[] = [];
+        let completedCount = 0;
+        let totalActive = 0;
+
+        for (const t of tasks) {
+          if (t.completed) {
+            completedCount++;
+            continue;
+          }
+          totalActive++;
+
+          if (!t.dueDate) continue;
+          const dueTime = new Date(t.dueDate).getTime();
+
+          const summary = {
+            id: t.id,
+            title: t.title,
+            priority: t.priority,
+            dueDate: t.dueDate,
+            projectName: t.projectName || "Inbox",
+            subtasksPending: t.subtasks?.filter((s: any) => !s.completed).length || 0,
+          };
+
+          if (dueTime < startOfToday) {
+            overdue.push(summary);
+          } else if (dueTime < endOfToday) {
+            dueToday.push(summary);
+          } else if (dueTime < endOfWeek) {
+            upcomingThisWeek.push(summary);
+          }
+        }
+
+        // Sort today's tasks by priority descending (4=Urgent down to 1=Low)
+        dueToday.sort((a, b) => (b.priority || 1) - (a.priority || 1));
+        overdue.sort((a, b) => (b.priority || 1) - (a.priority || 1));
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify(
+                {
+                  overview: {
+                    totalActiveTasks: totalActive,
+                    overdueCount: overdue.length,
+                    dueTodayCount: dueToday.length,
+                    upcomingCount: upcomingThisWeek.length,
+                    completedCount,
+                  },
+                  overdueTasks: overdue,
+                  dueToday: dueToday,
+                  upcomingThisWeek: upcomingThisWeek,
+                },
+                null,
+                2
+              ),
+            },
+          ],
+        };
+      } catch (error: any) {
+        return {
+          isError: true,
+          content: [
+            {
+              type: "text",
+              text: `Failed to generate daily briefing: ${error?.response?.data?.message || error?.message}`,
+            },
+          ],
+        };
+      }
+    }
+  );
+
   return server;
 }
 
