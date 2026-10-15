@@ -41,6 +41,30 @@ class TaskModelsTest {
     }
 
     @Test
+    fun testTaskDtoWithNullCollections() {
+        val clientJson = Json {
+            ignoreUnknownKeys = true
+            isLenient = true
+            coerceInputValues = true
+        }
+        val jsonPayload = """
+            {
+                "id": "123e4567-e89b-12d3-a456-426614174000",
+                "title": "Build Android App",
+                "completed": false,
+                "labels": null,
+                "subtasks": null
+            }
+        """.trimIndent()
+
+        val task = clientJson.decodeFromString<TaskDto>(jsonPayload)
+        assertEquals("123e4567-e89b-12d3-a456-426614174000", task.id)
+        assertEquals(0, task.labels.size)
+        assertEquals(0, task.subtasks.size)
+    }
+
+
+    @Test
     fun testPageResponseDeserialization() {
         val jsonPayload = """
             {
@@ -102,5 +126,25 @@ class TaskModelsTest {
         assertEquals("Add UI Accordion", task.subtasks[1].title)
         assertEquals(false, task.subtasks[1].completed)
     }
+
+    @OptIn(kotlinx.serialization.ExperimentalSerializationApi::class)
+    @Test
+    fun testUpdateTaskRequestSerialization() {
+        val clientJson = Json {
+            ignoreUnknownKeys = true
+            isLenient = true
+            coerceInputValues = true
+            encodeDefaults = true
+            explicitNulls = false
+        }
+        val req = com.example.todoflow.data.model.UpdateTaskRequest(completed = true)
+        val serialized = clientJson.encodeToString(com.example.todoflow.data.model.UpdateTaskRequest.serializer(), req)
+        assertEquals("""{"completed":true}""", serialized)
+
+        val subtaskReq = com.example.todoflow.data.model.UpdateSubtaskRequest(completed = true)
+        val subtaskSerialized = clientJson.encodeToString(com.example.todoflow.data.model.UpdateSubtaskRequest.serializer(), subtaskReq)
+        assertEquals("""{"completed":true}""", subtaskSerialized)
+    }
 }
+
 

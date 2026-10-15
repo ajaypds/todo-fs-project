@@ -12,11 +12,13 @@ import java.util.concurrent.TimeUnit
 
 class ApiClient(private val sessionManager: SessionManager) {
 
+    @OptIn(kotlinx.serialization.ExperimentalSerializationApi::class)
     private val json = Json {
         ignoreUnknownKeys = true
         isLenient = true
         coerceInputValues = true
         encodeDefaults = true
+        explicitNulls = false
     }
 
     private val authInterceptor = Interceptor { chain ->
