@@ -92,7 +92,7 @@ class TodoLocalDataSource(private val dbHelper: TodoDbHelper) {
             if (selectionArgs.isNotEmpty()) selectionArgs.toTypedArray() else null,
             null,
             null,
-            "${TodoDbHelper.COL_TASK_COMPLETED} ASC, ${TodoDbHelper.COL_TASK_POSITION} ASC, ${TodoDbHelper.COL_TASK_PRIORITY} ASC, ${TodoDbHelper.COL_TASK_UPDATED_AT} DESC"
+            "${TodoDbHelper.COL_TASK_POSITION} ASC, ${TodoDbHelper.COL_TASK_PRIORITY} ASC, ${TodoDbHelper.COL_TASK_UPDATED_AT} DESC"
         )
 
         cursor.use {
