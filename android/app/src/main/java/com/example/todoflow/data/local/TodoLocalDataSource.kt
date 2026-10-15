@@ -180,11 +180,31 @@ class TodoLocalDataSource(private val dbHelper: TodoDbHelper) {
     }
 
     private fun insertOrUpdateTaskInTransaction(db: SQLiteDatabase, task: TaskEntity) {
+        var finalCompleted = task.completed
+        var finalIsSynced = task.isSynced
+
+        val cursor = db.query(
+            TodoDbHelper.TABLE_TASKS,
+            arrayOf(TodoDbHelper.COL_TASK_COMPLETED, TodoDbHelper.COL_TASK_IS_SYNCED),
+            "${TodoDbHelper.COL_TASK_ID} = ?",
+            arrayOf(task.id),
+            null, null, null
+        )
+        cursor.use {
+            if (it.moveToFirst()) {
+                val isSynced = it.getInt(it.getColumnIndexOrThrow(TodoDbHelper.COL_TASK_IS_SYNCED)) == 1
+                if (!isSynced) {
+                    finalCompleted = it.getInt(it.getColumnIndexOrThrow(TodoDbHelper.COL_TASK_COMPLETED)) == 1
+                    finalIsSynced = false
+                }
+            }
+        }
+
         val values = ContentValues().apply {
             put(TodoDbHelper.COL_TASK_ID, task.id)
             put(TodoDbHelper.COL_TASK_TITLE, task.title)
             put(TodoDbHelper.COL_TASK_DESCRIPTION, task.description)
-            put(TodoDbHelper.COL_TASK_COMPLETED, if (task.completed) 1 else 0)
+            put(TodoDbHelper.COL_TASK_COMPLETED, if (finalCompleted) 1 else 0)
             put(TodoDbHelper.COL_TASK_PRIORITY, task.priority)
             put(TodoDbHelper.COL_TASK_DUE_DATE, task.dueDate)
             put(TodoDbHelper.COL_TASK_PROJECT_ID, task.projectId)
@@ -192,7 +212,7 @@ class TodoLocalDataSource(private val dbHelper: TodoDbHelper) {
             put(TodoDbHelper.COL_TASK_POSITION, task.position)
             put(TodoDbHelper.COL_TASK_COMMENT_COUNT, task.commentCount)
             put(TodoDbHelper.COL_TASK_UPDATED_AT, task.updatedAt)
-            put(TodoDbHelper.COL_TASK_IS_SYNCED, if (task.isSynced) 1 else 0)
+            put(TodoDbHelper.COL_TASK_IS_SYNCED, if (finalIsSynced) 1 else 0)
         }
         db.insertWithOnConflict(
             TodoDbHelper.TABLE_TASKS,
@@ -201,7 +221,7 @@ class TodoLocalDataSource(private val dbHelper: TodoDbHelper) {
             SQLiteDatabase.CONFLICT_REPLACE
         )
 
-        if (task.subtasks.isNotEmpty()) {
+        if (finalIsSynced && task.subtasks.isNotEmpty()) {
             db.delete(
                 TodoDbHelper.TABLE_SUBTASKS,
                 "${TodoDbHelper.COL_SUBTASK_TASK_ID} = ?",
@@ -238,6 +258,19 @@ class TodoLocalDataSource(private val dbHelper: TodoDbHelper) {
             arrayOf(taskId)
         )
         notifyTasksChanged()
+    }
+
+    suspend fun markTaskSynced(taskId: String) = withContext(Dispatchers.IO) {
+        val db = dbHelper.writableDatabase
+        val values = ContentValues().apply {
+            put(TodoDbHelper.COL_TASK_IS_SYNCED, 1)
+        }
+        db.update(
+            TodoDbHelper.TABLE_TASKS,
+            values,
+            "${TodoDbHelper.COL_TASK_ID} = ?",
+            arrayOf(taskId)
+        )
     }
 
     suspend fun deleteTask(taskId: String) = withContext(Dispatchers.IO) {

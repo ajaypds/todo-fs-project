@@ -86,9 +86,18 @@ class TaskRepository(
         // 2. Background sync
         try {
             val api = apiClient.getApi()
-            api.updateTask(taskId, UpdateTaskRequest(completed = newStatus))
-            Result.success(Unit)
+            val response = api.updateTask(taskId, UpdateTaskRequest(completed = newStatus))
+            if (response.isSuccessful) {
+                localDataSource.markTaskSynced(taskId)
+                Result.success(Unit)
+            } else {
+                android.util.Log.e("TaskRepository", "Failed to update task on backend: HTTP ${response.code()}")
+                // Revert on error
+                localDataSource.updateTaskCompleted(taskId, completed)
+                Result.failure(Exception("Failed to update task: HTTP ${response.code()}"))
+            }
         } catch (e: Exception) {
+            android.util.Log.e("TaskRepository", "Exception during updateTask", e)
             // Revert on error
             localDataSource.updateTaskCompleted(taskId, completed)
             Result.failure(e)
@@ -226,9 +235,17 @@ class TaskRepository(
         // 2. Background sync
         try {
             val api = apiClient.getApi()
-            api.updateSubtask(taskId, subtaskId, UpdateSubtaskRequest(completed = newStatus))
-            Result.success(Unit)
+            val response = api.updateSubtask(taskId, subtaskId, UpdateSubtaskRequest(completed = newStatus))
+            if (response.isSuccessful) {
+                Result.success(Unit)
+            } else {
+                android.util.Log.e("TaskRepository", "Failed to update subtask on backend: HTTP ${response.code()}")
+                // Revert on error
+                localDataSource.updateSubtaskCompleted(subtaskId, completed)
+                Result.failure(Exception("Failed to update subtask: HTTP ${response.code()}"))
+            }
         } catch (e: Exception) {
+            android.util.Log.e("TaskRepository", "Exception during updateSubtask", e)
             // Revert on error
             localDataSource.updateSubtaskCompleted(subtaskId, completed)
             Result.failure(e)

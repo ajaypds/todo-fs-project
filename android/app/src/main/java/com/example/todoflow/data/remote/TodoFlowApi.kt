@@ -8,6 +8,7 @@ import com.example.todoflow.data.model.PageResponse
 import com.example.todoflow.data.model.ProjectDto
 import com.example.todoflow.data.model.TaskDto
 import com.example.todoflow.data.model.UpdateTaskRequest
+import okhttp3.ResponseBody
 import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.DELETE
@@ -39,7 +40,7 @@ interface TodoFlowApi {
     suspend fun updateTask(
         @Path("taskId") taskId: String,
         @Body request: UpdateTaskRequest
-    ): TaskDto
+    ): Response<ResponseBody>
 
     @DELETE("api/v1/tasks/{taskId}")
     suspend fun deleteTask(@Path("taskId") taskId: String): Response<Unit>
@@ -55,7 +56,7 @@ interface TodoFlowApi {
         @Path("taskId") taskId: String,
         @Path("subtaskId") subtaskId: String,
         @Body request: com.example.todoflow.data.model.UpdateSubtaskRequest
-    ): com.example.todoflow.data.model.SubtaskDto
+    ): Response<ResponseBody>
 
     @DELETE("api/v1/tasks/{taskId}/subtasks/{subtaskId}")
     suspend fun deleteSubtask(

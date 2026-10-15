@@ -138,13 +138,19 @@ class TasksViewModel(
 
     fun toggleTask(task: TaskEntity) {
         viewModelScope.launch {
-            taskRepository.toggleTaskCompleted(task.id, task.completed)
+            val result = taskRepository.toggleTaskCompleted(task.id, task.completed)
+            if (result.isFailure) {
+                _statusMessage.value = "Failed to update task: ${result.exceptionOrNull()?.localizedMessage ?: "Network error"}"
+            }
         }
     }
 
     fun toggleSubtask(taskId: String, subtask: SubtaskEntity) {
         viewModelScope.launch {
-            taskRepository.toggleSubtaskCompleted(taskId, subtask.id, subtask.completed)
+            val result = taskRepository.toggleSubtaskCompleted(taskId, subtask.id, subtask.completed)
+            if (result.isFailure) {
+                _statusMessage.value = "Failed to update subtask: ${result.exceptionOrNull()?.localizedMessage ?: "Network error"}"
+            }
         }
     }
 
