@@ -20,4 +20,4 @@ RUN apt-get update && apt-get install -y curl
 
 ENV SPRING_PROFILES_ACTIVE=prod
 
-ENTRYPOINT ["java", "-jar", "app.jar"]
+ENTRYPOINT ["sh", "-c", "java -XX:+UseG1GC -XX:MaxRAMPercentage=75.0 -Dserver.port=${PORT:-8080} -jar app.jar"]
