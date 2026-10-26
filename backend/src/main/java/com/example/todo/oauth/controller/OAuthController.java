@@ -367,7 +367,7 @@ public class OAuthController {
                 "        <input type=\"password\" id=\"password\" name=\"password\" required placeholder=\"Enter your password\">\n" +
                 "      </div>\n" +
                 "      <div class=\"actions\">\n" +
-                "        <button type=\"submit\" class=\"btn-primary\">Authorize ChatGPT</button>\n" +
+                "        <button type=\"submit\" class=\"btn-primary\">Authorize " + escapeHtml(clientName) + "</button>\n" +
                 "        <a href=\"" + escapeHtml(cancelUrl) + "\" class=\"btn-cancel\">Cancel</a>\n" +
                 "      </div>\n" +
                 "    </form>\n" +

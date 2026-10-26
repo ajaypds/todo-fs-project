@@ -11,7 +11,9 @@ import * as dotenv from "dotenv";
 
 dotenv.config();
 
-const BASE_URL = process.env.TODOFLOW_BASE_URL || "http://localhost:8080";
+const BASE_URL = (
+  process.env.TODOFLOW_BASE_URL || "https://todo-backend-208902575606.asia-south1.run.app"
+).replace(/\/+$/, "");
 const DEFAULT_API_KEY = process.env.TODOFLOW_API_KEY || "";
 
 function createApiClient(token?: string): AxiosInstance {
@@ -955,6 +957,7 @@ async function startHttpServer(port: number = 3001) {
 
   app.use(cors());
   app.use(express.json());
+  app.use(express.urlencoded({ extended: true }));
 
   // Health check endpoint
   app.get(["/health", "/mcp/health"], (_req: Request, res: Response) => {
@@ -990,6 +993,56 @@ async function startHttpServer(port: number = 3001) {
     });
   });
 
+  // OAuth 2.1 Proxy: Forward all OAuth authentication requests to the Spring Boot backend
+  app.all(/^\/(?:api\/v1\/)?oauth2?(?:\/.*)?$/, async (req: Request, res: Response) => {
+    try {
+      const targetUrl = `${BASE_URL}${req.originalUrl}`;
+      const forwardHeaders: Record<string, string> = {};
+
+      for (const [key, value] of Object.entries(req.headers)) {
+        const lower = key.toLowerCase();
+        if (lower !== "host" && lower !== "content-length" && lower !== "connection" && value !== undefined) {
+          forwardHeaders[key] = Array.isArray(value) ? value.join(", ") : value;
+        }
+      }
+
+      let data: any = undefined;
+      if (req.method !== "GET" && req.method !== "HEAD") {
+        if (req.is("application/x-www-form-urlencoded") && typeof req.body === "object") {
+          data = new URLSearchParams(req.body).toString();
+          forwardHeaders["content-type"] = "application/x-www-form-urlencoded";
+        } else if (req.is("application/json")) {
+          data = req.body;
+          forwardHeaders["content-type"] = "application/json";
+        } else {
+          data = req.body;
+        }
+      }
+
+      const response = await axios({
+        method: req.method,
+        url: targetUrl,
+        headers: forwardHeaders,
+        data,
+        maxRedirects: 0,
+        validateStatus: () => true,
+        responseType: "text",
+      });
+
+      for (const [key, value] of Object.entries(response.headers)) {
+        const lower = key.toLowerCase();
+        if (lower !== "transfer-encoding" && lower !== "content-encoding") {
+          res.setHeader(key, value as any);
+        }
+      }
+
+      res.status(response.status).send(response.data);
+    } catch (error: any) {
+      console.error("[OAuth Proxy] Error forwarding request:", error?.message || error);
+      res.status(502).json({ error: "Failed to communicate with authentication service" });
+    }
+  });
+
   // RFC 8414 OAuth 2.0 Authorization Server Metadata
   app.get(
     [
@@ -1000,7 +1053,7 @@ async function startHttpServer(port: number = 3001) {
     ],
     (req: Request, res: Response) => {
       const proto = req.headers["x-forwarded-proto"] || req.protocol || "https";
-      const host = req.headers["host"] || req.get("host") || "todoflow.ddns.net";
+      const host = req.headers["host"] || req.get("host") || "todo-mcp-208902575606.asia-south1.run.app";
       const baseUrl = `${proto}://${host}`;
       res.json({
         issuer: baseUrl,
@@ -1026,7 +1079,7 @@ async function startHttpServer(port: number = 3001) {
     ],
     (req: Request, res: Response) => {
       const proto = req.headers["x-forwarded-proto"] || req.protocol || "https";
-      const host = req.headers["host"] || req.get("host") || "todoflow.ddns.net";
+      const host = req.headers["host"] || req.get("host") || "todo-mcp-208902575606.asia-south1.run.app";
       const baseUrl = `${proto}://${host}`;
       res.json({
         resource: `${baseUrl}/mcp`,
@@ -1072,11 +1125,15 @@ async function startHttpServer(port: number = 3001) {
       // New session initialization (POST)
       const apiKey = extractApiKey(req);
       if (!apiKey) {
+        const proto = req.headers["x-forwarded-proto"] || req.protocol || "https";
+        const host = req.headers["host"] || req.get("host") || "todo-mcp-208902575606.asia-south1.run.app";
+        const baseUrl = `${proto}://${host}`;
+
         res
           .status(401)
           .setHeader(
             "WWW-Authenticate",
-            'Bearer realm="todoflow", error="invalid_token", error_description="Missing Bearer access token or API key"'
+            `Bearer realm="todoflow", error="invalid_token", error_description="Missing Bearer access token or API key", resource_metadata="${baseUrl}/.well-known/oauth-protected-resource"`
           )
           .json({
             jsonrpc: "2.0",
@@ -1137,11 +1194,15 @@ async function startHttpServer(port: number = 3001) {
   app.get(["/sse", "/mcp/sse"], async (req: Request, res: Response) => {
     const apiKey = extractApiKey(req);
     if (!apiKey) {
+      const proto = req.headers["x-forwarded-proto"] || req.protocol || "https";
+      const host = req.headers["host"] || req.get("host") || "todo-mcp-208902575606.asia-south1.run.app";
+      const baseUrl = `${proto}://${host}`;
+
       res
         .status(401)
         .setHeader(
           "WWW-Authenticate",
-          'Bearer realm="todoflow", error="invalid_token", error_description="Missing Bearer access token or API key"'
+          `Bearer realm="todoflow", error="invalid_token", error_description="Missing Bearer access token or API key", resource_metadata="${baseUrl}/.well-known/oauth-protected-resource"`
         )
         .json({ error: "Unauthorized: Missing Authorization Bearer token or X-API-Key header" });
       return;

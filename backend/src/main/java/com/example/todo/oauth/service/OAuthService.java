@@ -288,7 +288,7 @@ public class OAuthService {
             }
         }
         String redirectUris = redirectUrisList.isEmpty()
-                ? "https://chatgpt.com,https://chat.openai.com,https://todoflow.ddns.net,http://localhost"
+                ? "https://claude.ai,https://chatgpt.com,https://chat.openai.com,https://todoflow.ddns.net,http://localhost"
                 : String.join(",", redirectUrisList);
 
         String clientId = "client_" + UUID.randomUUID().toString().replace("-", "").substring(0, 16);
