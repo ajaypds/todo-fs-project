@@ -1,5 +1,6 @@
 {
   "hosting": {
+    "site": "todoflow-512303",
     "public": "dist",
     "ignore": [
       "firebase.json",
