@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   getTasks,
+  type GetTasksParams,
   createTask,
   updateTask,
   deleteTask,
@@ -13,10 +14,10 @@ import type { Task, Subtask } from "../types/taskTypes";
 import type { PageResponse } from "../../../types/pagination";
 import toast from "react-hot-toast";
 
-export const useTasks = () => {
+export const useTasks = (params?: GetTasksParams) => {
   return useQuery({
-    queryKey: ["tasks"],
-    queryFn: getTasks,
+    queryKey: params?.projectId ? ["tasks", { projectId: params.projectId }] : ["tasks"],
+    queryFn: () => getTasks(params),
   });
 };
 

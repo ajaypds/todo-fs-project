@@ -52,7 +52,7 @@ public class TaskController {
             @RequestParam(defaultValue = "0")
             int page,
 
-            @RequestParam(defaultValue = "50")
+            @RequestParam(defaultValue = "1000")
             int size
     ) {
 
