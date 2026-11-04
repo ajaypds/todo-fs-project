@@ -129,7 +129,10 @@ export const DashboardPage = () => {
 
       // 2. Project filter takes precedence if a project is selected
       if (selectedProjectId) {
-        return task.projectId === selectedProjectId;
+        return (
+          Boolean(task.projectId) &&
+          String(task.projectId).toLowerCase() === String(selectedProjectId).toLowerCase()
+        );
       }
 
       // 3. Smart view filter

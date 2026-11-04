@@ -14,8 +14,20 @@ export type CreateTaskRequest = {
   assignedToUserId?: string | null;
 };
 
-export const getTasks = async (): Promise<PageResponse<Task>> => {
-  const response = await apiClient.get("/tasks");
+export type GetTasksParams = {
+  projectId?: string;
+  size?: number;
+  page?: number;
+};
+
+export const getTasks = async (params?: GetTasksParams): Promise<PageResponse<Task>> => {
+  const response = await apiClient.get("/tasks", {
+    params: {
+      projectId: params?.projectId || undefined,
+      size: params?.size ?? 1000,
+      page: params?.page ?? 0,
+    },
+  });
   return response.data;
 };
 
