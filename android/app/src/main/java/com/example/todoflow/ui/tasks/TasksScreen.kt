@@ -26,6 +26,10 @@ import androidx.compose.ui.unit.sp
 import com.example.todoflow.data.local.ProjectEntity
 import com.example.todoflow.data.local.TaskFilterType
 import com.example.todoflow.data.local.ThemeMode
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
+import kotlinx.coroutines.delay
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -66,6 +70,20 @@ fun TasksScreen(
         }.collect { nearEnd ->
             if (nearEnd && !isLoadingMore && hasMore && !isReordering) {
                 viewModel.loadNextPage()
+            }
+        }
+    }
+
+    // Keep in sync with the server: refresh when the app comes to the foreground and then
+    // every 15s while it is visible (stops automatically when the app is backgrounded).
+    val lifecycleOwner = LocalLifecycleOwner.current
+    LaunchedEffect(lifecycleOwner) {
+        lifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            var first = true
+            while (true) {
+                viewModel.refresh(silent = !first)
+                first = false
+                delay(15_000)
             }
         }
     }

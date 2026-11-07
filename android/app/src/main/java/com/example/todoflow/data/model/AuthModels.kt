@@ -16,3 +16,8 @@ data class AuthResponse(
     val email: String? = null,
     val message: String? = null
 )
+
+@Serializable
+data class RefreshRequest(
+    val refreshToken: String
+)

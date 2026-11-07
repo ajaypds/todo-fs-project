@@ -16,6 +16,8 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.withContext
 import java.util.UUID
 
+private const val MAX_REFRESH_PAGES = 50
+
 class TaskRepository(
     private val localDataSource: TodoLocalDataSource,
     private val apiClient: ApiClient
@@ -37,17 +39,34 @@ class TaskRepository(
         try {
             val api = apiClient.getApi()
 
-            // 1. Fetch & cache projects
+            // 1. Fetch & cache projects (and drop ones deleted elsewhere)
             val projects = api.getProjects()
             val projectEntities = projects.map {
                 ProjectEntity(id = it.id, name = it.name, color = it.color)
             }
             localDataSource.upsertProjects(projectEntities)
+            localDataSource.pruneProjectsNotIn(projectEntities.map { it.id }.toSet())
 
-            // 2. Fetch & cache first batch of tasks
-            val pageResponse = api.getTasks(projectId = projectId, page = 0, size = 30)
-            val taskEntities = pageResponse.content.map { dtoToEntity(it) }
-            localDataSource.upsertTasks(taskEntities)
+            // 2. Fetch & cache tasks. Unfiltered refresh pulls every page so that tasks deleted
+            //    on another device can be pruned from the local cache.
+            val pageSize = 100
+            val serverIds = mutableSetOf<String>()
+            var page = 0
+            var complete = false
+            while (page < MAX_REFRESH_PAGES) {
+                val pageResponse = api.getTasks(projectId = projectId, page = page, size = pageSize)
+                localDataSource.upsertTasks(pageResponse.content.map { dtoToEntity(it) })
+                pageResponse.content.forEach { serverIds.add(it.id) }
+                val totalPages = pageResponse.totalPages ?: 0
+                page++
+                if (page >= totalPages || pageResponse.content.isEmpty()) {
+                    complete = true
+                    break
+                }
+            }
+            if (complete && projectId == null) {
+                localDataSource.pruneSyncedTasksNotIn(serverIds)
+            }
 
             Result.success(Unit)
         } catch (e: Exception) {
