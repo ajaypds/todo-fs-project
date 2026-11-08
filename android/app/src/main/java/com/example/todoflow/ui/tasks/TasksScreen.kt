@@ -99,6 +99,8 @@ fun TasksScreen(
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
+        // Include the keyboard and display cutouts, not just the system bars
+        contentWindowInsets = WindowInsets.safeDrawing,
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             Column {
