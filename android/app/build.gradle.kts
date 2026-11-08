@@ -43,12 +43,22 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
+        // java.time (LocalDate, ZonedDateTime, ...) is used for due dates and reminders but is
+        // only built into Android 8+; desugaring makes it work on Android 7 (minSdk 24) too.
+        isCoreLibraryDesugaringEnabled = true
     }
     buildFeatures {
       compose = true
       aidl = false
       buildConfig = false
       shaders = false
+    }
+
+    testOptions {
+        unitTests {
+            // Robolectric needs merged resources/manifest to build the fake Android environment
+            isIncludeAndroidResources = true
+        }
     }
 
     packaging {
@@ -63,6 +73,8 @@ kotlin {
 }
 
 dependencies {
+  coreLibraryDesugaring(libs.desugar.jdk.libs)
+
   val composeBom = platform(libs.androidx.compose.bom)
   implementation(composeBom)
   androidTestImplementation(composeBom)
@@ -89,6 +101,9 @@ dependencies {
   // Local tests: jUnit, coroutines, Android runner
   testImplementation(libs.junit)
   testImplementation(libs.kotlinx.coroutines.test)
+  testImplementation(libs.robolectric)
+  testImplementation(libs.androidx.compose.ui.test.junit4)
+  testImplementation(libs.androidx.test.core)
 
   // Instrumented tests: jUnit rules and runners
   androidTestImplementation(libs.androidx.test.core)

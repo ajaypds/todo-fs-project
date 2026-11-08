@@ -18,7 +18,7 @@ import retrofit2.converter.kotlinx.serialization.asConverterFactory
 import java.util.concurrent.TimeUnit
 
 /** Source of the Retrofit API; lets the repository be tested with a fake. */
-interface ApiProvider {
+fun interface ApiProvider {
     fun getApi(): TodoFlowApi
 }
 

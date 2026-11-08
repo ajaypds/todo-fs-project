@@ -21,6 +21,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import com.example.todoflow.reminders.ReminderNotifier
 import com.example.todoflow.security.AppLock
 import kotlinx.coroutines.CancellationException
@@ -84,10 +85,15 @@ fun TasksScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
+    // Bumped on every "Undo" so a restored row starts un-swiped
+    var undoCount by remember { mutableIntStateOf(0) }
 
     // Deleting hides the task and offers "Undo"; the delete is only sent once the snackbar goes away
     fun requestDelete(task: TaskEntity) {
+        val indexBefore = tasks.indexOfFirst { it.id == task.id }
         viewModel.hideTaskForDelete(task.id)
+        // Snackbars queue up: clear any message that's showing so "Undo" appears right away
+        snackbarHostState.currentSnackbarData?.dismiss()
         scope.launch {
             val result = try {
                 snackbarHostState.showSnackbar(
@@ -100,7 +106,13 @@ fun TasksScreen(
                 throw e
             }
             if (result == SnackbarResult.ActionPerformed) {
+                undoCount++
                 viewModel.undoDelete(task.id)
+                // The list keeps its scroll position, so a restored row above the top would stay hidden
+                if (indexBefore in 0..listState.firstVisibleItemIndex) {
+                    delay(50)
+                    listState.animateScrollToItem(indexBefore)
+                }
             } else {
                 viewModel.commitDelete(task.id)
             }
@@ -450,6 +462,8 @@ fun TasksScreen(
                         key = { _, task -> task.id }
                     ) { index, task ->
                         SwipeableTaskRow(
+                            modifier = Modifier.testTag("task_row_${task.id}"),
+                            resetKey = undoCount,
                             enabled = !isReordering,
                             completed = task.completed,
                             onToggleComplete = { viewModel.toggleTask(task) },

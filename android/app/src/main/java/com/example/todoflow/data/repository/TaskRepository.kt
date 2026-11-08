@@ -184,8 +184,9 @@ class TaskRepository(
         var dropped = 0
         while (true) {
             val op = localDataSource.getPendingOps().firstOrNull() ?: break
+            val createdId: String?
             try {
-                execute(op)
+                createdId = execute(op)
             } catch (e: Exception) {
                 if (isRetryable(e)) {
                     localDataSource.incrementOpAttempts(op.id)
@@ -197,7 +198,7 @@ class TaskRepository(
                 continue
             }
             localDataSource.deleteOp(op.id)
-            settle(op)
+            settle(op, createdId)
         }
         if (dropped > 0) {
             _syncEvents.tryEmit("$dropped change(s) were rejected by the server and discarded")
@@ -215,15 +216,21 @@ class TaskRepository(
         if (!isSuccessful && !(allowNotFound && code() == 404)) throw HttpException(this)
     }
 
-    private suspend fun execute(op: PendingOp) {
+    /** Executes one queued change. Returns the server-assigned id when the change created a task. */
+    private suspend fun execute(op: PendingOp): String? {
         val api = apiClient.getApi()
         when (op.type) {
             OpType.CREATE_TASK -> {
                 val created = api.createTask(json.decodeFromString(CreateTaskRequest.serializer(), op.payload))
                 localDataSource.remapPendingIds(op.entityId, created.id)
-                localDataSource.deleteTask(op.entityId)
-                val stillPending = localDataSource.hasPendingOps(created.id)
-                localDataSource.upsertTask(dtoToEntity(created).copy(isSynced = !stillPending))
+                if (localDataSource.hasPendingOps(created.id, exceptOpId = op.id)) {
+                    // More local changes are queued for this task: keep its local state, just give it the real id
+                    localDataSource.renameTask(op.entityId, created.id)
+                } else {
+                    localDataSource.deleteTask(op.entityId)
+                    localDataSource.upsertTask(dtoToEntity(created))
+                }
+                return created.id
             }
             OpType.UPDATE_TASK -> {
                 api.updateTask(
@@ -270,11 +277,13 @@ class TaskRepository(
             }
             else -> Unit
         }
+        return null
     }
 
     /** Marks a task as in sync once nothing is waiting for it any more. */
-    private suspend fun settle(op: PendingOp) {
+    private suspend fun settle(op: PendingOp, createdTaskId: String?) {
         val taskId = when (op.type) {
+            OpType.CREATE_TASK -> createdTaskId
             OpType.UPDATE_TASK -> op.entityId
             OpType.CREATE_SUBTASK, OpType.UPDATE_SUBTASK, OpType.DELETE_SUBTASK -> op.parentId
             else -> null

@@ -717,13 +717,45 @@ class TodoLocalDataSource(private val dbHelper: TodoDbHelper) {
         )
     }
 
-    /** True if any queued operation still refers to [id] (as the entity or as its parent). */
-    suspend fun hasPendingOps(id: String): Boolean = withContext(Dispatchers.IO) {
+    /**
+     * True if any queued operation still refers to [id] (as the entity or as its parent),
+     * ignoring the operation [exceptOpId] (the one currently being executed).
+     */
+    suspend fun hasPendingOps(id: String, exceptOpId: Long? = null): Boolean = withContext(Dispatchers.IO) {
         dbHelper.readableDatabase.rawQuery(
-            "SELECT 1 FROM ${TodoDbHelper.TABLE_PENDING_OPS} WHERE ${TodoDbHelper.COL_OP_ENTITY_ID} = ? " +
-                "OR ${TodoDbHelper.COL_OP_PARENT_ID} = ? LIMIT 1",
-            arrayOf(id, id)
+            "SELECT 1 FROM ${TodoDbHelper.TABLE_PENDING_OPS} WHERE (${TodoDbHelper.COL_OP_ENTITY_ID} = ? " +
+                "OR ${TodoDbHelper.COL_OP_PARENT_ID} = ?) AND ${TodoDbHelper.COL_OP_ID} != ? LIMIT 1",
+            arrayOf(id, id, (exceptOpId ?: -1L).toString())
         ).use { it.moveToFirst() }
+    }
+
+    /**
+     * Gives a locally created task its real server id while keeping its local (not yet uploaded)
+     * state, for tasks that have further queued changes.
+     */
+    suspend fun renameTask(tempId: String, realId: String) = withContext(Dispatchers.IO) {
+        val db = dbHelper.writableDatabase
+        db.beginTransaction()
+        try {
+            db.execSQL(
+                "UPDATE ${TodoDbHelper.TABLE_TASKS} SET ${TodoDbHelper.COL_TASK_ID} = ? WHERE ${TodoDbHelper.COL_TASK_ID} = ?",
+                arrayOf(realId, tempId)
+            )
+            db.execSQL(
+                "UPDATE ${TodoDbHelper.TABLE_SUBTASKS} SET ${TodoDbHelper.COL_SUBTASK_TASK_ID} = ? " +
+                    "WHERE ${TodoDbHelper.COL_SUBTASK_TASK_ID} = ?",
+                arrayOf(realId, tempId)
+            )
+            db.execSQL(
+                "UPDATE ${TodoDbHelper.TABLE_TASK_LABELS} SET ${TodoDbHelper.COL_TL_TASK_ID} = ? " +
+                    "WHERE ${TodoDbHelper.COL_TL_TASK_ID} = ?",
+                arrayOf(realId, tempId)
+            )
+            db.setTransactionSuccessful()
+        } finally {
+            db.endTransaction()
+        }
+        notifyTasksChanged()
     }
 
     /** Drops every queued operation about [id] (used when an item that was never uploaded is deleted). */
