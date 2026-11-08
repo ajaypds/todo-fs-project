@@ -17,6 +17,7 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import android.Manifest
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.ui.Alignment
@@ -167,91 +168,118 @@ fun TasksScreen(
     }
 
     val activeProject = projects.firstOrNull { it.id == filterState.selectedProjectId }
+    val activeLabel = labels.firstOrNull { it.id == filterState.selectedLabelId }
+    val screenTitle = when (filterState.filterType) {
+        TaskFilterType.ALL -> "All tasks"
+        TaskFilterType.INBOX -> "Inbox"
+        TaskFilterType.TODAY -> "Today"
+        TaskFilterType.UPCOMING -> "Upcoming"
+        TaskFilterType.COMPLETED -> "Completed"
+        TaskFilterType.PROJECT -> activeProject?.name ?: "Project"
+        TaskFilterType.LABEL -> "#" + (activeLabel?.name ?: "label")
+    }
 
+    val drawerState = rememberDrawerState(DrawerValue.Closed)
+    var isMenuOpen by remember { mutableStateOf(false) }
+    BackHandler(enabled = drawerState.isOpen) { scope.launch { drawerState.close() } }
+    fun closeDrawer() { scope.launch { drawerState.close() } }
+
+    ModalNavigationDrawer(
+        drawerState = drawerState,
+        drawerContent = {
+            AppDrawerContent(
+                filterType = filterState.filterType,
+                selectedProjectId = filterState.selectedProjectId,
+                selectedLabelId = filterState.selectedLabelId,
+                projects = projects,
+                labels = labels,
+                syncStatus = syncStatus,
+                pendingOps = pendingOpCount,
+                isLive = isLive,
+                onSelectFilter = { viewModel.setFilter(it); closeDrawer() },
+                onSelectProject = { viewModel.setFilter(TaskFilterType.PROJECT, it.id); closeDrawer() },
+                onEditProject = { projectToEdit = it; isProjectDialogOpen = true; closeDrawer() },
+                onAddProject = { projectToEdit = null; isProjectDialogOpen = true; closeDrawer() },
+                onSelectLabel = { viewModel.setFilter(TaskFilterType.LABEL, labelId = it.id); closeDrawer() },
+                onOpenSettings = { isThemeDialogOpen = true; closeDrawer() },
+                onLogout = { isLogoutDialogOpen = true; closeDrawer() },
+            )
+        }
+    ) {
     Scaffold(
         modifier = modifier.fillMaxSize(),
         // Include the keyboard and display cutouts, not just the system bars
         contentWindowInsets = WindowInsets.safeDrawing,
+        containerColor = MaterialTheme.colorScheme.background,
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             Column {
                 TopAppBar(
+                    colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
+                    navigationIcon = {
+                        IconButton(onClick = { scope.launch { drawerState.open() } }) {
+                            Icon(Icons.Default.Menu, contentDescription = "Menu")
+                        }
+                    },
                     title = {
                         Column {
+                            Text(
+                                screenTitle,
+                                fontWeight = FontWeight.Bold,
+                                style = MaterialTheme.typography.titleLarge,
+                                maxLines = 1,
+                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                            )
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
                                 Text(
-                                    "TodoFlow",
-                                    fontWeight = FontWeight.Bold,
-                                    style = MaterialTheme.typography.titleLarge
-                                )
-                                SyncBadge(syncStatus, pendingOpCount, isLive)
-                            }
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(4.dp)
-                            ) {
-                                Text(
-                                    text = when (filterState.filterType) {
-                                        TaskFilterType.ALL -> "${tasks.size} tasks"
-                                        TaskFilterType.INBOX -> "Inbox • ${tasks.size} tasks"
-                                        TaskFilterType.TODAY -> "Today • ${tasks.size} tasks"
-                                        TaskFilterType.UPCOMING -> "Upcoming • ${tasks.size} tasks"
-                                        TaskFilterType.COMPLETED -> "Done • ${tasks.size} tasks"
-                                        TaskFilterType.PROJECT -> "${activeProject?.name ?: "Project"} • ${tasks.size} tasks"
-                                        TaskFilterType.LABEL -> "#${labels.firstOrNull { it.id == filterState.selectedLabelId }?.name ?: "label"} • ${tasks.size} tasks"
-                                    },
+                                    text = if (tasks.size == 1) "1 task" else "${tasks.size} tasks",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
-                                if (filterState.filterType == TaskFilterType.PROJECT && activeProject != null) {
-                                    IconButton(
-                                        onClick = {
-                                            projectToEdit = activeProject
-                                            isProjectDialogOpen = true
-                                        },
-                                        modifier = Modifier.size(20.dp)
-                                    ) {
-                                        Icon(
-                                            Icons.Default.Edit,
-                                            contentDescription = "Edit Project",
-                                            tint = MaterialTheme.colorScheme.primary,
-                                            modifier = Modifier.size(14.dp)
-                                        )
-                                    }
-                                }
+                                SyncBadge(syncStatus, pendingOpCount, isLive)
                             }
                         }
                     },
                     actions = {
-                        // Reorder mode toggle
-                        IconButton(onClick = { viewModel.toggleReorderMode() }) {
-                            Icon(
-                                Icons.Default.SwapVert,
-                                contentDescription = "Reorder Tasks",
-                                tint = if (isReordering) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
-                            )
-                        }
-                        // Settings (theme, reminders, app lock)
-                        IconButton(onClick = { isThemeDialogOpen = true }) {
-                            Icon(Icons.Default.Settings, contentDescription = "Settings")
-                        }
-                        // Search
                         IconButton(onClick = {
                             isSearchVisible = !isSearchVisible
                             if (!isSearchVisible) viewModel.setSearchQuery("")
                         }) {
                             Icon(Icons.Default.Search, contentDescription = "Search")
                         }
-                        // Refresh
                         IconButton(onClick = { viewModel.refresh() }) {
                             Icon(Icons.Default.Refresh, contentDescription = "Refresh")
                         }
-                        // Logout
-                        IconButton(onClick = { isLogoutDialogOpen = true }) {
-                            Icon(Icons.AutoMirrored.Filled.ExitToApp, contentDescription = "Logout")
+                        Box {
+                            IconButton(onClick = { isMenuOpen = true }) {
+                                Icon(Icons.Default.MoreVert, contentDescription = "More options")
+                            }
+                            DropdownMenu(expanded = isMenuOpen, onDismissRequest = { isMenuOpen = false }) {
+                                DropdownMenuItem(
+                                    text = { Text(if (isReordering) "Finish reordering" else "Reorder tasks") },
+                                    leadingIcon = { Icon(Icons.Default.SwapVert, contentDescription = null) },
+                                    onClick = { isMenuOpen = false; viewModel.toggleReorderMode() }
+                                )
+                                if (filterState.filterType == TaskFilterType.PROJECT && activeProject != null) {
+                                    DropdownMenuItem(
+                                        text = { Text("Edit project") },
+                                        leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) },
+                                        onClick = {
+                                            isMenuOpen = false
+                                            projectToEdit = activeProject
+                                            isProjectDialogOpen = true
+                                        }
+                                    )
+                                }
+                                DropdownMenuItem(
+                                    text = { Text("Settings") },
+                                    leadingIcon = { Icon(Icons.Default.Settings, contentDescription = null) },
+                                    onClick = { isMenuOpen = false; isThemeDialogOpen = true }
+                                )
+                            }
                         }
                     }
                 )
@@ -271,117 +299,10 @@ fun TasksScreen(
                             }
                         },
                         singleLine = true,
+                        shape = RoundedCornerShape(16.dp),
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(horizontal = 16.dp, vertical = 6.dp)
-                    )
-                }
-
-                // Filter Chips Row
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState())
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    FilterChip(
-                        selected = filterState.filterType == TaskFilterType.ALL,
-                        onClick = { viewModel.setFilter(TaskFilterType.ALL) },
-                        label = { Text("All") },
-                        leadingIcon = { Icon(Icons.AutoMirrored.Filled.List, contentDescription = null, modifier = Modifier.size(16.dp)) }
-                    )
-                    FilterChip(
-                        selected = filterState.filterType == TaskFilterType.INBOX,
-                        onClick = { viewModel.setFilter(TaskFilterType.INBOX) },
-                        label = { Text("Inbox") },
-                        leadingIcon = { Icon(Icons.Default.Inbox, contentDescription = null, modifier = Modifier.size(16.dp)) }
-                    )
-                    FilterChip(
-                        selected = filterState.filterType == TaskFilterType.TODAY,
-                        onClick = { viewModel.setFilter(TaskFilterType.TODAY) },
-                        label = { Text("Today") },
-                        leadingIcon = { Icon(Icons.Default.Today, contentDescription = null, modifier = Modifier.size(16.dp)) }
-                    )
-                    FilterChip(
-                        selected = filterState.filterType == TaskFilterType.UPCOMING,
-                        onClick = { viewModel.setFilter(TaskFilterType.UPCOMING) },
-                        label = { Text("Upcoming") },
-                        leadingIcon = { Icon(Icons.Default.CalendarMonth, contentDescription = null, modifier = Modifier.size(16.dp)) }
-                    )
-                    FilterChip(
-                        selected = filterState.filterType == TaskFilterType.COMPLETED,
-                        onClick = { viewModel.setFilter(TaskFilterType.COMPLETED) },
-                        label = { Text("Done") },
-                        leadingIcon = { Icon(Icons.Default.CheckCircle, contentDescription = null, modifier = Modifier.size(16.dp)) }
-                    )
-
-                    // Project Filter Chips
-                    projects.forEach { proj ->
-                        val isSelected = filterState.filterType == TaskFilterType.PROJECT &&
-                            filterState.selectedProjectId == proj.id
-                        val color = parseHexColor(proj.color)
-
-                        FilterChip(
-                            selected = isSelected,
-                            onClick = {
-                                if (isSelected) {
-                                    // Clicking selected chip opens edit dialog
-                                    projectToEdit = proj
-                                    isProjectDialogOpen = true
-                                } else {
-                                    viewModel.setFilter(TaskFilterType.PROJECT, proj.id)
-                                }
-                            },
-                            label = { Text(proj.name) },
-                            leadingIcon = {
-                                Box(
-                                    modifier = Modifier
-                                        .size(8.dp)
-                                        .clip(CircleShape)
-                                        .background(color)
-                                )
-                            }
-                        )
-                    }
-
-                    // Label Filter Chips
-                    labels.forEach { label ->
-                        val isSelected = filterState.filterType == TaskFilterType.LABEL &&
-                            filterState.selectedLabelId == label.id
-                        FilterChip(
-                            selected = isSelected,
-                            onClick = {
-                                if (isSelected) viewModel.setFilter(TaskFilterType.ALL)
-                                else viewModel.setFilter(TaskFilterType.LABEL, labelId = label.id)
-                            },
-                            label = { Text("#" + label.name) },
-                            leadingIcon = {
-                                Box(
-                                    modifier = Modifier
-                                        .size(8.dp)
-                                        .clip(CircleShape)
-                                        .background(parseHexColor(label.color))
-                                )
-                            }
-                        )
-                    }
-
-                    // Add Project Chip
-                    AssistChip(
-                        onClick = {
-                            projectToEdit = null
-                            isProjectDialogOpen = true
-                        },
-                        label = { Text("Add Project") },
-                        leadingIcon = {
-                            Icon(
-                                Icons.Default.Add,
-                                contentDescription = "Add Project",
-                                modifier = Modifier.size(16.dp)
-                            )
-                        }
                     )
                 }
 
@@ -389,12 +310,15 @@ fun TasksScreen(
                 AnimatedVisibility(visible = isReordering) {
                     Surface(
                         color = MaterialTheme.colorScheme.primaryContainer,
-                        modifier = Modifier.fillMaxWidth()
+                        shape = RoundedCornerShape(14.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 4.dp)
                     ) {
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 6.dp),
+                                .padding(start = 16.dp, end = 8.dp, top = 4.dp, bottom = 4.dp),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
@@ -411,16 +335,13 @@ fun TasksScreen(
                 }
             }
         },
-        floatingActionButton = {
-            if (!isReordering) {
-                FloatingActionButton(
-                    onClick = { isCreateDialogOpen = true },
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    contentColor = MaterialTheme.colorScheme.onPrimary
-                ) {
-                    Icon(Icons.Default.Add, contentDescription = "Add Task")
-                }
-            }
+        bottomBar = {
+            AppBottomBar(
+                filterType = filterState.filterType,
+                onSelectFilter = { viewModel.setFilter(it) },
+                onAddTask = { isCreateDialogOpen = true },
+                addEnabled = !isReordering
+            )
         }
     ) { innerPadding ->
         Box(
@@ -446,7 +367,7 @@ fun TasksScreen(
                     Text(
                         text = if (searchQuery.isNotEmpty()) "No matching tasks found"
                         else if (filterState.filterType == TaskFilterType.COMPLETED) "No completed tasks yet"
-                        else "No tasks here! Tap + to add one",
+                        else "All clear! Tap + to add a task",
                         style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -508,6 +429,7 @@ fun TasksScreen(
             }
         }
     }
+    } // ModalNavigationDrawer
 
     if (isCreateDialogOpen || taskBeingEdited != null) {
         val editing = taskBeingEdited

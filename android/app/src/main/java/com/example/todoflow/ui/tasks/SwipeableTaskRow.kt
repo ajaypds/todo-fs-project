@@ -107,8 +107,8 @@ private fun SwipeableTaskRowContent(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(horizontal = 16.dp, vertical = 4.dp)
-                    .clip(RoundedCornerShape(12.dp))
+                    .padding(horizontal = 16.dp, vertical = 5.dp)
+                    .clip(RoundedCornerShape(18.dp))
                     .background(color)
                     .padding(horizontal = 20.dp),
                 contentAlignment = if (direction == SwipeToDismissBoxValue.StartToEnd) {

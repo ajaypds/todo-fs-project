@@ -66,8 +66,8 @@ fun TaskItemRow(
     Card(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 4.dp),
-        shape = RoundedCornerShape(12.dp),
+            .padding(horizontal = 16.dp, vertical = 5.dp),
+        shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(
             containerColor = if (task.completed) {
                 MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
@@ -75,7 +75,7 @@ fun TaskItemRow(
                 MaterialTheme.colorScheme.surface
             }
         ),
-        elevation = CardDefaults.cardElevation(defaultElevation = if (task.completed) 0.dp else 1.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = if (task.completed) 0.dp else 2.dp)
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
             Row(

@@ -282,6 +282,39 @@ class TasksUiTest {
     }
 
     @Test
+    fun bottomBarSwitchesViewsAndCentreButtonOpensTheEditor() {
+        runBlocking { local.upsertTasks(listOf(task("t1", "Water plants"))) }
+        val viewModel = buildViewModel(FakeTodoFlowApi().apply { offline = true })
+
+        compose.setContent { MaterialTheme { TasksScreen(viewModel = viewModel) } }
+        compose.mainClock.advanceTimeBy(200)
+        compose.waitForIdle()
+
+        compose.onAllNodesWithText("All tasks")[0].assertIsDisplayed()
+        compose.onNodeWithText("Done").performClick()
+        compose.waitForIdle()
+        compose.onAllNodesWithText("Completed")[0].assertIsDisplayed()
+
+        compose.onNodeWithContentDescription("Add Task").performClick()
+        compose.waitForIdle()
+        compose.onNodeWithText("New Task").assertIsDisplayed()
+    }
+
+    @Test
+    fun hamburgerOpensTheDrawerWithViewsAndLogout() {
+        val viewModel = buildViewModel(FakeTodoFlowApi().apply { offline = true })
+        compose.setContent { MaterialTheme { TasksScreen(viewModel = viewModel) } }
+        compose.mainClock.advanceTimeBy(200)
+        compose.waitForIdle()
+
+        compose.onNodeWithContentDescription("Menu").performClick()
+        compose.mainClock.advanceTimeBy(500)
+        compose.waitForIdle()
+        compose.onNodeWithText("Inbox").assertIsDisplayed()
+        compose.onNodeWithText("Log out").assertExists()
+    }
+
+    @Test
     fun taskScreenDeletesForRealWhenTheUndoWindowEnds() {
         runBlocking { local.upsertTasks(listOf(task("t1", "Temporary"), task("t2", "Stays"))) }
         val viewModel = buildViewModel(FakeTodoFlowApi().apply { offline = true })
