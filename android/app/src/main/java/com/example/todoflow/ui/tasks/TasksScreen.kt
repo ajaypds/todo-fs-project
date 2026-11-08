@@ -16,14 +16,10 @@ import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import android.Manifest
 import androidx.activity.compose.BackHandler
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
-import com.example.todoflow.reminders.ReminderNotifier
 import com.example.todoflow.security.AppLock
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
@@ -62,28 +58,9 @@ fun TasksScreen(
     val isReordering by viewModel.isReordering.collectAsState()
     val statusMessage by viewModel.statusMessage.collectAsState()
     val themeMode by viewModel.themeMode.collectAsState()
-    val remindersEnabled by viewModel.remindersEnabled.collectAsState()
     val appLockEnabled by viewModel.appLockEnabled.collectAsState()
 
-    // Notifications need a runtime permission on Android 13+
-    val notificationPermissionLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { granted ->
-        viewModel.setRemindersEnabled(granted)
-    }
-
     val context = LocalContext.current
-    val onRemindersChange: (Boolean) -> Unit = { enable ->
-        if (!enable) {
-            viewModel.setRemindersEnabled(false)
-        } else if (ReminderNotifier.hasPermission(context)) {
-            viewModel.setRemindersEnabled(true)
-        } else {
-            // Ask for the notification permission; the switch turns on only if it is granted
-            runCatching { notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS) }
-                .onFailure { viewModel.setRemindersEnabled(false) }
-        }
-    }
 
     var isSearchVisible by remember { mutableStateOf(false) }
     var isCreateDialogOpen by remember { mutableStateOf(false) }
@@ -215,8 +192,6 @@ fun TasksScreen(
                 onSelectLabel = { viewModel.setFilter(TaskFilterType.LABEL, labelId = it.id); closeDrawer() },
                 themeMode = themeMode,
                 onThemeChange = { viewModel.setThemeMode(it) },
-                remindersEnabled = remindersEnabled,
-                onRemindersChange = onRemindersChange,
                 appLockEnabled = appLockEnabled,
                 appLockAvailable = AppLock.isAvailable(LocalContext.current),
                 onAppLockChange = { viewModel.setAppLockEnabled(it) },

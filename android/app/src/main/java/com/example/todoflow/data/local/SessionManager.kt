@@ -39,7 +39,6 @@ class SessionManager(context: Context) {
         private const val KEY_SESSION_EXPIRED = "session_expired"
         private const val KEY_BASE_URL = "backend_url"
         private const val KEY_THEME_MODE = "theme_mode"
-        private const val KEY_REMINDERS_ENABLED = "reminders_enabled"
         private const val KEY_APP_LOCK_ENABLED = "app_lock_enabled"
         const val DEFAULT_BASE_URL = "https://todoflow.ddns.net/"
 
@@ -109,16 +108,6 @@ class SessionManager(context: Context) {
     fun setThemeMode(mode: ThemeMode) {
         prefs.edit().putString(KEY_THEME_MODE, mode.name).apply()
         _themeMode.value = mode
-    }
-
-    private val _remindersEnabled = MutableStateFlow(prefs.getBoolean(KEY_REMINDERS_ENABLED, false))
-
-    /** Whether due-date reminder notifications are on. */
-    val remindersEnabled: StateFlow<Boolean> = _remindersEnabled.asStateFlow()
-
-    fun setRemindersEnabled(enabled: Boolean) {
-        prefs.edit().putBoolean(KEY_REMINDERS_ENABLED, enabled).apply()
-        _remindersEnabled.value = enabled
     }
 
     private val _appLockEnabled = MutableStateFlow(prefs.getBoolean(KEY_APP_LOCK_ENABLED, false))

@@ -315,21 +315,6 @@ class TasksUiTest {
     }
 
     @Test
-    fun turningOnRemindersFromTheDrawerDoesNotCrash() {
-        val viewModel = buildViewModel(FakeTodoFlowApi().apply { offline = true })
-        compose.setContent { MaterialTheme { TasksScreen(viewModel = viewModel) } }
-        compose.mainClock.advanceTimeBy(200)
-        compose.waitForIdle()
-
-        compose.onNodeWithContentDescription("Menu").performClick()
-        compose.mainClock.advanceTimeBy(500)
-        compose.waitForIdle()
-        compose.onNodeWithText("Due date reminders").performScrollTo()
-        compose.onAllNodes(isToggleable())[0].performScrollTo().performClick()
-        compose.waitForIdle()
-    }
-
-    @Test
     fun taskScreenDeletesForRealWhenTheUndoWindowEnds() {
         runBlocking { local.upsertTasks(listOf(task("t1", "Temporary"), task("t2", "Stays"))) }
         val viewModel = buildViewModel(FakeTodoFlowApi().apply { offline = true })
@@ -355,16 +340,13 @@ class TasksUiTest {
     }
 
     @Test
-    fun drawerSettingsOffersThemeRemindersAndAppLock() {
-        var reminders: Boolean? = null
+    fun drawerSettingsOffersThemeAndAppLock() {
         var lock: Boolean? = null
         compose.setContent {
             MaterialTheme {
                 DrawerSettings(
                     themeMode = ThemeMode.SYSTEM,
                     onThemeChange = {},
-                    remindersEnabled = false,
-                    onRemindersChange = { reminders = it },
                     appLockEnabled = false,
                     appLockAvailable = true,
                     onAppLockChange = { lock = it },
@@ -375,10 +357,7 @@ class TasksUiTest {
 
         compose.onNodeWithText("Dark").assertExists()
         compose.onNodeWithText("App lock").assertExists()
-        // Switches: reminders first, app lock second
         compose.onAllNodes(isToggleable())[0].performClick()
-        compose.onAllNodes(isToggleable())[1].performClick()
-        assertEquals(true, reminders)
         assertEquals(true, lock)
     }
 
@@ -389,8 +368,6 @@ class TasksUiTest {
                 DrawerSettings(
                     themeMode = ThemeMode.LIGHT,
                     onThemeChange = {},
-                    remindersEnabled = false,
-                    onRemindersChange = {},
                     appLockEnabled = false,
                     appLockAvailable = false,
                     onAppLockChange = {},
@@ -399,7 +376,7 @@ class TasksUiTest {
         }
         compose.waitForIdle()
         compose.onNodeWithText("Set up a screen lock", substring = true).assertExists()
-        compose.onAllNodes(isToggleable())[1].assertIsNotEnabled()
+        compose.onAllNodes(isToggleable())[0].assertIsNotEnabled()
     }
 
     @Test

@@ -55,10 +55,7 @@ class TasksViewModel(
     }
 
     val themeMode: StateFlow<ThemeMode> = sessionManager.themeMode
-    val remindersEnabled: StateFlow<Boolean> = sessionManager.remindersEnabled
     val appLockEnabled: StateFlow<Boolean> = sessionManager.appLockEnabled
-
-    fun setRemindersEnabled(enabled: Boolean) = sessionManager.setRemindersEnabled(enabled)
 
     fun setAppLockEnabled(enabled: Boolean) = sessionManager.setAppLockEnabled(enabled)
 
