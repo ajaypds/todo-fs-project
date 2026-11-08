@@ -78,8 +78,7 @@ class TasksUiTest {
     @Before
     fun setUp() {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
-        context.deleteDatabase(TodoDbHelper.DATABASE_NAME)
-        dbHelper = TodoDbHelper(context)
+        dbHelper = TodoDbHelper(context, "ui-test-${java.util.UUID.randomUUID()}.db") // own file per test
         local = TodoLocalDataSource(dbHelper)
     }
 
