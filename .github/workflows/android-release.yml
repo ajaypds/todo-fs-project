@@ -40,6 +40,51 @@ jobs:
             echo "ANDROID_KEYSTORE_PATH=$RUNNER_TEMP/release.keystore" >> "$GITHUB_ENV"
           fi
 
+      - name: Verify signing secrets
+        if: env.ANDROID_KEYSTORE_PATH != ''
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          # Secrets with stray spaces/newlines are a common cause of signing failures
+          for v in ANDROID_KEYSTORE_PASSWORD ANDROID_KEY_ALIAS ANDROID_KEY_PASSWORD; do
+            val="${!v}"
+            if [ -z "$val" ]; then echo "::error::Secret for $v is empty or missing"; exit 1; fi
+            if [ "$val" != "$(echo "$val" | xargs)" ]; then
+              echo "::warning::$v has leading/trailing whitespace (it will be trimmed)"
+            fi
+          done
+          ALIAS="$(echo "$ANDROID_KEY_ALIAS" | xargs)"
+          STOREPASS="$(echo "$ANDROID_KEYSTORE_PASSWORD" | xargs)"
+          KEYPASS="$(echo "$ANDROID_KEY_PASSWORD" | xargs)"
+
+          if ! keytool -list -keystore "$ANDROID_KEYSTORE_PATH" -storepass "$STOREPASS" >/dev/null 2>/tmp/kt.err; then
+            echo "::error::Cannot open keystore - ANDROID_KEYSTORE_PASSWORD is wrong or ANDROID_KEYSTORE_BASE64 is corrupt"; cat /tmp/kt.err; exit 1
+          fi
+          if ! keytool -list -keystore "$ANDROID_KEYSTORE_PATH" -storepass "$STOREPASS" -alias "$ALIAS" >/dev/null 2>/tmp/kt.err; then
+            echo "::error::Alias '$ALIAS' not found - ANDROID_KEY_ALIAS must match one of these aliases (case-sensitive):"
+            keytool -list -keystore "$ANDROID_KEYSTORE_PATH" -storepass "$STOREPASS" 2>/dev/null | grep -E "PrivateKeyEntry|trustedCertEntry" | cut -d, -f1
+            exit 1
+          fi
+          # Recover the private key exactly the way the Android build does
+          cat > "$RUNNER_TEMP/VerifyKey.java" <<'JAVA'
+          import java.io.FileInputStream;
+          import java.security.KeyStore;
+          public class VerifyKey {
+            public static void main(String[] a) throws Exception {
+              KeyStore ks = KeyStore.getInstance(KeyStore.getDefaultType());
+              try (FileInputStream in = new FileInputStream(a[0])) { ks.load(in, a[1].toCharArray()); }
+              if (ks.getKey(a[2], a[3].toCharArray()) == null) { System.exit(3); }
+            }
+          }
+          JAVA
+          if ! java "$RUNNER_TEMP/VerifyKey.java" "$ANDROID_KEYSTORE_PATH" "$STOREPASS" "$ALIAS" "$KEYPASS" 2>/tmp/kt.err; then
+            echo "::error::Key password rejected - ANDROID_KEY_PASSWORD is wrong for alias '$ALIAS' (for PKCS12 it is normally identical to the keystore password)"
+            exit 1
+          fi
+          echo "Signing secrets verified OK"
+
       - name: Build release APK
         env:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
