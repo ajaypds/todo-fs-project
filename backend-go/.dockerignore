@@ -1,0 +1,6 @@
+bin/
+server
+*.test
+.git
+Dockerfile
+README.md

@@ -29,11 +29,12 @@ type Conn struct {
 	closed atomic.Bool
 	done   chan struct{}
 
-	mu     sync.Mutex
-	subs   map[string]string // subscription id -> destination
-	userID *uuid.UUID
-	email  string
-	msgSeq atomic.Int64
+	mu       sync.Mutex
+	subs     map[string]string // subscription id -> destination
+	userID   *uuid.UUID
+	email    string
+	msgSeq   atomic.Int64
+	protoErr atomic.Bool
 }
 
 // Hub routes published events to subscribed connections and tracks presence.
@@ -84,6 +85,13 @@ func (c *Conn) send(f *Frame) {
 	default: // slow consumer: drop the connection rather than block publishers
 		c.shutdown()
 	}
+}
+
+// fail answers a rejected frame the way Spring does when a channel interceptor throws: an ERROR frame
+// without body, followed by a protocol-error (1002) close.
+func (c *Conn) fail(message string) {
+	c.send(errorFrame(message))
+	c.protoErr.Store(true)
 }
 
 func (c *Conn) shutdown() {
@@ -208,12 +216,15 @@ func (h *Hub) Handle(c *Conn, text string) bool {
 			if r := f.Header("receipt"); r != "" {
 				c.send(&Frame{Command: "RECEIPT", Headers: [][2]string{{"receipt-id", r}}})
 			}
-			return false
+			h.dropSubscriptions(c) // the connection itself stays open until the client closes it
 		case "SEND", "ACK", "NACK", "BEGIN", "COMMIT", "ABORT":
 			// The Java backend defines no @MessageMapping handlers: client SEND frames are ignored.
 			if r := f.Header("receipt"); r != "" {
 				c.send(&Frame{Command: "RECEIPT", Headers: [][2]string{{"receipt-id", r}}})
 			}
+		default:
+			c.fail("No enum constant org.springframework.messaging.simp.stomp.StompCommand." + f.Command)
+			return false
 		}
 	}
 	return true
@@ -227,7 +238,7 @@ func (h *Hub) onConnect(c *Conn, f *Frame) bool {
 		if strings.HasPrefix(authHeader, "Bearer ") {
 			uid, email, err := h.auth(authHeader[7:])
 			if err != nil {
-				c.send(errorFrame("Invalid JWT token"))
+				c.fail(interceptorFailure)
 				return false
 			}
 			c.mu.Lock()
@@ -268,8 +279,7 @@ func (h *Hub) onConnect(c *Conn, f *Frame) bool {
 func (h *Hub) onSubscribe(c *Conn, f *Frame) bool {
 	dest, id := f.Header("destination"), f.Header("id")
 	if dest == "" || id == "" {
-		c.send(errorFrame("Missing required header for SUBSCRIBE"))
-		return false
+		return true // Spring silently drops a SUBSCRIBE that lacks its id/destination
 	}
 	// Users may only follow their own channels: /topic/users/{userId}/...
 	if strings.HasPrefix(dest, "/topic/users/") {
@@ -279,7 +289,7 @@ func (h *Hub) onSubscribe(c *Conn, f *Frame) bool {
 			uid := c.userID
 			c.mu.Unlock()
 			if uid == nil || !strings.EqualFold(uid.String(), parts[3]) {
-				c.send(errorFrame("Unauthorized subscription to another user's channel"))
+				c.fail(interceptorFailure)
 				return false
 			}
 		}
@@ -322,5 +332,24 @@ func (h *Hub) onUnsubscribe(c *Conn, f *Frame) {
 			}
 		}
 		h.mu.Unlock()
+	}
+}
+
+const interceptorFailure = "Failed to send message to ExecutorSubscribableChannel[clientInboundChannel]"
+
+// dropSubscriptions removes every subscription of the connection (what the broker does on DISCONNECT).
+func (h *Hub) dropSubscriptions(c *Conn) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	for id, dest := range c.subs {
+		if set := h.bySub[dest]; set != nil {
+			delete(set, c)
+			if len(set) == 0 {
+				delete(h.bySub, dest)
+			}
+		}
+		delete(c.subs, id)
 	}
 }

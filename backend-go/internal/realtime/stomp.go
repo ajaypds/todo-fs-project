@@ -87,7 +87,6 @@ func (f *Frame) String() string {
 func errorFrame(message string) *Frame {
 	return &Frame{
 		Command: "ERROR",
-		Headers: [][2]string{{"message", message}, {"content-type", "text/plain;charset=UTF-8"}},
-		Body:    message,
+		Headers: [][2]string{{"message", message}, {"content-length", "0"}},
 	}
 }

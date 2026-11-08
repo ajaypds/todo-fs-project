@@ -256,7 +256,7 @@ func (s *Server) securityMiddleware() gin.HandlerFunc {
 			return
 		}
 		s.authenticate(c)
-		if s.me(c) == nil && !isPublic(c.Request.URL.Path) && c.Request.Method != http.MethodOptions {
+		if s.me(c) == nil && !isPublic(c.Request.URL.Path) && c.Request.Method != http.MethodOptions && !isMCPRoot(c) {
 			// Spring's default entry point: 403 with an empty body.
 			c.Abort()
 			c.Writer.WriteHeader(http.StatusForbidden)
@@ -265,6 +265,11 @@ func (s *Server) securityMiddleware() gin.HandlerFunc {
 		}
 		c.Next()
 	}
+}
+
+// isMCPRoot: GET / serves the built-in MCP server's discovery document without authentication.
+func isMCPRoot(c *gin.Context) bool {
+	return c.Request.URL.Path == "/" && (c.Request.Method == http.MethodGet || c.Request.Method == http.MethodHead)
 }
 
 func (s *Server) securityHeaders(c *gin.Context) {

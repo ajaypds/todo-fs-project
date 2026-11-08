@@ -101,11 +101,19 @@ func (h *Hub) serve(ws *websocket.Conn, sockjs bool) {
 						}
 						_ = write(msg)
 					default:
+						code := websocket.CloseNormalClosure
+						if conn.protoErr.Load() {
+							code = websocket.CloseProtocolError
+						}
 						if sockjs {
-							_ = write(`c[3000,"Go away!"]`)
+							if code == websocket.CloseProtocolError {
+								_ = write(`c[1002,""]`)
+							} else {
+								_ = write(`c[3000,"Go away!"]`)
+							}
 						}
 						_ = ws.WriteControl(websocket.CloseMessage,
-							websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""), time.Now().Add(time.Second))
+							websocket.FormatCloseMessage(code, ""), time.Now().Add(time.Second))
 						return
 					}
 				}

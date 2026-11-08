@@ -72,8 +72,20 @@ func escapeHTML(text string) string {
 	return strings.NewReplacer("&", "&amp;", "<", "&lt;", ">", "&gt;", `"`, "&quot;", "'", "&#39;").Replace(text)
 }
 
-func writeHTML(c *gin.Context, status int, html string) {
-	c.Writer.Header().Set("Content-Type", "text/html;charset=UTF-8")
+// Content types as sent by the Java controller: the GET page declares text/html, the POST error pages
+// are plain strings (text/plain), and the login-failure pages set text/html explicitly (no charset).
+const (
+	ctHTMLPage  = "text/html;charset=UTF-8"
+	ctPlainBody = "text/plain;charset=UTF-8"
+	ctHTMLBare  = "text/html"
+)
+
+func writeHTML(c *gin.Context, status int, html string, contentType ...string) {
+	ct := ctHTMLPage
+	if len(contentType) > 0 {
+		ct = contentType[0]
+	}
+	c.Writer.Header().Set("Content-Type", ct)
 	c.Writer.WriteHeader(status)
 	_, _ = c.Writer.Write([]byte(html))
 }
@@ -164,7 +176,7 @@ func (s *Server) authorizeSubmit(c *gin.Context) {
 	cl, err := s.oauthClient(c, p.Get("client_id"))
 	var oe *oauthError
 	if errors.As(err, &oe) {
-		writeHTML(c, http.StatusBadRequest, renderErrorPageHTML("Client Error", oe.Description))
+		writeHTML(c, http.StatusBadRequest, renderErrorPageHTML("Client Error", oe.Description), ctPlainBody)
 		return
 	} else if err != nil {
 		s.fail(c, err)
@@ -172,7 +184,7 @@ func (s *Server) authorizeSubmit(c *gin.Context) {
 	}
 	redirectURI, state := p.Get("redirect_uri"), p.Get("state")
 	if !redirectAllowed(cl, redirectURI) {
-		writeHTML(c, http.StatusBadRequest, renderErrorPageHTML("Redirect URI Error", "The redirect_uri is not allowed."))
+		writeHTML(c, http.StatusBadRequest, renderErrorPageHTML("Redirect URI Error", "The redirect_uri is not allowed."), ctPlainBody)
 		return
 	}
 	email := normEmail(p.Get("email"))
@@ -187,11 +199,11 @@ func (s *Server) authorizeSubmit(c *gin.Context) {
 		return
 	}
 	if user == nil || !security.CheckPassword(user.Password, p.Get("password")) {
-		writeHTML(c, http.StatusUnauthorized, form("Invalid email or password. Please try again."))
+		writeHTML(c, http.StatusUnauthorized, form("Invalid email or password. Please try again."), ctHTMLBare)
 		return
 	}
 	if !user.EmailVerified {
-		writeHTML(c, http.StatusForbidden, form("Your email is not verified yet. Please verify your email first."))
+		writeHTML(c, http.StatusForbidden, form("Your email is not verified yet. Please verify your email first."), ctHTMLBare)
 		return
 	}
 
@@ -309,6 +321,7 @@ func (s *Server) tokenEndpoint(c *gin.Context) {
 	default:
 		c.Writer.Header().Set("Cache-Control", "no-store")
 		c.Writer.Header().Set("Pragma", "no-cache")
+		c.Writer.Header().Del("Expires") // Spring Security skips its cache headers when the controller sets them
 		writeJSON(c, http.StatusOK, resp)
 	}
 }
