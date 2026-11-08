@@ -93,7 +93,7 @@ fun TaskEditorDialog(
     var title by remember { mutableStateOf(task?.title.orEmpty()) }
     var description by remember { mutableStateOf(task?.description.orEmpty()) }
     var priority by remember { mutableIntStateOf(task?.priority ?: 0) }
-    var chosenProjectId by remember { mutableStateOf(if (isEditing) task?.projectId else defaultProjectId) }
+    var chosenProjectId by remember { mutableStateOf(if (task != null) task.projectId else defaultProjectId) }
     var dueDate by remember { mutableStateOf(task?.dueDate) }
     var isProjectDropdownExpanded by remember { mutableStateOf(false) }
     var showDatePicker by remember { mutableStateOf(false) }

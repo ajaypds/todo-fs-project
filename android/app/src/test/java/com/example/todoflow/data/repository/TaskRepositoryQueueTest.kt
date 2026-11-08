@@ -31,6 +31,7 @@ import org.robolectric.annotation.Config
 @Config(sdk = [34])
 class TaskRepositoryQueueTest {
 
+    private lateinit var dbName: String
     private lateinit var dbHelper: TodoDbHelper
     private lateinit var local: TodoLocalDataSource
     private lateinit var api: FakeTodoFlowApi
@@ -39,8 +40,8 @@ class TaskRepositoryQueueTest {
     @Before
     fun setUp() {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
-        context.deleteDatabase(TodoDbHelper.DATABASE_NAME)
-        dbHelper = TodoDbHelper(context)
+        dbName = "queue-test-${java.util.UUID.randomUUID()}.db" // own file: tests can't affect each other
+        dbHelper = TodoDbHelper(context, dbName)
         local = TodoLocalDataSource(dbHelper)
         api = FakeTodoFlowApi()
         // A cancelled scope: queued work is never auto-flushed, so each test flushes explicitly
@@ -256,10 +257,15 @@ class TaskRepositoryQueueTest {
         dbHelper.close()
 
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
-        val reopened = TodoLocalDataSource(TodoDbHelper(context))
-        val ops = reopened.getPendingOps()
-        assertEquals(1, ops.size)
-        assertEquals("CREATE_TASK", ops.single().type)
-        assertNotNull(reopened.getTasks(TaskFilterType.ALL).singleOrNull { it.title == "Persist me" })
+        val reopenedHelper = TodoDbHelper(context, dbName)
+        try {
+            val reopened = TodoLocalDataSource(reopenedHelper)
+            val ops = reopened.getPendingOps()
+            assertEquals(1, ops.size)
+            assertEquals("CREATE_TASK", ops.single().type)
+            assertNotNull(reopened.getTasks(TaskFilterType.ALL).singleOrNull { it.title == "Persist me" })
+        } finally {
+            reopenedHelper.close()
+        }
     }
 }
