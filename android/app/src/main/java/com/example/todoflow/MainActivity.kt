@@ -56,10 +56,10 @@ class MainActivity : ComponentActivity() {
             }
 
             TodoFlowTheme(darkTheme = isDark) {
+                // Edge-to-edge: the Surface background is drawn behind the status/navigation bars.
+                // Each screen applies the insets itself (Scaffold/TopAppBar on tasks, padding on login).
                 Surface(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .safeDrawingPadding(),
+                    modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
                     val isLoggedIn by sessionManager.isLoggedIn.collectAsState()
@@ -87,7 +87,10 @@ class MainActivity : ComponentActivity() {
                                     }
                                 }
                             )
-                            LoginScreen(viewModel = authViewModel)
+                            LoginScreen(
+                                viewModel = authViewModel,
+                                modifier = Modifier.safeDrawingPadding()
+                            )
                         }
                     }
                 }
