@@ -1,9 +1,8 @@
 name: Deploy
 
+# Manual only: run it from the Actions tab ("Run workflow") when you want to deploy.
 on:
-  push:
-    branches:
-      - master
+  workflow_dispatch:
 
 jobs:
   deploy:
