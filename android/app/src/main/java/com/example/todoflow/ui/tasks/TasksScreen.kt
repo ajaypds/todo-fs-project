@@ -41,7 +41,7 @@ fun TasksScreen(
     val projects by viewModel.projects.collectAsState()
     val filterState by viewModel.filterState.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
-    val isRefreshing by viewModel.isRefreshing.collectAsState()
+    val syncStatus by viewModel.syncStatus.collectAsState()
     val isLoadingMore by viewModel.isLoadingMore.collectAsState()
     val hasMore by viewModel.hasMore.collectAsState()
     val isReordering by viewModel.isReordering.collectAsState()
@@ -116,35 +116,7 @@ fun TasksScreen(
                                     fontWeight = FontWeight.Bold,
                                     style = MaterialTheme.typography.titleLarge
                                 )
-                                // Sync indicator badge
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(12.dp))
-                                        .background(
-                                            if (isRefreshing) MaterialTheme.colorScheme.primaryContainer
-                                            else Color(0xFFE8F5E9)
-                                        )
-                                        .padding(horizontal = 6.dp, vertical = 2.dp)
-                                ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(6.dp)
-                                            .clip(CircleShape)
-                                            .background(
-                                                if (isRefreshing) MaterialTheme.colorScheme.primary
-                                                else Color(0xFF4CAF50)
-                                            )
-                                    )
-                                    Text(
-                                        text = if (isRefreshing) "Syncing..." else "Synced",
-                                        fontSize = 10.sp,
-                                        fontWeight = FontWeight.Medium,
-                                        color = if (isRefreshing) MaterialTheme.colorScheme.onPrimaryContainer
-                                        else Color(0xFF2E7D32)
-                                    )
-                                }
+                                SyncBadge(syncStatus)
                             }
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
@@ -570,6 +542,41 @@ fun TasksScreen(
                     Text("Cancel")
                 }
             }
+        )
+    }
+}
+
+private data class BadgeStyle(val container: Color, val dot: Color, val content: Color, val label: String)
+
+/** Shows the real sync state: green only when the last sync actually succeeded. */
+@Composable
+private fun SyncBadge(status: SyncStatus) {
+    val colors = MaterialTheme.colorScheme
+    val style = when (status) {
+        SyncStatus.SYNCED -> BadgeStyle(Color(0xFFE8F5E9), Color(0xFF4CAF50), Color(0xFF2E7D32), "Synced")
+        SyncStatus.SYNCING -> BadgeStyle(colors.primaryContainer, colors.primary, colors.onPrimaryContainer, "Syncing...")
+        SyncStatus.OFFLINE -> BadgeStyle(colors.tertiaryContainer, colors.tertiary, colors.onTertiaryContainer, "Offline")
+        SyncStatus.ERROR -> BadgeStyle(colors.errorContainer, colors.error, colors.onErrorContainer, "Sync failed")
+    }
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        modifier = Modifier
+            .clip(RoundedCornerShape(12.dp))
+            .background(style.container)
+            .padding(horizontal = 6.dp, vertical = 2.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .size(6.dp)
+                .clip(CircleShape)
+                .background(style.dot)
+        )
+        Text(
+            text = style.label,
+            fontSize = 10.sp,
+            fontWeight = FontWeight.Medium,
+            color = style.content
         )
     }
 }

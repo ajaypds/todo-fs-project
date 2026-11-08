@@ -10,6 +10,7 @@ import com.example.todoflow.data.local.TaskFilterType
 import com.example.todoflow.data.local.ThemeMode
 import com.example.todoflow.data.repository.TaskRepository
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -20,6 +21,8 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import retrofit2.HttpException
 import java.io.IOException
+
+enum class SyncStatus { SYNCING, SYNCED, OFFLINE, ERROR }
 
 data class TasksFilterState(
     val filterType: TaskFilterType = TaskFilterType.ALL,
@@ -41,6 +44,11 @@ class TasksViewModel(
 
     private val _isRefreshing = MutableStateFlow(false)
     val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
+
+    private val _syncStatus = MutableStateFlow(SyncStatus.SYNCING)
+    val syncStatus: StateFlow<SyncStatus> = _syncStatus.asStateFlow()
+
+    private var refreshJob: Job? = null
 
     private val _isLoadingMore = MutableStateFlow(false)
     val isLoadingMore: StateFlow<Boolean> = _isLoadingMore.asStateFlow()
@@ -101,27 +109,44 @@ class TasksViewModel(
      * indicator and only surface errors that need user attention.
      */
     fun refresh(silent: Boolean = false) {
-        if (_isRefreshing.value) return
-        viewModelScope.launch {
+        if (refreshJob?.isActive == true) return
+        refreshJob = viewModelScope.launch {
             if (!silent) _isRefreshing.value = true
+            _syncStatus.value = SyncStatus.SYNCING
             currentPage = 0
             _hasMore.value = true
             val result = taskRepository.refresh(_filterState.value.selectedProjectId)
             _isRefreshing.value = false
             val error = result.exceptionOrNull()
-            if (error != null) {
-                android.util.Log.e("TasksViewModel", "Refresh failed", error)
-                when {
-                    // Session was cleared by the authenticator -> app returns to login
-                    error is HttpException && (error.code() == 401 || error.code() == 403) ->
-                        _statusMessage.value = "Session expired. Please log in again."
-                    silent -> Unit
-                    error is IOException ->
-                        _statusMessage.value = "Offline mode: Showing cached tasks"
-                    error is HttpException ->
-                        _statusMessage.value = "Server error (HTTP ${error.code()}). Showing cached tasks"
-                    else ->
-                        _statusMessage.value = "Sync failed: ${error.localizedMessage ?: error.javaClass.simpleName}"
+            if (error == null) {
+                _syncStatus.value = SyncStatus.SYNCED
+                return@launch
+            }
+            android.util.Log.e("TasksViewModel", "Refresh failed", error)
+            when {
+                error is IOException -> {
+                    _syncStatus.value = SyncStatus.OFFLINE
+                    if (!silent) _statusMessage.value = "Offline mode: Showing cached tasks"
+                }
+                error is HttpException && (error.code() == 401 || error.code() == 403) -> {
+                    _syncStatus.value = SyncStatus.ERROR
+                    // If the session was ended the app is already switching to the login screen,
+                    // which explains why. Otherwise the server rejected us for another reason.
+                    if (sessionManager.isLoggedIn.value) {
+                        _statusMessage.value =
+                            "Couldn't verify your session (HTTP ${error.code()}). Showing cached tasks"
+                    }
+                }
+                error is HttpException -> {
+                    _syncStatus.value = SyncStatus.ERROR
+                    if (!silent) _statusMessage.value = "Server error (HTTP ${error.code()}). Showing cached tasks"
+                }
+                else -> {
+                    _syncStatus.value = SyncStatus.ERROR
+                    if (!silent) {
+                        _statusMessage.value =
+                            "Sync failed: ${error.localizedMessage ?: error.javaClass.simpleName}"
+                    }
                 }
             }
         }

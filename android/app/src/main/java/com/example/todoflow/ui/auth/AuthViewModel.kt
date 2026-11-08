@@ -28,8 +28,13 @@ class AuthViewModel(
 
     private val _uiState = MutableStateFlow(
         AuthUiState(
-            email = sessionManager.userEmail ?: "",
-            serverUrl = sessionManager.baseUrl
+            email = sessionManager.userEmail ?: sessionManager.lastLoggedInEmail ?: "",
+            serverUrl = sessionManager.baseUrl,
+            errorMessage = if (sessionManager.consumeSessionExpired()) {
+                "Your session expired. Please log in again."
+            } else {
+                null
+            }
         )
     )
     val uiState: StateFlow<AuthUiState> = _uiState.asStateFlow()
@@ -70,6 +75,11 @@ class AuthViewModel(
 
                 val token = response.token
                 if (!token.isNullOrBlank()) {
+                    // A different account must not see the previous user's cached tasks
+                    val previousEmail = sessionManager.lastLoggedInEmail
+                    if (previousEmail != null && !previousEmail.equals(email, ignoreCase = true)) {
+                        taskRepository.clearCache()
+                    }
                     sessionManager.saveSession(
                         token = token,
                         refreshToken = response.refreshToken,

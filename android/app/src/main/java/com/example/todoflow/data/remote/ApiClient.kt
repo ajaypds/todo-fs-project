@@ -4,14 +4,14 @@ import com.example.todoflow.data.local.SessionManager
 import com.example.todoflow.data.model.AuthResponse
 import com.example.todoflow.data.model.RefreshRequest
 import kotlinx.serialization.json.Json
-import okhttp3.Authenticator
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.longOrNull
 import okhttp3.Interceptor
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
-import okhttp3.Response
-import okhttp3.Route
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.kotlinx.serialization.asConverterFactory
@@ -26,19 +26,6 @@ class ApiClient(private val sessionManager: SessionManager) {
         coerceInputValues = true
         encodeDefaults = true
         explicitNulls = false
-    }
-
-    private val authInterceptor = Interceptor { chain ->
-        val original = chain.request()
-        val builder = original.newBuilder()
-
-        val token = sessionManager.token
-        if (!token.isNullOrBlank()) {
-            builder.header("Authorization", "Bearer $token")
-        }
-        builder.header("Accept", "application/json")
-
-        chain.proceed(builder.build())
     }
 
     private val loggingInterceptor = HttpLoggingInterceptor().apply {
@@ -91,47 +78,86 @@ class ApiClient(private val sessionManager: SessionManager) {
         }
     }
 
+    private val refreshLock = Any()
+
+    /** Reads the `exp` claim (epoch seconds) from a JWT without verifying it. */
+    private fun tokenExpiryEpochSec(token: String): Long? = try {
+        val payload = token.split(".").getOrNull(1) ?: return null
+        val decoded = android.util.Base64.decode(
+            payload,
+            android.util.Base64.URL_SAFE or android.util.Base64.NO_PADDING or android.util.Base64.NO_WRAP
+        )
+        json.parseToJsonElement(String(decoded)).jsonObject["exp"]?.jsonPrimitive?.longOrNull
+    } catch (_: Exception) {
+        null
+    }
+
+    /** True if the token is expired or will expire within [skewSeconds]. Unparseable counts as expired. */
+    private fun isExpiredOrExpiring(token: String, skewSeconds: Long = 60): Boolean {
+        val exp = tokenExpiryEpochSec(token) ?: return true
+        return exp - skewSeconds <= System.currentTimeMillis() / 1000
+    }
+
     /**
-     * On HTTP 401 the (15 minute) access token has expired: silently exchange the refresh token
-     * for a new one and retry the request once.
+     * Returns a usable access token different from [usedToken], refreshing it if nobody else
+     * already did. Returns null if refreshing failed (session cleared if the server rejected it).
      */
-    private val tokenAuthenticator = object : Authenticator {
-        private val lock = Any()
+    private fun refreshAccessToken(usedToken: String): String? = synchronized(refreshLock) {
+        val current = sessionManager.token
+        // Another request already refreshed the token while we were waiting for the lock.
+        if (!current.isNullOrBlank() && current != usedToken) return current
+        when (val outcome = requestTokenRefresh()) {
+            is RefreshOutcome.Success -> {
+                sessionManager.updateAccessToken(outcome.token, outcome.refreshToken)
+                outcome.token
+            }
+            RefreshOutcome.Rejected -> {
+                sessionManager.expireSession()
+                null
+            }
+            RefreshOutcome.Unavailable -> null
+        }
+    }
 
-        override fun authenticate(route: Route?, response: Response): Request? {
-            val path = response.request.url.encodedPath
-            if (path.contains("/api/v1/auth/")) return null
-            val usedHeader = response.request.header("Authorization") ?: return null
-            if (response.priorResponse != null) return null // already retried once
+    private fun Request.withToken(token: String?): Request {
+        val builder = newBuilder().header("Accept", "application/json")
+        if (!token.isNullOrBlank()) builder.header("Authorization", "Bearer $token")
+        return builder.build()
+    }
 
-            synchronized(lock) {
-                val current = sessionManager.token
-                // Another request already refreshed the token while we were waiting.
-                if (!current.isNullOrBlank() && "Bearer $current" != usedHeader) {
-                    return response.request.newBuilder()
-                        .header("Authorization", "Bearer $current")
-                        .build()
-                }
-                return when (val outcome = requestTokenRefresh()) {
-                    is RefreshOutcome.Success -> {
-                        sessionManager.updateAccessToken(outcome.token, outcome.refreshToken)
-                        response.request.newBuilder()
-                            .header("Authorization", "Bearer ${outcome.token}")
-                            .build()
-                    }
-                    RefreshOutcome.Rejected -> {
-                        sessionManager.clearSession()
-                        null
-                    }
-                    RefreshOutcome.Unavailable -> null
-                }
+    /**
+     * Adds the bearer token and keeps it fresh:
+     *  - refreshes proactively when the (15 minute) access token is expired/expiring, and
+     *  - retries once after a refresh when the server rejects the token. The backend answers an
+     *    expired JWT with 403 (not 401), so both are handled; a 403 only triggers a refresh when
+     *    the token is actually expired, so genuine "forbidden" responses don't cause refresh loops.
+     */
+    private val authInterceptor = Interceptor { chain ->
+        val original = chain.request()
+        if (original.url.encodedPath.contains("/api/v1/auth/")) {
+            return@Interceptor chain.proceed(original.withToken(null))
+        }
+
+        var token = sessionManager.token
+        if (!token.isNullOrBlank() && isExpiredOrExpiring(token)) {
+            token = refreshAccessToken(token) ?: token
+        }
+
+        val response = chain.proceed(original.withToken(token))
+        val rejected = response.code == 401 ||
+            (response.code == 403 && !token.isNullOrBlank() && isExpiredOrExpiring(token, skewSeconds = 0))
+        if (rejected && !token.isNullOrBlank()) {
+            val refreshed = refreshAccessToken(token)
+            if (refreshed != null && refreshed != token) {
+                response.close()
+                return@Interceptor chain.proceed(original.withToken(refreshed))
             }
         }
+        response
     }
 
     private val okHttpClient: OkHttpClient = OkHttpClient.Builder()
         .addInterceptor(authInterceptor)
-        .authenticator(tokenAuthenticator)
         .addInterceptor(loggingInterceptor)
         .connectTimeout(30, TimeUnit.SECONDS)
         .readTimeout(45, TimeUnit.SECONDS)
