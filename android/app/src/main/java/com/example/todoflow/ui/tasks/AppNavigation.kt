@@ -38,6 +38,7 @@ import com.example.todoflow.R
 import com.example.todoflow.data.local.LabelEntity
 import com.example.todoflow.data.local.ProjectEntity
 import com.example.todoflow.data.local.TaskFilterType
+import com.example.todoflow.data.local.ThemeMode
 import com.example.todoflow.theme.Brand
 import com.example.todoflow.theme.BrandDark
 import com.example.todoflow.theme.BrandLight
@@ -61,7 +62,13 @@ fun AppDrawerContent(
     onEditProject: (ProjectEntity) -> Unit,
     onAddProject: () -> Unit,
     onSelectLabel: (LabelEntity) -> Unit,
-    onOpenSettings: () -> Unit,
+    themeMode: ThemeMode,
+    onThemeChange: (ThemeMode) -> Unit,
+    remindersEnabled: Boolean,
+    onRemindersChange: (Boolean) -> Unit,
+    appLockEnabled: Boolean,
+    appLockAvailable: Boolean,
+    onAppLockChange: (Boolean) -> Unit,
     onLogout: () -> Unit,
 ) {
     ModalDrawerSheet(
@@ -142,7 +149,17 @@ fun AppDrawerContent(
             }
 
             HorizontalDivider(modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp))
-            DrawerRow("Settings", Icons.Default.Settings, false) { onOpenSettings() }
+            SectionHeader("Settings")
+            DrawerSettings(
+                themeMode = themeMode,
+                onThemeChange = onThemeChange,
+                remindersEnabled = remindersEnabled,
+                onRemindersChange = onRemindersChange,
+                appLockEnabled = appLockEnabled,
+                appLockAvailable = appLockAvailable,
+                onAppLockChange = onAppLockChange,
+            )
+            Spacer(Modifier.height(8.dp))
             DrawerRow("Log out", Icons.AutoMirrored.Filled.ExitToApp, false, tint = MaterialTheme.colorScheme.error) { onLogout() }
             Spacer(Modifier.navigationBarsPadding().height(16.dp))
         }
@@ -363,5 +380,81 @@ private fun BarItem(
             color = if (selected) colors.primary else colors.onSurfaceVariant,
             maxLines = 1
         )
+    }
+}
+
+/** App settings shown inside the navigation drawer: theme, due date reminders and app lock. */
+@Composable
+fun DrawerSettings(
+    themeMode: ThemeMode,
+    onThemeChange: (ThemeMode) -> Unit,
+    remindersEnabled: Boolean,
+    onRemindersChange: (Boolean) -> Unit,
+    appLockEnabled: Boolean,
+    appLockAvailable: Boolean,
+    onAppLockChange: (Boolean) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 28.dp, vertical = 4.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("Theme", style = MaterialTheme.typography.titleMedium)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf(ThemeMode.SYSTEM to "System", ThemeMode.LIGHT to "Light", ThemeMode.DARK to "Dark").forEach { (mode, label) ->
+                    FilterChip(
+                        selected = themeMode == mode,
+                        onClick = { onThemeChange(mode) },
+                        label = { Text(label) }
+                    )
+                }
+            }
+        }
+        SettingSwitch(
+            title = "Due date reminders",
+            description = "Notify me at 9:00 on the day a task is due",
+            checked = remindersEnabled,
+            enabled = true,
+            onCheckedChange = onRemindersChange
+        )
+        SettingSwitch(
+            title = "App lock",
+            description = if (appLockAvailable) {
+                "Require fingerprint, face or screen lock to open the app"
+            } else {
+                "Set up a screen lock or fingerprint on this device to use this"
+            },
+            checked = appLockEnabled,
+            enabled = appLockAvailable || appLockEnabled,
+            onCheckedChange = onAppLockChange
+        )
+    }
+}
+
+@Composable
+private fun SettingSwitch(
+    title: String,
+    description: String,
+    checked: Boolean,
+    enabled: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.titleMedium)
+            Text(
+                description,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        Switch(checked = checked, onCheckedChange = onCheckedChange, enabled = enabled)
     }
 }

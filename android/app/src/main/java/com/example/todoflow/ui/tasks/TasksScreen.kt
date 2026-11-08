@@ -72,12 +72,24 @@ fun TasksScreen(
         viewModel.setRemindersEnabled(granted)
     }
 
+    val context = LocalContext.current
+    val onRemindersChange: (Boolean) -> Unit = { enable ->
+        if (!enable) {
+            viewModel.setRemindersEnabled(false)
+        } else if (ReminderNotifier.hasPermission(context)) {
+            viewModel.setRemindersEnabled(true)
+        } else {
+            // Ask for the notification permission; the switch turns on only if it is granted
+            runCatching { notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS) }
+                .onFailure { viewModel.setRemindersEnabled(false) }
+        }
+    }
+
     var isSearchVisible by remember { mutableStateOf(false) }
     var isCreateDialogOpen by remember { mutableStateOf(false) }
     var taskBeingEdited by remember { mutableStateOf<TaskEntity?>(null) }
     var commentsTask by remember { mutableStateOf<TaskEntity?>(null) }
     var isLogoutDialogOpen by remember { mutableStateOf(false) }
-    var isThemeDialogOpen by remember { mutableStateOf(false) }
 
     // Project Dialog state (for add or edit)
     var isProjectDialogOpen by remember { mutableStateOf(false) }
@@ -201,7 +213,13 @@ fun TasksScreen(
                 onEditProject = { projectToEdit = it; isProjectDialogOpen = true; closeDrawer() },
                 onAddProject = { projectToEdit = null; isProjectDialogOpen = true; closeDrawer() },
                 onSelectLabel = { viewModel.setFilter(TaskFilterType.LABEL, labelId = it.id); closeDrawer() },
-                onOpenSettings = { isThemeDialogOpen = true; closeDrawer() },
+                themeMode = themeMode,
+                onThemeChange = { viewModel.setThemeMode(it) },
+                remindersEnabled = remindersEnabled,
+                onRemindersChange = onRemindersChange,
+                appLockEnabled = appLockEnabled,
+                appLockAvailable = AppLock.isAvailable(LocalContext.current),
+                onAppLockChange = { viewModel.setAppLockEnabled(it) },
                 onLogout = { isLogoutDialogOpen = true; closeDrawer() },
             )
         }
@@ -274,11 +292,6 @@ fun TasksScreen(
                                         }
                                     )
                                 }
-                                DropdownMenuItem(
-                                    text = { Text("Settings") },
-                                    leadingIcon = { Icon(Icons.Default.Settings, contentDescription = null) },
-                                    onClick = { isMenuOpen = false; isThemeDialogOpen = true }
-                                )
                             }
                         }
                     }
@@ -491,28 +504,6 @@ fun TasksScreen(
                     projectToEdit = null
                 }
             } else null
-        )
-    }
-
-    if (isThemeDialogOpen) {
-        val context = LocalContext.current
-        SettingsDialog(
-            themeMode = themeMode,
-            onThemeChange = { viewModel.setThemeMode(it) },
-            remindersEnabled = remindersEnabled,
-            onRemindersChange = { enable ->
-                if (!enable) {
-                    viewModel.setRemindersEnabled(false)
-                } else if (ReminderNotifier.hasPermission(context)) {
-                    viewModel.setRemindersEnabled(true)
-                } else {
-                    notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-                }
-            },
-            appLockEnabled = appLockEnabled,
-            appLockAvailable = AppLock.isAvailable(context),
-            onAppLockChange = { viewModel.setAppLockEnabled(it) },
-            onDismiss = { isThemeDialogOpen = false }
         )
     }
 

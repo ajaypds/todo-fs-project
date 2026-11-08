@@ -42,7 +42,7 @@ import com.example.todoflow.data.local.ThemeMode
 import com.example.todoflow.data.model.CommentDto
 import com.example.todoflow.ui.auth.LockScreen
 import com.example.todoflow.ui.tasks.CommentsSheet
-import com.example.todoflow.ui.tasks.SettingsDialog
+import com.example.todoflow.ui.tasks.DrawerSettings
 import com.example.todoflow.ui.tasks.SwipeableTaskRow
 import com.example.todoflow.ui.tasks.TaskEditorDialog
 import com.example.todoflow.ui.tasks.TaskItemRow
@@ -315,6 +315,21 @@ class TasksUiTest {
     }
 
     @Test
+    fun turningOnRemindersFromTheDrawerDoesNotCrash() {
+        val viewModel = buildViewModel(FakeTodoFlowApi().apply { offline = true })
+        compose.setContent { MaterialTheme { TasksScreen(viewModel = viewModel) } }
+        compose.mainClock.advanceTimeBy(200)
+        compose.waitForIdle()
+
+        compose.onNodeWithContentDescription("Menu").performClick()
+        compose.mainClock.advanceTimeBy(500)
+        compose.waitForIdle()
+        compose.onNodeWithText("Due date reminders").performScrollTo()
+        compose.onAllNodes(isToggleable())[0].performScrollTo().performClick()
+        compose.waitForIdle()
+    }
+
+    @Test
     fun taskScreenDeletesForRealWhenTheUndoWindowEnds() {
         runBlocking { local.upsertTasks(listOf(task("t1", "Temporary"), task("t2", "Stays"))) }
         val viewModel = buildViewModel(FakeTodoFlowApi().apply { offline = true })
@@ -340,12 +355,12 @@ class TasksUiTest {
     }
 
     @Test
-    fun settingsDialogOffersThemeRemindersAndAppLock() {
+    fun drawerSettingsOffersThemeRemindersAndAppLock() {
         var reminders: Boolean? = null
         var lock: Boolean? = null
         compose.setContent {
             MaterialTheme {
-                SettingsDialog(
+                DrawerSettings(
                     themeMode = ThemeMode.SYSTEM,
                     onThemeChange = {},
                     remindersEnabled = false,
@@ -353,18 +368,16 @@ class TasksUiTest {
                     appLockEnabled = false,
                     appLockAvailable = true,
                     onAppLockChange = { lock = it },
-                    onDismiss = {}
                 )
             }
         }
         compose.waitForIdle()
 
-        compose.onNodeWithText("Settings").assertIsDisplayed()
         compose.onNodeWithText("Dark").assertExists()
         compose.onNodeWithText("App lock").assertExists()
-        // Switches: reminders first, app lock second (scroll them into view in the small test window)
-        compose.onAllNodes(isToggleable())[0].performScrollTo().performClick()
-        compose.onAllNodes(isToggleable())[1].performScrollTo().performClick()
+        // Switches: reminders first, app lock second
+        compose.onAllNodes(isToggleable())[0].performClick()
+        compose.onAllNodes(isToggleable())[1].performClick()
         assertEquals(true, reminders)
         assertEquals(true, lock)
     }
@@ -373,7 +386,7 @@ class TasksUiTest {
     fun appLockSwitchIsDisabledWhenTheDeviceHasNoScreenLock() {
         compose.setContent {
             MaterialTheme {
-                SettingsDialog(
+                DrawerSettings(
                     themeMode = ThemeMode.LIGHT,
                     onThemeChange = {},
                     remindersEnabled = false,
@@ -381,7 +394,6 @@ class TasksUiTest {
                     appLockEnabled = false,
                     appLockAvailable = false,
                     onAppLockChange = {},
-                    onDismiss = {}
                 )
             }
         }
