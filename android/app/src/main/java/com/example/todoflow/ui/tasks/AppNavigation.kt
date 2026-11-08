@@ -64,8 +64,6 @@ fun AppDrawerContent(
     onSelectLabel: (LabelEntity) -> Unit,
     themeMode: ThemeMode,
     onThemeChange: (ThemeMode) -> Unit,
-    remindersEnabled: Boolean,
-    onRemindersChange: (Boolean) -> Unit,
     appLockEnabled: Boolean,
     appLockAvailable: Boolean,
     onAppLockChange: (Boolean) -> Unit,
@@ -153,8 +151,6 @@ fun AppDrawerContent(
             DrawerSettings(
                 themeMode = themeMode,
                 onThemeChange = onThemeChange,
-                remindersEnabled = remindersEnabled,
-                onRemindersChange = onRemindersChange,
                 appLockEnabled = appLockEnabled,
                 appLockAvailable = appLockAvailable,
                 onAppLockChange = onAppLockChange,
@@ -383,13 +379,11 @@ private fun BarItem(
     }
 }
 
-/** App settings shown inside the navigation drawer: theme, due date reminders and app lock. */
+/** App settings shown inside the navigation drawer: theme and app lock. */
 @Composable
 fun DrawerSettings(
     themeMode: ThemeMode,
     onThemeChange: (ThemeMode) -> Unit,
-    remindersEnabled: Boolean,
-    onRemindersChange: (Boolean) -> Unit,
     appLockEnabled: Boolean,
     appLockAvailable: Boolean,
     onAppLockChange: (Boolean) -> Unit,
@@ -413,13 +407,6 @@ fun DrawerSettings(
                 }
             }
         }
-        SettingSwitch(
-            title = "Due date reminders",
-            description = "Notify me at 9:00 on the day a task is due",
-            checked = remindersEnabled,
-            enabled = true,
-            onCheckedChange = onRemindersChange
-        )
         SettingSwitch(
             title = "App lock",
             description = if (appLockAvailable) {
