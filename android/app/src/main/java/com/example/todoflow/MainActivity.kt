@@ -79,11 +79,13 @@ class MainActivity : FragmentActivity() {
             }
 
             // Fix for status bar and navigation bar icon contrast in dark & light modes
-            DisposableEffect(isDark) {
+            val loggedInForBars by sessionManager.isLoggedIn.collectAsState()
+            DisposableEffect(isDark, loggedInForBars) {
                 val insetsController = WindowCompat.getInsetsController(window, window.decorView)
                 // When in dark mode: isAppearanceLightStatusBars = false makes status bar icons WHITE
                 // When in light mode: isAppearanceLightStatusBars = true makes status bar icons DARK
-                insetsController.isAppearanceLightStatusBars = !isDark
+                // The login screen has a gradient header, so its status bar icons are always white
+                insetsController.isAppearanceLightStatusBars = !isDark && loggedInForBars
                 insetsController.isAppearanceLightNavigationBars = !isDark
                 onDispose {}
             }
@@ -128,10 +130,8 @@ class MainActivity : FragmentActivity() {
                                     }
                                 }
                             )
-                            LoginScreen(
-                                viewModel = authViewModel,
-                                modifier = Modifier.safeDrawingPadding()
-                            )
+                            // The gradient hero draws behind the status bar; the screen applies the insets itself
+                            LoginScreen(viewModel = authViewModel)
                         }
                     }
                 }
