@@ -1,12 +1,7 @@
 name: Android APK
 
+# Manual only: run from the Actions tab ("Run workflow").
 on:
-  push:
-    branches:
-      - master
-    paths:
-      - "android/**"
-      - ".github/workflows/android-release.yml"
   workflow_dispatch:
 
 jobs:
