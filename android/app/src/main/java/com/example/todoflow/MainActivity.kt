@@ -1,7 +1,12 @@
 package com.example.todoflow
 
 import android.os.Bundle
-import androidx.activity.ComponentActivity
+import android.os.SystemClock
+import android.view.WindowManager
+import com.example.todoflow.security.AppLock
+import com.example.todoflow.ui.auth.LockScreen
+import kotlinx.coroutines.flow.MutableStateFlow
+import androidx.fragment.app.FragmentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.Crossfade
@@ -25,7 +30,18 @@ import com.example.todoflow.ui.auth.LoginScreen
 import com.example.todoflow.ui.tasks.TasksScreen
 import com.example.todoflow.ui.tasks.TasksViewModel
 
-class MainActivity : ComponentActivity() {
+class MainActivity : FragmentActivity() {
+
+    companion object {
+        /** The app locks again after being in the background for this long. */
+        private const val RELOCK_AFTER_MS = 30_000L
+    }
+
+    private val isLocked = MutableStateFlow(false)
+    private var isPromptShowing = false
+    private var lastStoppedAt = 0L
+
+    private val sessionManager get() = (application as TodoFlowApplication).sessionManager
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -36,6 +52,9 @@ class MainActivity : ComponentActivity() {
         val apiClient = app.apiClient
         val taskRepository = app.taskRepository
 
+        // Cold start: locked if the app lock is on and someone is logged in
+        isLocked.value = sessionManager.appLockEnabled.value && sessionManager.isLoggedIn.value
+
         setContent {
             val themeMode by sessionManager.themeMode.collectAsState()
             val isSystemDark = isSystemInDarkTheme()
@@ -43,6 +62,20 @@ class MainActivity : ComponentActivity() {
                 ThemeMode.LIGHT -> false
                 ThemeMode.DARK -> true
                 ThemeMode.SYSTEM -> isSystemDark
+            }
+
+            val lockEnabled by sessionManager.appLockEnabled.collectAsState()
+            val locked by isLocked.collectAsState()
+
+            // With the lock on, hide the app in the recents screen and block screenshots
+            DisposableEffect(lockEnabled) {
+                if (lockEnabled) {
+                    window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+                } else {
+                    window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
+                    isLocked.value = false
+                }
+                onDispose {}
             }
 
             // Fix for status bar and navigation bar icon contrast in dark & light modes
@@ -64,6 +97,14 @@ class MainActivity : ComponentActivity() {
                 ) {
                     val isLoggedIn by sessionManager.isLoggedIn.collectAsState()
 
+                    if (locked && lockEnabled && isLoggedIn) {
+                        LockScreen(
+                            onUnlock = { promptUnlock() },
+                            modifier = Modifier.safeDrawingPadding()
+                        )
+                        return@Surface
+                    }
+
                     Crossfade(
                         targetState = isLoggedIn,
                         label = "AuthCrossfade"
@@ -73,7 +114,7 @@ class MainActivity : ComponentActivity() {
                                 factory = object : ViewModelProvider.Factory {
                                     @Suppress("UNCHECKED_CAST")
                                     override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                                        return TasksViewModel(taskRepository, sessionManager) as T
+                                        return TasksViewModel(taskRepository, sessionManager, app.realtimeClient) as T
                                     }
                                 }
                             )
@@ -95,6 +136,38 @@ class MainActivity : ComponentActivity() {
                     }
                 }
             }
+        }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        val enabled = sessionManager.appLockEnabled.value && sessionManager.isLoggedIn.value
+        if (enabled && !isLocked.value && lastStoppedAt > 0 &&
+            SystemClock.elapsedRealtime() - lastStoppedAt > RELOCK_AFTER_MS
+        ) {
+            isLocked.value = true
+        }
+        if (enabled && isLocked.value) promptUnlock()
+    }
+
+    override fun onStop() {
+        super.onStop()
+        lastStoppedAt = SystemClock.elapsedRealtime()
+    }
+
+    private fun promptUnlock() {
+        if (isPromptShowing) return
+        val authenticators = AppLock.authenticators(this)
+        if (authenticators == null) {
+            // The device's screen lock was removed: don't lock the user out of their tasks
+            sessionManager.setAppLockEnabled(false)
+            isLocked.value = false
+            return
+        }
+        isPromptShowing = true
+        AppLock.prompt(this, authenticators) { success ->
+            isPromptShowing = false
+            if (success) isLocked.value = false
         }
     }
 }

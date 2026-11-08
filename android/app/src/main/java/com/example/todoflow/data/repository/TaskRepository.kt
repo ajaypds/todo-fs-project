@@ -17,7 +17,7 @@ import com.example.todoflow.data.model.ReorderTasksRequest
 import com.example.todoflow.data.model.TaskDto
 import com.example.todoflow.data.model.UpdateSubtaskRequest
 import com.example.todoflow.data.model.UpdateTaskRequest
-import com.example.todoflow.data.remote.ApiClient
+import com.example.todoflow.data.remote.ApiProvider
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -65,7 +65,7 @@ data class FlushResult(val remaining: Int, val dropped: Int)
  */
 class TaskRepository(
     private val localDataSource: TodoLocalDataSource,
-    private val apiClient: ApiClient,
+    private val apiClient: ApiProvider,
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
     /** Called whenever work was queued so a background job can be scheduled. */
     private val onOpsQueued: () -> Unit = {}

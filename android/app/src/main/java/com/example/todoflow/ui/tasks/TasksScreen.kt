@@ -16,7 +16,13 @@ import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import android.Manifest
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.platform.LocalContext
+import com.example.todoflow.reminders.ReminderNotifier
+import com.example.todoflow.security.AppLock
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import androidx.compose.ui.Modifier
@@ -33,6 +39,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collectLatest
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -47,11 +54,21 @@ fun TasksScreen(
     val syncStatus by viewModel.syncStatus.collectAsState()
     val labels by viewModel.labels.collectAsState()
     val pendingOpCount by viewModel.pendingOpCount.collectAsState()
+    val isLive by viewModel.realtimeConnected.collectAsState()
     val isLoadingMore by viewModel.isLoadingMore.collectAsState()
     val hasMore by viewModel.hasMore.collectAsState()
     val isReordering by viewModel.isReordering.collectAsState()
     val statusMessage by viewModel.statusMessage.collectAsState()
     val themeMode by viewModel.themeMode.collectAsState()
+    val remindersEnabled by viewModel.remindersEnabled.collectAsState()
+    val appLockEnabled by viewModel.appLockEnabled.collectAsState()
+
+    // Notifications need a runtime permission on Android 13+
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        viewModel.setRemindersEnabled(granted)
+    }
 
     var isSearchVisible by remember { mutableStateOf(false) }
     var isCreateDialogOpen by remember { mutableStateOf(false) }
@@ -104,16 +121,28 @@ fun TasksScreen(
         }
     }
 
-    // Keep in sync with the server: refresh when the app comes to the foreground and then
-    // every 15s while it is visible (stops automatically when the app is backgrounded).
+    // Keep in sync with the server: live updates over a WebSocket while the app is visible, plus a
+    // refresh when it comes to the foreground and a polling fallback (every 15s, or every 2 minutes
+    // while the live connection is up). Everything stops when the app is backgrounded.
     val lifecycleOwner = LocalLifecycleOwner.current
     LaunchedEffect(lifecycleOwner) {
         lifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
-            var first = true
-            while (true) {
-                viewModel.refresh(silent = !first)
-                first = false
-                delay(15_000)
+            viewModel.startRealtime()
+            try {
+                launch {
+                    viewModel.realtimeEvents.collectLatest {
+                        delay(700) // coalesce bursts of events into one refresh
+                        viewModel.refresh(silent = true)
+                    }
+                }
+                var first = true
+                while (true) {
+                    viewModel.refresh(silent = !first)
+                    first = false
+                    delay(if (viewModel.realtimeConnected.value) 120_000 else 15_000)
+                }
+            } finally {
+                viewModel.stopRealtime()
             }
         }
     }
@@ -146,7 +175,7 @@ fun TasksScreen(
                                     fontWeight = FontWeight.Bold,
                                     style = MaterialTheme.typography.titleLarge
                                 )
-                                SyncBadge(syncStatus, pendingOpCount)
+                                SyncBadge(syncStatus, pendingOpCount, isLive)
                             }
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
@@ -193,16 +222,9 @@ fun TasksScreen(
                                 tint = if (isReordering) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
                             )
                         }
-                        // Theme Switcher Dialog
+                        // Settings (theme, reminders, app lock)
                         IconButton(onClick = { isThemeDialogOpen = true }) {
-                            Icon(
-                                imageVector = when (themeMode) {
-                                    ThemeMode.LIGHT -> Icons.Default.LightMode
-                                    ThemeMode.DARK -> Icons.Default.DarkMode
-                                    ThemeMode.SYSTEM -> Icons.Default.BrightnessAuto
-                                },
-                                contentDescription = "Theme"
-                            )
+                            Icon(Icons.Default.Settings, contentDescription = "Settings")
                         }
                         // Search
                         IconButton(onClick = {
@@ -537,66 +559,24 @@ fun TasksScreen(
     }
 
     if (isThemeDialogOpen) {
-        AlertDialog(
-            onDismissRequest = { isThemeDialogOpen = false },
-            title = { Text("Choose Theme") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        RadioButton(
-                            selected = themeMode == ThemeMode.SYSTEM,
-                            onClick = {
-                                viewModel.setThemeMode(ThemeMode.SYSTEM)
-                                isThemeDialogOpen = false
-                            }
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("System Default")
-                    }
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        RadioButton(
-                            selected = themeMode == ThemeMode.LIGHT,
-                            onClick = {
-                                viewModel.setThemeMode(ThemeMode.LIGHT)
-                                isThemeDialogOpen = false
-                            }
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Light Mode")
-                    }
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        RadioButton(
-                            selected = themeMode == ThemeMode.DARK,
-                            onClick = {
-                                viewModel.setThemeMode(ThemeMode.DARK)
-                                isThemeDialogOpen = false
-                            }
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Dark Mode")
-                    }
+        val context = LocalContext.current
+        SettingsDialog(
+            themeMode = themeMode,
+            onThemeChange = { viewModel.setThemeMode(it) },
+            remindersEnabled = remindersEnabled,
+            onRemindersChange = { enable ->
+                if (!enable) {
+                    viewModel.setRemindersEnabled(false)
+                } else if (ReminderNotifier.hasPermission(context)) {
+                    viewModel.setRemindersEnabled(true)
+                } else {
+                    notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
                 }
             },
-            confirmButton = {
-                TextButton(onClick = { isThemeDialogOpen = false }) {
-                    Text("Close")
-                }
-            }
+            appLockEnabled = appLockEnabled,
+            appLockAvailable = AppLock.isAvailable(context),
+            onAppLockChange = { viewModel.setAppLockEnabled(it) },
+            onDismiss = { isThemeDialogOpen = false }
         )
     }
 
@@ -632,7 +612,7 @@ private data class BadgeStyle(val container: Color, val dot: Color, val content:
  * uploaded. Local changes that haven't reached the server yet are counted as "pending".
  */
 @Composable
-private fun SyncBadge(status: SyncStatus, pending: Int) {
+private fun SyncBadge(status: SyncStatus, pending: Int, live: Boolean) {
     val colors = MaterialTheme.colorScheme
     val style = when {
         status == SyncStatus.SYNCING -> BadgeStyle(colors.primaryContainer, colors.primary, colors.onPrimaryContainer, "Syncing...")
@@ -641,6 +621,7 @@ private fun SyncBadge(status: SyncStatus, pending: Int) {
             BadgeStyle(colors.tertiaryContainer, colors.tertiary, colors.onTertiaryContainer, "Offline · $pending pending")
         status == SyncStatus.OFFLINE -> BadgeStyle(colors.tertiaryContainer, colors.tertiary, colors.onTertiaryContainer, "Offline")
         pending > 0 -> BadgeStyle(colors.tertiaryContainer, colors.tertiary, colors.onTertiaryContainer, "$pending pending")
+        live -> BadgeStyle(Color(0xFFE8F5E9), Color(0xFF4CAF50), Color(0xFF2E7D32), "Live")
         else -> BadgeStyle(Color(0xFFE8F5E9), Color(0xFF4CAF50), Color(0xFF2E7D32), "Synced")
     }
     Row(

@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.todoflow.data.local.LabelEntity
 import com.example.todoflow.data.local.ProjectEntity
 import com.example.todoflow.data.model.CommentDto
+import com.example.todoflow.data.remote.RealtimeClient
 import com.example.todoflow.data.local.SessionManager
 import com.example.todoflow.data.local.SubtaskEntity
 import com.example.todoflow.data.local.TaskEntity
@@ -34,10 +35,32 @@ data class TasksFilterState(
 
 class TasksViewModel(
     private val taskRepository: TaskRepository,
-    private val sessionManager: SessionManager
+    private val sessionManager: SessionManager,
+    private val realtimeClient: RealtimeClient
 ) : ViewModel() {
 
+    /** True while live updates from the server are connected. */
+    val realtimeConnected: StateFlow<Boolean> = realtimeClient.connected
+
+    /** Emits whenever the server reports a task change (created, updated or deleted). */
+    val realtimeEvents = realtimeClient.events
+
+    fun startRealtime() = realtimeClient.start(viewModelScope)
+
+    fun stopRealtime() = realtimeClient.stop()
+
+    override fun onCleared() {
+        realtimeClient.stop()
+        super.onCleared()
+    }
+
     val themeMode: StateFlow<ThemeMode> = sessionManager.themeMode
+    val remindersEnabled: StateFlow<Boolean> = sessionManager.remindersEnabled
+    val appLockEnabled: StateFlow<Boolean> = sessionManager.appLockEnabled
+
+    fun setRemindersEnabled(enabled: Boolean) = sessionManager.setRemindersEnabled(enabled)
+
+    fun setAppLockEnabled(enabled: Boolean) = sessionManager.setAppLockEnabled(enabled)
 
     init {
         // Notices from the offline queue (e.g. a change the server rejected)
@@ -59,6 +82,7 @@ class TasksViewModel(
     val syncStatus: StateFlow<SyncStatus> = _syncStatus.asStateFlow()
 
     private var refreshJob: Job? = null
+    private var rerunRequested = false
 
     private val _isLoadingMore = MutableStateFlow(false)
     val isLoadingMore: StateFlow<Boolean> = _isLoadingMore.asStateFlow()
@@ -132,44 +156,55 @@ class TasksViewModel(
      * indicator and only surface errors that need user attention.
      */
     fun refresh(silent: Boolean = false) {
-        if (refreshJob?.isActive == true) return
+        if (refreshJob?.isActive == true) {
+            // A server event or tap arrived mid-refresh: run once more afterwards so nothing is missed
+            rerunRequested = true
+            return
+        }
         refreshJob = viewModelScope.launch {
-            if (!silent) _isRefreshing.value = true
-            _syncStatus.value = SyncStatus.SYNCING
-            currentPage = 0
-            _hasMore.value = true
-            val result = taskRepository.refresh(_filterState.value.selectedProjectId)
-            _isRefreshing.value = false
-            val error = result.exceptionOrNull()
-            if (error == null) {
-                _syncStatus.value = SyncStatus.SYNCED
-                return@launch
+            do {
+                rerunRequested = false
+                performRefresh(silent)
+            } while (rerunRequested)
+        }
+    }
+
+    private suspend fun performRefresh(silent: Boolean) {
+        if (!silent) _isRefreshing.value = true
+        _syncStatus.value = SyncStatus.SYNCING
+        currentPage = 0
+        _hasMore.value = true
+        val result = taskRepository.refresh(_filterState.value.selectedProjectId)
+        _isRefreshing.value = false
+        val error = result.exceptionOrNull()
+        if (error == null) {
+            _syncStatus.value = SyncStatus.SYNCED
+            return
+        }
+        android.util.Log.e("TasksViewModel", "Refresh failed", error)
+        when {
+            error is IOException -> {
+                _syncStatus.value = SyncStatus.OFFLINE
+                if (!silent) _statusMessage.value = "Offline mode: Showing cached tasks"
             }
-            android.util.Log.e("TasksViewModel", "Refresh failed", error)
-            when {
-                error is IOException -> {
-                    _syncStatus.value = SyncStatus.OFFLINE
-                    if (!silent) _statusMessage.value = "Offline mode: Showing cached tasks"
+            error is HttpException && (error.code() == 401 || error.code() == 403) -> {
+                _syncStatus.value = SyncStatus.ERROR
+                // If the session was ended the app is already switching to the login screen,
+                // which explains why. Otherwise the server rejected us for another reason.
+                if (sessionManager.isLoggedIn.value) {
+                    _statusMessage.value =
+                        "Couldn't verify your session (HTTP ${error.code()}). Showing cached tasks"
                 }
-                error is HttpException && (error.code() == 401 || error.code() == 403) -> {
-                    _syncStatus.value = SyncStatus.ERROR
-                    // If the session was ended the app is already switching to the login screen,
-                    // which explains why. Otherwise the server rejected us for another reason.
-                    if (sessionManager.isLoggedIn.value) {
-                        _statusMessage.value =
-                            "Couldn't verify your session (HTTP ${error.code()}). Showing cached tasks"
-                    }
-                }
-                error is HttpException -> {
-                    _syncStatus.value = SyncStatus.ERROR
-                    if (!silent) _statusMessage.value = "Server error (HTTP ${error.code()}). Showing cached tasks"
-                }
-                else -> {
-                    _syncStatus.value = SyncStatus.ERROR
-                    if (!silent) {
-                        _statusMessage.value =
-                            "Sync failed: ${error.localizedMessage ?: error.javaClass.simpleName}"
-                    }
+            }
+            error is HttpException -> {
+                _syncStatus.value = SyncStatus.ERROR
+                if (!silent) _statusMessage.value = "Server error (HTTP ${error.code()}). Showing cached tasks"
+            }
+            else -> {
+                _syncStatus.value = SyncStatus.ERROR
+                if (!silent) {
+                    _statusMessage.value =
+                        "Sync failed: ${error.localizedMessage ?: error.javaClass.simpleName}"
                 }
             }
         }

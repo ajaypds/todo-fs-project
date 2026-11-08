@@ -17,7 +17,12 @@ import retrofit2.Retrofit
 import retrofit2.converter.kotlinx.serialization.asConverterFactory
 import java.util.concurrent.TimeUnit
 
-class ApiClient(private val sessionManager: SessionManager) {
+/** Source of the Retrofit API; lets the repository be tested with a fake. */
+interface ApiProvider {
+    fun getApi(): TodoFlowApi
+}
+
+class ApiClient(private val sessionManager: SessionManager) : ApiProvider {
 
     @OptIn(kotlinx.serialization.ExperimentalSerializationApi::class)
     private val json = Json {
@@ -80,17 +85,20 @@ class ApiClient(private val sessionManager: SessionManager) {
 
     private val refreshLock = Any()
 
-    /** Reads the `exp` claim (epoch seconds) from a JWT without verifying it. */
-    private fun tokenExpiryEpochSec(token: String): Long? = try {
+    /** Reads a claim of a JWT payload without verifying the signature. */
+    private fun jwtClaim(token: String, name: String): kotlinx.serialization.json.JsonPrimitive? = try {
         val payload = token.split(".").getOrNull(1) ?: return null
         val decoded = android.util.Base64.decode(
             payload,
             android.util.Base64.URL_SAFE or android.util.Base64.NO_PADDING or android.util.Base64.NO_WRAP
         )
-        json.parseToJsonElement(String(decoded)).jsonObject["exp"]?.jsonPrimitive?.longOrNull
+        json.parseToJsonElement(String(decoded)).jsonObject[name]?.jsonPrimitive
     } catch (_: Exception) {
         null
     }
+
+    /** Reads the `exp` claim (epoch seconds) from a JWT without verifying it. */
+    private fun tokenExpiryEpochSec(token: String): Long? = jwtClaim(token, "exp")?.longOrNull
 
     /** True if the token is expired or will expire within [skewSeconds]. Unparseable counts as expired. */
     private fun isExpiredOrExpiring(token: String, skewSeconds: Long = 60): Boolean {
@@ -118,6 +126,17 @@ class ApiClient(private val sessionManager: SessionManager) {
             RefreshOutcome.Unavailable -> null
         }
     }
+
+    /** An access token that isn't about to expire (refreshed if needed), or null when logged out. */
+    fun validAccessToken(): String? {
+        val token = sessionManager.token?.takeIf { it.isNotBlank() } ?: return null
+        if (!isExpiredOrExpiring(token)) return token
+        return refreshAccessToken(token)
+    }
+
+    /** The logged-in user's id (the JWT subject). */
+    fun currentUserId(): String? =
+        sessionManager.token?.let { jwtClaim(it, "sub") }?.takeIf { it.isString }?.content
 
     private fun Request.withToken(token: String?): Request {
         val builder = newBuilder().header("Accept", "application/json")
@@ -167,7 +186,7 @@ class ApiClient(private val sessionManager: SessionManager) {
     private var cachedBaseUrl: String? = null
     private var cachedApi: TodoFlowApi? = null
 
-    fun getApi(): TodoFlowApi {
+    override fun getApi(): TodoFlowApi {
         val currentBaseUrl = sessionManager.baseUrl
         val existing = cachedApi
         if (existing != null && cachedBaseUrl == currentBaseUrl) {
