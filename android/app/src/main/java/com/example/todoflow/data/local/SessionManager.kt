@@ -78,6 +78,14 @@ class SessionManager(context: Context) {
         this.userEmail = email
     }
 
+    /** Replaces only the access token (used after a silent token refresh); keeps email/refresh token. */
+    fun updateAccessToken(newToken: String, newRefreshToken: String? = null) {
+        this.token = newToken
+        if (!newRefreshToken.isNullOrBlank()) {
+            this.refreshToken = newRefreshToken
+        }
+    }
+
     fun clearSession() {
         prefs.edit()
             .remove(KEY_TOKEN)

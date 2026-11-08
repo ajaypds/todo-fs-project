@@ -221,7 +221,7 @@ class TodoLocalDataSource(private val dbHelper: TodoDbHelper) {
             SQLiteDatabase.CONFLICT_REPLACE
         )
 
-        if (finalIsSynced && task.subtasks.isNotEmpty()) {
+        if (finalIsSynced) {
             db.delete(
                 TodoDbHelper.TABLE_SUBTASKS,
                 "${TodoDbHelper.COL_SUBTASK_TASK_ID} = ?",
@@ -271,6 +271,65 @@ class TodoLocalDataSource(private val dbHelper: TodoDbHelper) {
             "${TodoDbHelper.COL_TASK_ID} = ?",
             arrayOf(taskId)
         )
+    }
+
+    /**
+     * Removes already-synced tasks (and their subtasks) that no longer exist on the server,
+     * e.g. deleted from the web app or another device. Unsynced local changes are kept.
+     */
+    suspend fun pruneSyncedTasksNotIn(serverIds: Set<String>) = withContext(Dispatchers.IO) {
+        val db = dbHelper.writableDatabase
+        val staleIds = mutableListOf<String>()
+        db.query(
+            TodoDbHelper.TABLE_TASKS,
+            arrayOf(TodoDbHelper.COL_TASK_ID),
+            "${TodoDbHelper.COL_TASK_IS_SYNCED} = 1",
+            null, null, null, null
+        ).use {
+            while (it.moveToNext()) {
+                val id = it.getString(0)
+                if (id !in serverIds) staleIds.add(id)
+            }
+        }
+        if (staleIds.isEmpty()) return@withContext
+        db.beginTransaction()
+        try {
+            for (id in staleIds) {
+                db.delete(TodoDbHelper.TABLE_TASKS, "${TodoDbHelper.COL_TASK_ID} = ?", arrayOf(id))
+                db.delete(TodoDbHelper.TABLE_SUBTASKS, "${TodoDbHelper.COL_SUBTASK_TASK_ID} = ?", arrayOf(id))
+            }
+            db.setTransactionSuccessful()
+        } finally {
+            db.endTransaction()
+        }
+        notifyTasksChanged()
+    }
+
+    /** Removes cached projects that no longer exist on the server (keeps not-yet-synced temp ones). */
+    suspend fun pruneProjectsNotIn(serverIds: Set<String>) = withContext(Dispatchers.IO) {
+        val db = dbHelper.writableDatabase
+        val staleIds = mutableListOf<String>()
+        db.query(
+            TodoDbHelper.TABLE_PROJECTS,
+            arrayOf(TodoDbHelper.COL_PROJECT_ID),
+            null, null, null, null, null
+        ).use {
+            while (it.moveToNext()) {
+                val id = it.getString(0)
+                if (id !in serverIds && !id.startsWith("temp_p_")) staleIds.add(id)
+            }
+        }
+        if (staleIds.isEmpty()) return@withContext
+        db.beginTransaction()
+        try {
+            for (id in staleIds) {
+                db.delete(TodoDbHelper.TABLE_PROJECTS, "${TodoDbHelper.COL_PROJECT_ID} = ?", arrayOf(id))
+            }
+            db.setTransactionSuccessful()
+        } finally {
+            db.endTransaction()
+        }
+        notifyProjectsChanged()
     }
 
     suspend fun deleteTask(taskId: String) = withContext(Dispatchers.IO) {

@@ -18,6 +18,8 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import retrofit2.HttpException
+import java.io.IOException
 
 data class TasksFilterState(
     val filterType: TaskFilterType = TaskFilterType.ALL,
@@ -76,11 +78,6 @@ class TasksViewModel(
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    init {
-        // Automatic background refresh on start (stale-while-revalidate)
-        refresh()
-    }
-
     fun setThemeMode(mode: ThemeMode) {
         sessionManager.setThemeMode(mode)
     }
@@ -99,15 +96,33 @@ class TasksViewModel(
         _searchQuery.value = query
     }
 
-    fun refresh() {
+    /**
+     * Syncs with the server. [silent] refreshes (periodic / on resume) don't show the "Syncing"
+     * indicator and only surface errors that need user attention.
+     */
+    fun refresh(silent: Boolean = false) {
+        if (_isRefreshing.value) return
         viewModelScope.launch {
-            _isRefreshing.value = true
+            if (!silent) _isRefreshing.value = true
             currentPage = 0
             _hasMore.value = true
             val result = taskRepository.refresh(_filterState.value.selectedProjectId)
             _isRefreshing.value = false
-            if (result.isFailure) {
-                _statusMessage.value = "Offline mode: Showing cached tasks"
+            val error = result.exceptionOrNull()
+            if (error != null) {
+                android.util.Log.e("TasksViewModel", "Refresh failed", error)
+                when {
+                    // Session was cleared by the authenticator -> app returns to login
+                    error is HttpException && (error.code() == 401 || error.code() == 403) ->
+                        _statusMessage.value = "Session expired. Please log in again."
+                    silent -> Unit
+                    error is IOException ->
+                        _statusMessage.value = "Offline mode: Showing cached tasks"
+                    error is HttpException ->
+                        _statusMessage.value = "Server error (HTTP ${error.code()}). Showing cached tasks"
+                    else ->
+                        _statusMessage.value = "Sync failed: ${error.localizedMessage ?: error.javaClass.simpleName}"
+                }
             }
         }
     }
