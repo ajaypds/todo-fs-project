@@ -8,6 +8,22 @@ data class SubtaskEntity(
     val position: Int = 0
 )
 
+data class LabelEntity(
+    val id: String,
+    val name: String,
+    val color: String? = null
+)
+
+/** A change made while offline (or not yet confirmed) that still has to be sent to the server. */
+data class PendingOp(
+    val id: Long,
+    val type: String,
+    val entityId: String,
+    val parentId: String?,
+    val payload: String,
+    val attempts: Int = 0
+)
+
 data class TaskEntity(
     val id: String,
     val title: String,
@@ -21,7 +37,8 @@ data class TaskEntity(
     val commentCount: Int = 0,
     val updatedAt: String? = null,
     val isSynced: Boolean = true,
-    val subtasks: List<SubtaskEntity> = emptyList()
+    val subtasks: List<SubtaskEntity> = emptyList(),
+    val labels: List<LabelEntity> = emptyList()
 )
 
 data class ProjectEntity(

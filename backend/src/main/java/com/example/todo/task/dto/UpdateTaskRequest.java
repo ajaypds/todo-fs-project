@@ -27,6 +27,9 @@ public class UpdateTaskRequest {
     @JsonDeserialize(using = LenientInstantDeserializer.class)
     private Instant dueDate;
 
+    /** Optional. When true the due date is removed (a null dueDate alone means "no change"). */
+    private Boolean clearDueDate;
+
     private Set<UUID> labelIds;
 
     private com.example.todo.task.entity.RecurrenceType recurrenceType;

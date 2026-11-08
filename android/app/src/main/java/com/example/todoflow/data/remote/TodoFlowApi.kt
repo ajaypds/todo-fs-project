@@ -1,7 +1,11 @@
 package com.example.todoflow.data.remote
 
 import com.example.todoflow.data.model.AuthResponse
+import com.example.todoflow.data.model.CommentDto
+import com.example.todoflow.data.model.CommentRequest
+import com.example.todoflow.data.model.CreateLabelRequest
 import com.example.todoflow.data.model.CreateProjectRequest
+import com.example.todoflow.data.model.LabelDto
 import com.example.todoflow.data.model.CreateTaskRequest
 import com.example.todoflow.data.model.LoginRequest
 import com.example.todoflow.data.model.PageResponse
@@ -81,4 +85,25 @@ interface TodoFlowApi {
 
     @DELETE("api/v1/projects/{projectId}")
     suspend fun deleteProject(@Path("projectId") projectId: String): Response<Unit>
+
+    @GET("api/v1/labels")
+    suspend fun getLabels(): List<LabelDto>
+
+    @POST("api/v1/labels")
+    suspend fun createLabel(@Body request: CreateLabelRequest): LabelDto
+
+    @GET("api/v1/tasks/{taskId}/comments")
+    suspend fun getComments(@Path("taskId") taskId: String): List<CommentDto>
+
+    @POST("api/v1/tasks/{taskId}/comments")
+    suspend fun createComment(
+        @Path("taskId") taskId: String,
+        @Body request: CommentRequest
+    ): CommentDto
+
+    @DELETE("api/v1/tasks/{taskId}/comments/{commentId}")
+    suspend fun deleteComment(
+        @Path("taskId") taskId: String,
+        @Path("commentId") commentId: String
+    ): Response<Unit>
 }

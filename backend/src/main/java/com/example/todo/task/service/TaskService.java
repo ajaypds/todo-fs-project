@@ -171,7 +171,9 @@ public class TaskService {
             task.setPriority(request.getPriority());
         }
 
-        if (request.getDueDate() != null) {
+        if (Boolean.TRUE.equals(request.getClearDueDate())) {
+            task.setDueDate(null);
+        } else if (request.getDueDate() != null) {
             task.setDueDate(request.getDueDate());
         }
 

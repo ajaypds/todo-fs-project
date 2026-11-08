@@ -16,7 +16,16 @@ import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import android.Manifest
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
+import com.example.todoflow.reminders.ReminderNotifier
+import com.example.todoflow.security.AppLock
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -24,12 +33,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.todoflow.data.local.ProjectEntity
+import com.example.todoflow.data.local.TaskEntity
 import com.example.todoflow.data.local.TaskFilterType
 import com.example.todoflow.data.local.ThemeMode
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collectLatest
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -41,15 +52,29 @@ fun TasksScreen(
     val projects by viewModel.projects.collectAsState()
     val filterState by viewModel.filterState.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
-    val isRefreshing by viewModel.isRefreshing.collectAsState()
+    val syncStatus by viewModel.syncStatus.collectAsState()
+    val labels by viewModel.labels.collectAsState()
+    val pendingOpCount by viewModel.pendingOpCount.collectAsState()
+    val isLive by viewModel.realtimeConnected.collectAsState()
     val isLoadingMore by viewModel.isLoadingMore.collectAsState()
     val hasMore by viewModel.hasMore.collectAsState()
     val isReordering by viewModel.isReordering.collectAsState()
     val statusMessage by viewModel.statusMessage.collectAsState()
     val themeMode by viewModel.themeMode.collectAsState()
+    val remindersEnabled by viewModel.remindersEnabled.collectAsState()
+    val appLockEnabled by viewModel.appLockEnabled.collectAsState()
+
+    // Notifications need a runtime permission on Android 13+
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        viewModel.setRemindersEnabled(granted)
+    }
 
     var isSearchVisible by remember { mutableStateOf(false) }
     var isCreateDialogOpen by remember { mutableStateOf(false) }
+    var taskBeingEdited by remember { mutableStateOf<TaskEntity?>(null) }
+    var commentsTask by remember { mutableStateOf<TaskEntity?>(null) }
     var isLogoutDialogOpen by remember { mutableStateOf(false) }
     var isThemeDialogOpen by remember { mutableStateOf(false) }
 
@@ -59,6 +84,40 @@ fun TasksScreen(
 
     val snackbarHostState = remember { SnackbarHostState() }
     val listState = rememberLazyListState()
+    val scope = rememberCoroutineScope()
+    // Bumped on every "Undo" so a restored row starts un-swiped
+    var undoCount by remember { mutableIntStateOf(0) }
+
+    // Deleting hides the task and offers "Undo"; the delete is only sent once the snackbar goes away
+    fun requestDelete(task: TaskEntity) {
+        val indexBefore = tasks.indexOfFirst { it.id == task.id }
+        viewModel.hideTaskForDelete(task.id)
+        // Snackbars queue up: clear any message that's showing so "Undo" appears right away
+        snackbarHostState.currentSnackbarData?.dismiss()
+        scope.launch {
+            val result = try {
+                snackbarHostState.showSnackbar(
+                    message = "Task deleted",
+                    actionLabel = "Undo",
+                    duration = SnackbarDuration.Long
+                )
+            } catch (e: CancellationException) {
+                viewModel.commitDelete(task.id) // screen left composition: don't leave it hidden forever
+                throw e
+            }
+            if (result == SnackbarResult.ActionPerformed) {
+                undoCount++
+                viewModel.undoDelete(task.id)
+                // The list keeps its scroll position, so a restored row above the top would stay hidden
+                if (indexBefore in 0..listState.firstVisibleItemIndex) {
+                    delay(50)
+                    listState.animateScrollToItem(indexBefore)
+                }
+            } else {
+                viewModel.commitDelete(task.id)
+            }
+        }
+    }
 
     // Lazy loading on scroll: triggers when user scrolls near the end
     LaunchedEffect(listState, isLoadingMore, hasMore) {
@@ -74,16 +133,28 @@ fun TasksScreen(
         }
     }
 
-    // Keep in sync with the server: refresh when the app comes to the foreground and then
-    // every 15s while it is visible (stops automatically when the app is backgrounded).
+    // Keep in sync with the server: live updates over a WebSocket while the app is visible, plus a
+    // refresh when it comes to the foreground and a polling fallback (every 15s, or every 2 minutes
+    // while the live connection is up). Everything stops when the app is backgrounded.
     val lifecycleOwner = LocalLifecycleOwner.current
     LaunchedEffect(lifecycleOwner) {
         lifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
-            var first = true
-            while (true) {
-                viewModel.refresh(silent = !first)
-                first = false
-                delay(15_000)
+            viewModel.startRealtime()
+            try {
+                launch {
+                    viewModel.realtimeEvents.collectLatest {
+                        delay(700) // coalesce bursts of events into one refresh
+                        viewModel.refresh(silent = true)
+                    }
+                }
+                var first = true
+                while (true) {
+                    viewModel.refresh(silent = !first)
+                    first = false
+                    delay(if (viewModel.realtimeConnected.value) 120_000 else 15_000)
+                }
+            } finally {
+                viewModel.stopRealtime()
             }
         }
     }
@@ -116,35 +187,7 @@ fun TasksScreen(
                                     fontWeight = FontWeight.Bold,
                                     style = MaterialTheme.typography.titleLarge
                                 )
-                                // Sync indicator badge
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(12.dp))
-                                        .background(
-                                            if (isRefreshing) MaterialTheme.colorScheme.primaryContainer
-                                            else Color(0xFFE8F5E9)
-                                        )
-                                        .padding(horizontal = 6.dp, vertical = 2.dp)
-                                ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(6.dp)
-                                            .clip(CircleShape)
-                                            .background(
-                                                if (isRefreshing) MaterialTheme.colorScheme.primary
-                                                else Color(0xFF4CAF50)
-                                            )
-                                    )
-                                    Text(
-                                        text = if (isRefreshing) "Syncing..." else "Synced",
-                                        fontSize = 10.sp,
-                                        fontWeight = FontWeight.Medium,
-                                        color = if (isRefreshing) MaterialTheme.colorScheme.onPrimaryContainer
-                                        else Color(0xFF2E7D32)
-                                    )
-                                }
+                                SyncBadge(syncStatus, pendingOpCount, isLive)
                             }
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
@@ -158,6 +201,7 @@ fun TasksScreen(
                                         TaskFilterType.UPCOMING -> "Upcoming • ${tasks.size} tasks"
                                         TaskFilterType.COMPLETED -> "Done • ${tasks.size} tasks"
                                         TaskFilterType.PROJECT -> "${activeProject?.name ?: "Project"} • ${tasks.size} tasks"
+                                        TaskFilterType.LABEL -> "#${labels.firstOrNull { it.id == filterState.selectedLabelId }?.name ?: "label"} • ${tasks.size} tasks"
                                     },
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -190,16 +234,9 @@ fun TasksScreen(
                                 tint = if (isReordering) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
                             )
                         }
-                        // Theme Switcher Dialog
+                        // Settings (theme, reminders, app lock)
                         IconButton(onClick = { isThemeDialogOpen = true }) {
-                            Icon(
-                                imageVector = when (themeMode) {
-                                    ThemeMode.LIGHT -> Icons.Default.LightMode
-                                    ThemeMode.DARK -> Icons.Default.DarkMode
-                                    ThemeMode.SYSTEM -> Icons.Default.BrightnessAuto
-                                },
-                                contentDescription = "Theme"
-                            )
+                            Icon(Icons.Default.Settings, contentDescription = "Settings")
                         }
                         // Search
                         IconButton(onClick = {
@@ -309,6 +346,28 @@ fun TasksScreen(
                         )
                     }
 
+                    // Label Filter Chips
+                    labels.forEach { label ->
+                        val isSelected = filterState.filterType == TaskFilterType.LABEL &&
+                            filterState.selectedLabelId == label.id
+                        FilterChip(
+                            selected = isSelected,
+                            onClick = {
+                                if (isSelected) viewModel.setFilter(TaskFilterType.ALL)
+                                else viewModel.setFilter(TaskFilterType.LABEL, labelId = label.id)
+                            },
+                            label = { Text("#" + label.name) },
+                            leadingIcon = {
+                                Box(
+                                    modifier = Modifier
+                                        .size(8.dp)
+                                        .clip(CircleShape)
+                                        .background(parseHexColor(label.color))
+                                )
+                            }
+                        )
+                    }
+
                     // Add Project Chip
                     AssistChip(
                         onClick = {
@@ -402,20 +461,31 @@ fun TasksScreen(
                         items = tasks,
                         key = { _, task -> task.id }
                     ) { index, task ->
-                        TaskItemRow(
-                            task = task,
-                            projects = projects,
-                            onToggle = { viewModel.toggleTask(task) },
-                            onDelete = { viewModel.deleteTask(task.id) },
-                            isReorderMode = isReordering,
-                            canMoveUp = index > 0,
-                            canMoveDown = index < tasks.size - 1,
-                            onMoveUp = { viewModel.moveTask(task.id, up = true) },
-                            onMoveDown = { viewModel.moveTask(task.id, up = false) },
-                            onToggleSubtask = { subtask -> viewModel.toggleSubtask(task.id, subtask) },
-                            onCreateSubtask = { title -> viewModel.createSubtask(task.id, title) },
-                            onDeleteSubtask = { subtaskId -> viewModel.deleteSubtask(task.id, subtaskId) }
-                        )
+                        SwipeableTaskRow(
+                            modifier = Modifier.testTag("task_row_${task.id}"),
+                            resetKey = undoCount,
+                            enabled = !isReordering,
+                            completed = task.completed,
+                            onToggleComplete = { viewModel.toggleTask(task) },
+                            onDelete = { requestDelete(task) }
+                        ) {
+                            TaskItemRow(
+                                task = task,
+                                projects = projects,
+                                onToggle = { viewModel.toggleTask(task) },
+                                onDelete = { requestDelete(task) },
+                                onClick = { taskBeingEdited = task },
+                                onOpenComments = { commentsTask = task },
+                                isReorderMode = isReordering,
+                                canMoveUp = index > 0,
+                                canMoveDown = index < tasks.size - 1,
+                                onMoveUp = { viewModel.moveTask(task.id, up = true) },
+                                onMoveDown = { viewModel.moveTask(task.id, up = false) },
+                                onToggleSubtask = { subtask -> viewModel.toggleSubtask(task.id, subtask) },
+                                onCreateSubtask = { title -> viewModel.createSubtask(task.id, title) },
+                                onDeleteSubtask = { subtaskId -> viewModel.deleteSubtask(task.id, subtaskId) }
+                            )
+                        }
                     }
 
                     // Bottom loading indicator for lazy loading on scroll
@@ -439,23 +509,40 @@ fun TasksScreen(
         }
     }
 
-    if (isCreateDialogOpen) {
-        CreateTaskDialog(
+    if (isCreateDialogOpen || taskBeingEdited != null) {
+        val editing = taskBeingEdited
+        TaskEditorDialog(
+            task = editing,
             projects = projects,
-            selectedProjectId = filterState.selectedProjectId,
-            onDismiss = { isCreateDialogOpen = false },
-            onCreate = { title, desc, priority, dueDate, projId, projName ->
-                viewModel.createTask(
-                    title = title,
-                    description = desc,
-                    priority = priority,
-                    dueDate = dueDate,
-                    projectId = projId,
-                    projectName = projName
-                )
+            labels = labels,
+            defaultProjectId = filterState.selectedProjectId,
+            onDismiss = {
                 isCreateDialogOpen = false
+                taskBeingEdited = null
+            },
+            onCreateLabel = { name, color -> viewModel.createLabel(name, color) },
+            onSave = { title, desc, priority, dueDate, projId, projName, chosenLabels ->
+                if (editing != null) {
+                    viewModel.updateTask(editing, title, desc, priority, dueDate, projId, projName, chosenLabels)
+                } else {
+                    viewModel.createTask(
+                        title = title,
+                        description = desc,
+                        priority = priority,
+                        dueDate = dueDate,
+                        projectId = projId,
+                        projectName = projName,
+                        labels = chosenLabels
+                    )
+                }
+                isCreateDialogOpen = false
+                taskBeingEdited = null
             }
         )
+    }
+
+    commentsTask?.let { target ->
+        CommentsSheet(task = target, viewModel = viewModel, onDismiss = { commentsTask = null })
     }
 
     if (isProjectDialogOpen) {
@@ -486,66 +573,24 @@ fun TasksScreen(
     }
 
     if (isThemeDialogOpen) {
-        AlertDialog(
-            onDismissRequest = { isThemeDialogOpen = false },
-            title = { Text("Choose Theme") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        RadioButton(
-                            selected = themeMode == ThemeMode.SYSTEM,
-                            onClick = {
-                                viewModel.setThemeMode(ThemeMode.SYSTEM)
-                                isThemeDialogOpen = false
-                            }
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("System Default")
-                    }
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        RadioButton(
-                            selected = themeMode == ThemeMode.LIGHT,
-                            onClick = {
-                                viewModel.setThemeMode(ThemeMode.LIGHT)
-                                isThemeDialogOpen = false
-                            }
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Light Mode")
-                    }
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        RadioButton(
-                            selected = themeMode == ThemeMode.DARK,
-                            onClick = {
-                                viewModel.setThemeMode(ThemeMode.DARK)
-                                isThemeDialogOpen = false
-                            }
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Dark Mode")
-                    }
+        val context = LocalContext.current
+        SettingsDialog(
+            themeMode = themeMode,
+            onThemeChange = { viewModel.setThemeMode(it) },
+            remindersEnabled = remindersEnabled,
+            onRemindersChange = { enable ->
+                if (!enable) {
+                    viewModel.setRemindersEnabled(false)
+                } else if (ReminderNotifier.hasPermission(context)) {
+                    viewModel.setRemindersEnabled(true)
+                } else {
+                    notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
                 }
             },
-            confirmButton = {
-                TextButton(onClick = { isThemeDialogOpen = false }) {
-                    Text("Close")
-                }
-            }
+            appLockEnabled = appLockEnabled,
+            appLockAvailable = AppLock.isAvailable(context),
+            onAppLockChange = { viewModel.setAppLockEnabled(it) },
+            onDismiss = { isThemeDialogOpen = false }
         )
     }
 
@@ -570,6 +615,48 @@ fun TasksScreen(
                     Text("Cancel")
                 }
             }
+        )
+    }
+}
+
+private data class BadgeStyle(val container: Color, val dot: Color, val content: Color, val label: String)
+
+/**
+ * Shows the real sync state: green only when the last sync succeeded and nothing is waiting to be
+ * uploaded. Local changes that haven't reached the server yet are counted as "pending".
+ */
+@Composable
+private fun SyncBadge(status: SyncStatus, pending: Int, live: Boolean) {
+    val colors = MaterialTheme.colorScheme
+    val style = when {
+        status == SyncStatus.SYNCING -> BadgeStyle(colors.primaryContainer, colors.primary, colors.onPrimaryContainer, "Syncing...")
+        status == SyncStatus.ERROR -> BadgeStyle(colors.errorContainer, colors.error, colors.onErrorContainer, "Sync failed")
+        status == SyncStatus.OFFLINE && pending > 0 ->
+            BadgeStyle(colors.tertiaryContainer, colors.tertiary, colors.onTertiaryContainer, "Offline · $pending pending")
+        status == SyncStatus.OFFLINE -> BadgeStyle(colors.tertiaryContainer, colors.tertiary, colors.onTertiaryContainer, "Offline")
+        pending > 0 -> BadgeStyle(colors.tertiaryContainer, colors.tertiary, colors.onTertiaryContainer, "$pending pending")
+        live -> BadgeStyle(Color(0xFFE8F5E9), Color(0xFF4CAF50), Color(0xFF2E7D32), "Live")
+        else -> BadgeStyle(Color(0xFFE8F5E9), Color(0xFF4CAF50), Color(0xFF2E7D32), "Synced")
+    }
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        modifier = Modifier
+            .clip(RoundedCornerShape(12.dp))
+            .background(style.container)
+            .padding(horizontal = 6.dp, vertical = 2.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .size(6.dp)
+                .clip(CircleShape)
+                .background(style.dot)
+        )
+        Text(
+            text = style.label,
+            fontSize = 10.sp,
+            fontWeight = FontWeight.Medium,
+            color = style.content
         )
     }
 }
