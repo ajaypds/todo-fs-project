@@ -104,6 +104,13 @@ dependencies {
   // Icons
   implementation(libs.androidx.compose.material.icons.extended)
 
+  // Background work (offline sync queue, due-date reminders)
+  implementation(libs.androidx.work.runtime.ktx)
+
+  // Secure token storage & biometric app lock
+  implementation(libs.androidx.security.crypto)
+  implementation(libs.androidx.biometric)
+
   // Networking & Serialization
   implementation(libs.retrofit.core)
   implementation(libs.retrofit.kotlinx.serialization)

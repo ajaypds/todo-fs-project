@@ -17,6 +17,8 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -24,6 +26,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.todoflow.data.local.ProjectEntity
+import com.example.todoflow.data.local.TaskEntity
 import com.example.todoflow.data.local.TaskFilterType
 import com.example.todoflow.data.local.ThemeMode
 import androidx.lifecycle.Lifecycle
@@ -42,6 +45,8 @@ fun TasksScreen(
     val filterState by viewModel.filterState.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
     val syncStatus by viewModel.syncStatus.collectAsState()
+    val labels by viewModel.labels.collectAsState()
+    val pendingOpCount by viewModel.pendingOpCount.collectAsState()
     val isLoadingMore by viewModel.isLoadingMore.collectAsState()
     val hasMore by viewModel.hasMore.collectAsState()
     val isReordering by viewModel.isReordering.collectAsState()
@@ -50,6 +55,8 @@ fun TasksScreen(
 
     var isSearchVisible by remember { mutableStateOf(false) }
     var isCreateDialogOpen by remember { mutableStateOf(false) }
+    var taskBeingEdited by remember { mutableStateOf<TaskEntity?>(null) }
+    var commentsTask by remember { mutableStateOf<TaskEntity?>(null) }
     var isLogoutDialogOpen by remember { mutableStateOf(false) }
     var isThemeDialogOpen by remember { mutableStateOf(false) }
 
@@ -59,6 +66,29 @@ fun TasksScreen(
 
     val snackbarHostState = remember { SnackbarHostState() }
     val listState = rememberLazyListState()
+    val scope = rememberCoroutineScope()
+
+    // Deleting hides the task and offers "Undo"; the delete is only sent once the snackbar goes away
+    fun requestDelete(task: TaskEntity) {
+        viewModel.hideTaskForDelete(task.id)
+        scope.launch {
+            val result = try {
+                snackbarHostState.showSnackbar(
+                    message = "Task deleted",
+                    actionLabel = "Undo",
+                    duration = SnackbarDuration.Long
+                )
+            } catch (e: CancellationException) {
+                viewModel.commitDelete(task.id) // screen left composition: don't leave it hidden forever
+                throw e
+            }
+            if (result == SnackbarResult.ActionPerformed) {
+                viewModel.undoDelete(task.id)
+            } else {
+                viewModel.commitDelete(task.id)
+            }
+        }
+    }
 
     // Lazy loading on scroll: triggers when user scrolls near the end
     LaunchedEffect(listState, isLoadingMore, hasMore) {
@@ -116,7 +146,7 @@ fun TasksScreen(
                                     fontWeight = FontWeight.Bold,
                                     style = MaterialTheme.typography.titleLarge
                                 )
-                                SyncBadge(syncStatus)
+                                SyncBadge(syncStatus, pendingOpCount)
                             }
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
@@ -130,6 +160,7 @@ fun TasksScreen(
                                         TaskFilterType.UPCOMING -> "Upcoming • ${tasks.size} tasks"
                                         TaskFilterType.COMPLETED -> "Done • ${tasks.size} tasks"
                                         TaskFilterType.PROJECT -> "${activeProject?.name ?: "Project"} • ${tasks.size} tasks"
+                                        TaskFilterType.LABEL -> "#${labels.firstOrNull { it.id == filterState.selectedLabelId }?.name ?: "label"} • ${tasks.size} tasks"
                                     },
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -281,6 +312,28 @@ fun TasksScreen(
                         )
                     }
 
+                    // Label Filter Chips
+                    labels.forEach { label ->
+                        val isSelected = filterState.filterType == TaskFilterType.LABEL &&
+                            filterState.selectedLabelId == label.id
+                        FilterChip(
+                            selected = isSelected,
+                            onClick = {
+                                if (isSelected) viewModel.setFilter(TaskFilterType.ALL)
+                                else viewModel.setFilter(TaskFilterType.LABEL, labelId = label.id)
+                            },
+                            label = { Text("#" + label.name) },
+                            leadingIcon = {
+                                Box(
+                                    modifier = Modifier
+                                        .size(8.dp)
+                                        .clip(CircleShape)
+                                        .background(parseHexColor(label.color))
+                                )
+                            }
+                        )
+                    }
+
                     // Add Project Chip
                     AssistChip(
                         onClick = {
@@ -374,20 +427,29 @@ fun TasksScreen(
                         items = tasks,
                         key = { _, task -> task.id }
                     ) { index, task ->
-                        TaskItemRow(
-                            task = task,
-                            projects = projects,
-                            onToggle = { viewModel.toggleTask(task) },
-                            onDelete = { viewModel.deleteTask(task.id) },
-                            isReorderMode = isReordering,
-                            canMoveUp = index > 0,
-                            canMoveDown = index < tasks.size - 1,
-                            onMoveUp = { viewModel.moveTask(task.id, up = true) },
-                            onMoveDown = { viewModel.moveTask(task.id, up = false) },
-                            onToggleSubtask = { subtask -> viewModel.toggleSubtask(task.id, subtask) },
-                            onCreateSubtask = { title -> viewModel.createSubtask(task.id, title) },
-                            onDeleteSubtask = { subtaskId -> viewModel.deleteSubtask(task.id, subtaskId) }
-                        )
+                        SwipeableTaskRow(
+                            enabled = !isReordering,
+                            completed = task.completed,
+                            onToggleComplete = { viewModel.toggleTask(task) },
+                            onDelete = { requestDelete(task) }
+                        ) {
+                            TaskItemRow(
+                                task = task,
+                                projects = projects,
+                                onToggle = { viewModel.toggleTask(task) },
+                                onDelete = { requestDelete(task) },
+                                onClick = { taskBeingEdited = task },
+                                onOpenComments = { commentsTask = task },
+                                isReorderMode = isReordering,
+                                canMoveUp = index > 0,
+                                canMoveDown = index < tasks.size - 1,
+                                onMoveUp = { viewModel.moveTask(task.id, up = true) },
+                                onMoveDown = { viewModel.moveTask(task.id, up = false) },
+                                onToggleSubtask = { subtask -> viewModel.toggleSubtask(task.id, subtask) },
+                                onCreateSubtask = { title -> viewModel.createSubtask(task.id, title) },
+                                onDeleteSubtask = { subtaskId -> viewModel.deleteSubtask(task.id, subtaskId) }
+                            )
+                        }
                     }
 
                     // Bottom loading indicator for lazy loading on scroll
@@ -411,23 +473,40 @@ fun TasksScreen(
         }
     }
 
-    if (isCreateDialogOpen) {
-        CreateTaskDialog(
+    if (isCreateDialogOpen || taskBeingEdited != null) {
+        val editing = taskBeingEdited
+        TaskEditorDialog(
+            task = editing,
             projects = projects,
-            selectedProjectId = filterState.selectedProjectId,
-            onDismiss = { isCreateDialogOpen = false },
-            onCreate = { title, desc, priority, dueDate, projId, projName ->
-                viewModel.createTask(
-                    title = title,
-                    description = desc,
-                    priority = priority,
-                    dueDate = dueDate,
-                    projectId = projId,
-                    projectName = projName
-                )
+            labels = labels,
+            defaultProjectId = filterState.selectedProjectId,
+            onDismiss = {
                 isCreateDialogOpen = false
+                taskBeingEdited = null
+            },
+            onCreateLabel = { name, color -> viewModel.createLabel(name, color) },
+            onSave = { title, desc, priority, dueDate, projId, projName, chosenLabels ->
+                if (editing != null) {
+                    viewModel.updateTask(editing, title, desc, priority, dueDate, projId, projName, chosenLabels)
+                } else {
+                    viewModel.createTask(
+                        title = title,
+                        description = desc,
+                        priority = priority,
+                        dueDate = dueDate,
+                        projectId = projId,
+                        projectName = projName,
+                        labels = chosenLabels
+                    )
+                }
+                isCreateDialogOpen = false
+                taskBeingEdited = null
             }
         )
+    }
+
+    commentsTask?.let { target ->
+        CommentsSheet(task = target, viewModel = viewModel, onDismiss = { commentsTask = null })
     }
 
     if (isProjectDialogOpen) {
@@ -548,15 +627,21 @@ fun TasksScreen(
 
 private data class BadgeStyle(val container: Color, val dot: Color, val content: Color, val label: String)
 
-/** Shows the real sync state: green only when the last sync actually succeeded. */
+/**
+ * Shows the real sync state: green only when the last sync succeeded and nothing is waiting to be
+ * uploaded. Local changes that haven't reached the server yet are counted as "pending".
+ */
 @Composable
-private fun SyncBadge(status: SyncStatus) {
+private fun SyncBadge(status: SyncStatus, pending: Int) {
     val colors = MaterialTheme.colorScheme
-    val style = when (status) {
-        SyncStatus.SYNCED -> BadgeStyle(Color(0xFFE8F5E9), Color(0xFF4CAF50), Color(0xFF2E7D32), "Synced")
-        SyncStatus.SYNCING -> BadgeStyle(colors.primaryContainer, colors.primary, colors.onPrimaryContainer, "Syncing...")
-        SyncStatus.OFFLINE -> BadgeStyle(colors.tertiaryContainer, colors.tertiary, colors.onTertiaryContainer, "Offline")
-        SyncStatus.ERROR -> BadgeStyle(colors.errorContainer, colors.error, colors.onErrorContainer, "Sync failed")
+    val style = when {
+        status == SyncStatus.SYNCING -> BadgeStyle(colors.primaryContainer, colors.primary, colors.onPrimaryContainer, "Syncing...")
+        status == SyncStatus.ERROR -> BadgeStyle(colors.errorContainer, colors.error, colors.onErrorContainer, "Sync failed")
+        status == SyncStatus.OFFLINE && pending > 0 ->
+            BadgeStyle(colors.tertiaryContainer, colors.tertiary, colors.onTertiaryContainer, "Offline · $pending pending")
+        status == SyncStatus.OFFLINE -> BadgeStyle(colors.tertiaryContainer, colors.tertiary, colors.onTertiaryContainer, "Offline")
+        pending > 0 -> BadgeStyle(colors.tertiaryContainer, colors.tertiary, colors.onTertiaryContainer, "$pending pending")
+        else -> BadgeStyle(Color(0xFFE8F5E9), Color(0xFF4CAF50), Color(0xFF2E7D32), "Synced")
     }
     Row(
         verticalAlignment = Alignment.CenterVertically,

@@ -8,7 +8,7 @@ class TodoDbHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME, 
 
     companion object {
         const val DATABASE_NAME = "todoflow.db"
-        const val DATABASE_VERSION = 2
+        const val DATABASE_VERSION = 3
 
         const val TABLE_TASKS = "tasks"
         const val COL_TASK_ID = "id"
@@ -35,6 +35,23 @@ class TodoDbHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME, 
         const val COL_PROJECT_ID = "id"
         const val COL_PROJECT_NAME = "name"
         const val COL_PROJECT_COLOR = "color"
+
+        const val TABLE_LABELS = "labels"
+        const val COL_LABEL_ID = "id"
+        const val COL_LABEL_NAME = "name"
+        const val COL_LABEL_COLOR = "color"
+
+        const val TABLE_TASK_LABELS = "task_labels"
+        const val COL_TL_TASK_ID = "task_id"
+        const val COL_TL_LABEL_ID = "label_id"
+
+        const val TABLE_PENDING_OPS = "pending_ops"
+        const val COL_OP_ID = "id"
+        const val COL_OP_TYPE = "type"
+        const val COL_OP_ENTITY_ID = "entity_id"
+        const val COL_OP_PARENT_ID = "parent_id"
+        const val COL_OP_PAYLOAD = "payload"
+        const val COL_OP_ATTEMPTS = "attempts"
     }
 
     override fun onConfigure(db: SQLiteDatabase) {
@@ -90,9 +107,44 @@ class TodoDbHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME, 
             """.trimIndent()
         )
         db.execSQL("CREATE INDEX IF NOT EXISTS idx_subtasks_task ON $TABLE_SUBTASKS($COL_SUBTASK_TASK_ID)")
+        createVersion3Tables(db)
+    }
+
+    private fun createVersion3Tables(db: SQLiteDatabase) {
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS $TABLE_LABELS (
+                $COL_LABEL_ID TEXT PRIMARY KEY,
+                $COL_LABEL_NAME TEXT NOT NULL,
+                $COL_LABEL_COLOR TEXT
+            )
+            """.trimIndent()
+        )
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS $TABLE_TASK_LABELS (
+                $COL_TL_TASK_ID TEXT NOT NULL,
+                $COL_TL_LABEL_ID TEXT NOT NULL,
+                PRIMARY KEY ($COL_TL_TASK_ID, $COL_TL_LABEL_ID)
+            )
+            """.trimIndent()
+        )
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS $TABLE_PENDING_OPS (
+                $COL_OP_ID INTEGER PRIMARY KEY AUTOINCREMENT,
+                $COL_OP_TYPE TEXT NOT NULL,
+                $COL_OP_ENTITY_ID TEXT NOT NULL,
+                $COL_OP_PARENT_ID TEXT,
+                $COL_OP_PAYLOAD TEXT NOT NULL,
+                $COL_OP_ATTEMPTS INTEGER NOT NULL DEFAULT 0
+            )
+            """.trimIndent()
+        )
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
+        // Additive, data-preserving migrations (cached data and unsynced changes are kept)
         if (oldVersion < 2) {
             db.execSQL(
                 """
@@ -106,11 +158,9 @@ class TodoDbHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME, 
                 """.trimIndent()
             )
             db.execSQL("CREATE INDEX IF NOT EXISTS idx_subtasks_task ON $TABLE_SUBTASKS($COL_SUBTASK_TASK_ID)")
-        } else {
-            db.execSQL("DROP TABLE IF EXISTS $TABLE_SUBTASKS")
-            db.execSQL("DROP TABLE IF EXISTS $TABLE_TASKS")
-            db.execSQL("DROP TABLE IF EXISTS $TABLE_PROJECTS")
-            onCreate(db)
+        }
+        if (oldVersion < 3) {
+            createVersion3Tables(db)
         }
     }
 }

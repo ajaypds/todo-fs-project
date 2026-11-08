@@ -15,6 +15,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CalendarToday
+import androidx.compose.material.icons.filled.ChatBubbleOutline
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Checklist
 import androidx.compose.material.icons.filled.Close
@@ -40,6 +41,7 @@ import com.example.todoflow.data.local.ProjectEntity
 import com.example.todoflow.data.local.SubtaskEntity
 import com.example.todoflow.data.local.TaskEntity
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun TaskItemRow(
     task: TaskEntity,
@@ -47,6 +49,8 @@ fun TaskItemRow(
     onToggle: () -> Unit,
     onDelete: () -> Unit,
     modifier: Modifier = Modifier,
+    onClick: () -> Unit = {},
+    onOpenComments: () -> Unit = {},
     isReorderMode: Boolean = false,
     canMoveUp: Boolean = true,
     canMoveDown: Boolean = true,
@@ -129,7 +133,7 @@ fun TaskItemRow(
                 Column(
                     modifier = Modifier
                         .weight(1f)
-                        .clickable { onToggle() }
+                        .clickable { onClick() }
                 ) {
                     Text(
                         text = task.title,
@@ -158,13 +162,13 @@ fun TaskItemRow(
                         )
                     }
 
-                    // Badges row: Project, Priority, Due Date, Subtask Count
-                    Row(
+                    // Badges: Project, Labels, Priority, Due Date, Subtasks, Comments (wraps onto more lines)
+                    FlowRow(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(top = 6.dp),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         // Project badge
                         if (project != null || !task.projectName.isNullOrBlank()) {
@@ -191,6 +195,9 @@ fun TaskItemRow(
                                 )
                             }
                         }
+
+                        // Labels
+                        task.labels.forEach { label -> LabelChip(label) }
 
                         // Priority badge
                         if (task.priority > 0) {
@@ -283,6 +290,32 @@ fun TaskItemRow(
                                     tint = if (allDone) Color(0xFF2E7D32) else MaterialTheme.colorScheme.primary,
                                     modifier = Modifier.size(14.dp)
                                 )
+                            }
+                        }
+
+                        // Comments (tap to read or add)
+                        if (!isReorderMode) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(3.dp),
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .clickable { onOpenComments() }
+                                    .padding(horizontal = 4.dp, vertical = 2.dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.ChatBubbleOutline,
+                                    contentDescription = "Comments",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+                                    modifier = Modifier.size(13.dp)
+                                )
+                                if (task.commentCount > 0) {
+                                    Text(
+                                        text = task.commentCount.toString(),
+                                        fontSize = 11.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
                             }
                         }
 

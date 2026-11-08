@@ -18,7 +18,8 @@ enum class TaskFilterType {
     TODAY,
     UPCOMING,
     COMPLETED,
-    PROJECT
+    PROJECT,
+    LABEL
 }
 
 class TodoLocalDataSource(private val dbHelper: TodoDbHelper) {
@@ -40,9 +41,13 @@ class TodoLocalDataSource(private val dbHelper: TodoDbHelper) {
         projectUpdatesTrigger.tryEmit(Unit)
     }
 
-    fun observeTasks(filter: TaskFilterType = TaskFilterType.ALL, projectId: String? = null): Flow<List<TaskEntity>> = flow {
+    fun observeTasks(
+        filter: TaskFilterType = TaskFilterType.ALL,
+        projectId: String? = null,
+        labelId: String? = null
+    ): Flow<List<TaskEntity>> = flow {
         taskUpdatesTrigger.collect {
-            val tasks = getTasks(filter, projectId)
+            val tasks = getTasks(filter, projectId, labelId)
             emit(tasks)
         }
     }.flowOn(Dispatchers.IO).distinctUntilChanged()
@@ -54,7 +59,11 @@ class TodoLocalDataSource(private val dbHelper: TodoDbHelper) {
         }
     }.flowOn(Dispatchers.IO).distinctUntilChanged()
 
-    suspend fun getTasks(filter: TaskFilterType = TaskFilterType.ALL, projectId: String? = null): List<TaskEntity> = withContext(Dispatchers.IO) {
+    suspend fun getTasks(
+        filter: TaskFilterType = TaskFilterType.ALL,
+        projectId: String? = null,
+        labelId: String? = null
+    ): List<TaskEntity> = withContext(Dispatchers.IO) {
         val db = dbHelper.readableDatabase
         val tasks = mutableListOf<TaskEntity>()
 
@@ -69,13 +78,32 @@ class TodoLocalDataSource(private val dbHelper: TodoDbHelper) {
                 selectionBuilder.append("(${TodoDbHelper.COL_TASK_PROJECT_ID} IS NULL OR ${TodoDbHelper.COL_TASK_PROJECT_ID} = '')")
             }
             TaskFilterType.TODAY -> {
-                selectionBuilder.append("${TodoDbHelper.COL_TASK_DUE_DATE} IS NOT NULL")
+                // Due today or overdue, and not finished yet
+                selectionBuilder.append(
+                    "${TodoDbHelper.COL_TASK_DUE_DATE} IS NOT NULL AND substr(${TodoDbHelper.COL_TASK_DUE_DATE}, 1, 10) <= ? " +
+                        "AND ${TodoDbHelper.COL_TASK_COMPLETED} = 0"
+                )
+                selectionArgs.add(java.time.LocalDate.now().toString())
             }
             TaskFilterType.UPCOMING -> {
-                selectionBuilder.append("${TodoDbHelper.COL_TASK_DUE_DATE} IS NOT NULL")
+                // Due after today, not finished yet
+                selectionBuilder.append(
+                    "${TodoDbHelper.COL_TASK_DUE_DATE} IS NOT NULL AND substr(${TodoDbHelper.COL_TASK_DUE_DATE}, 1, 10) > ? " +
+                        "AND ${TodoDbHelper.COL_TASK_COMPLETED} = 0"
+                )
+                selectionArgs.add(java.time.LocalDate.now().toString())
             }
             TaskFilterType.COMPLETED -> {
                 selectionBuilder.append("${TodoDbHelper.COL_TASK_COMPLETED} = 1")
+            }
+            TaskFilterType.LABEL -> {
+                if (!labelId.isNullOrBlank()) {
+                    selectionBuilder.append(
+                        "${TodoDbHelper.COL_TASK_ID} IN (SELECT ${TodoDbHelper.COL_TL_TASK_ID} FROM " +
+                            "${TodoDbHelper.TABLE_TASK_LABELS} WHERE ${TodoDbHelper.COL_TL_LABEL_ID} = ?)"
+                    )
+                    selectionArgs.add(labelId)
+                }
             }
             TaskFilterType.PROJECT -> {
                 if (!projectId.isNullOrBlank()) {
@@ -124,8 +152,25 @@ class TodoLocalDataSource(private val dbHelper: TodoDbHelper) {
                     subtasksByTaskId.getOrPut(subtask.taskId) { mutableListOf() }.add(subtask)
                 }
             }
+            val labelsByTaskId = mutableMapOf<String, MutableList<LabelEntity>>()
+            db.rawQuery(
+                "SELECT tl.${TodoDbHelper.COL_TL_TASK_ID}, l.${TodoDbHelper.COL_LABEL_ID}, " +
+                    "l.${TodoDbHelper.COL_LABEL_NAME}, l.${TodoDbHelper.COL_LABEL_COLOR} " +
+                    "FROM ${TodoDbHelper.TABLE_TASK_LABELS} tl " +
+                    "JOIN ${TodoDbHelper.TABLE_LABELS} l ON l.${TodoDbHelper.COL_LABEL_ID} = tl.${TodoDbHelper.COL_TL_LABEL_ID} " +
+                    "ORDER BY l.${TodoDbHelper.COL_LABEL_NAME} ASC",
+                null
+            ).use { lc ->
+                while (lc.moveToNext()) {
+                    labelsByTaskId.getOrPut(lc.getString(0)) { mutableListOf() }
+                        .add(LabelEntity(lc.getString(1), lc.getString(2), lc.getString(3)))
+                }
+            }
             return@withContext tasks.map { t ->
-                t.copy(subtasks = subtasksByTaskId[t.id] ?: emptyList())
+                t.copy(
+                    subtasks = subtasksByTaskId[t.id] ?: emptyList(),
+                    labels = labelsByTaskId[t.id] ?: emptyList()
+                )
             }
         }
         tasks
@@ -180,8 +225,8 @@ class TodoLocalDataSource(private val dbHelper: TodoDbHelper) {
     }
 
     private fun insertOrUpdateTaskInTransaction(db: SQLiteDatabase, task: TaskEntity) {
-        var finalCompleted = task.completed
-        var finalIsSynced = task.isSynced
+        val finalCompleted = task.completed
+        val finalIsSynced = task.isSynced
 
         val cursor = db.query(
             TodoDbHelper.TABLE_TASKS,
@@ -193,10 +238,9 @@ class TodoLocalDataSource(private val dbHelper: TodoDbHelper) {
         cursor.use {
             if (it.moveToFirst()) {
                 val isSynced = it.getInt(it.getColumnIndexOrThrow(TodoDbHelper.COL_TASK_IS_SYNCED)) == 1
-                if (!isSynced) {
-                    finalCompleted = it.getInt(it.getColumnIndexOrThrow(TodoDbHelper.COL_TASK_COMPLETED)) == 1
-                    finalIsSynced = false
-                }
+                // A local change is still waiting to be uploaded: don't overwrite it with server data
+                if (!isSynced && task.isSynced) return
+
             }
         }
 
@@ -220,6 +264,21 @@ class TodoLocalDataSource(private val dbHelper: TodoDbHelper) {
             values,
             SQLiteDatabase.CONFLICT_REPLACE
         )
+
+        // Labels travel with the task
+        db.delete(TodoDbHelper.TABLE_TASK_LABELS, "${TodoDbHelper.COL_TL_TASK_ID} = ?", arrayOf(task.id))
+        for (label in task.labels) {
+            putLabel(db, label)
+            db.insertWithOnConflict(
+                TodoDbHelper.TABLE_TASK_LABELS,
+                null,
+                ContentValues().apply {
+                    put(TodoDbHelper.COL_TL_TASK_ID, task.id)
+                    put(TodoDbHelper.COL_TL_LABEL_ID, label.id)
+                },
+                SQLiteDatabase.CONFLICT_REPLACE
+            )
+        }
 
         if (finalIsSynced) {
             db.delete(
@@ -473,13 +532,262 @@ class TodoLocalDataSource(private val dbHelper: TodoDbHelper) {
         notifyTasksChanged()
     }
 
+    // ---------------------------------------------------------------- labels
+
+    private fun putLabel(db: SQLiteDatabase, label: LabelEntity) {
+        db.insertWithOnConflict(
+            TodoDbHelper.TABLE_LABELS,
+            null,
+            ContentValues().apply {
+                put(TodoDbHelper.COL_LABEL_ID, label.id)
+                put(TodoDbHelper.COL_LABEL_NAME, label.name)
+                put(TodoDbHelper.COL_LABEL_COLOR, label.color)
+            },
+            SQLiteDatabase.CONFLICT_REPLACE
+        )
+    }
+
+    private val labelUpdatesTrigger = MutableSharedFlow<Unit>(replay = 1).apply { tryEmit(Unit) }
+
+    fun observeLabels(): Flow<List<LabelEntity>> = flow {
+        labelUpdatesTrigger.collect { emit(queryLabels()) }
+    }.flowOn(Dispatchers.IO).distinctUntilChanged()
+
+    private fun queryLabels(): List<LabelEntity> {
+        val labels = mutableListOf<LabelEntity>()
+        dbHelper.readableDatabase.query(
+            TodoDbHelper.TABLE_LABELS, null, null, null, null, null,
+            "${TodoDbHelper.COL_LABEL_NAME} COLLATE NOCASE ASC"
+        ).use {
+            while (it.moveToNext()) {
+                labels.add(
+                    LabelEntity(
+                        id = it.getString(it.getColumnIndexOrThrow(TodoDbHelper.COL_LABEL_ID)),
+                        name = it.getString(it.getColumnIndexOrThrow(TodoDbHelper.COL_LABEL_NAME)),
+                        color = it.getString(it.getColumnIndexOrThrow(TodoDbHelper.COL_LABEL_COLOR))
+                    )
+                )
+            }
+        }
+        return labels
+    }
+
+    /** Replaces the cached label list with the server's list. */
+    suspend fun replaceLabels(labels: List<LabelEntity>) = withContext(Dispatchers.IO) {
+        val db = dbHelper.writableDatabase
+        db.beginTransaction()
+        try {
+            db.delete(TodoDbHelper.TABLE_LABELS, null, null)
+            labels.forEach { putLabel(db, it) }
+            // Drop links to labels that no longer exist
+            db.execSQL(
+                "DELETE FROM ${TodoDbHelper.TABLE_TASK_LABELS} WHERE ${TodoDbHelper.COL_TL_LABEL_ID} NOT IN " +
+                    "(SELECT ${TodoDbHelper.COL_LABEL_ID} FROM ${TodoDbHelper.TABLE_LABELS})"
+            )
+            db.setTransactionSuccessful()
+        } finally {
+            db.endTransaction()
+        }
+        labelUpdatesTrigger.tryEmit(Unit)
+        notifyTasksChanged()
+    }
+
+    suspend fun upsertLabel(label: LabelEntity) = withContext(Dispatchers.IO) {
+        putLabel(dbHelper.writableDatabase, label)
+        labelUpdatesTrigger.tryEmit(Unit)
+    }
+
+    /** Applies a local (optimistic) edit to a task; the row stays "unsynced" until the server confirms. */
+    suspend fun updateTaskFields(
+        taskId: String,
+        title: String,
+        description: String?,
+        priority: Int,
+        dueDate: String?,
+        projectId: String?,
+        projectName: String?,
+        labels: List<LabelEntity>
+    ) = withContext(Dispatchers.IO) {
+        val db = dbHelper.writableDatabase
+        db.beginTransaction()
+        try {
+            val values = ContentValues().apply {
+                put(TodoDbHelper.COL_TASK_TITLE, title)
+                put(TodoDbHelper.COL_TASK_DESCRIPTION, description)
+                put(TodoDbHelper.COL_TASK_PRIORITY, priority)
+                put(TodoDbHelper.COL_TASK_DUE_DATE, dueDate)
+                put(TodoDbHelper.COL_TASK_PROJECT_ID, projectId)
+                put(TodoDbHelper.COL_TASK_PROJECT_NAME, projectName)
+                put(TodoDbHelper.COL_TASK_IS_SYNCED, 0)
+            }
+            db.update(TodoDbHelper.TABLE_TASKS, values, "${TodoDbHelper.COL_TASK_ID} = ?", arrayOf(taskId))
+            db.delete(TodoDbHelper.TABLE_TASK_LABELS, "${TodoDbHelper.COL_TL_TASK_ID} = ?", arrayOf(taskId))
+            for (label in labels) {
+                putLabel(db, label)
+                db.insertWithOnConflict(
+                    TodoDbHelper.TABLE_TASK_LABELS,
+                    null,
+                    ContentValues().apply {
+                        put(TodoDbHelper.COL_TL_TASK_ID, taskId)
+                        put(TodoDbHelper.COL_TL_LABEL_ID, label.id)
+                    },
+                    SQLiteDatabase.CONFLICT_REPLACE
+                )
+            }
+            db.setTransactionSuccessful()
+        } finally {
+            db.endTransaction()
+        }
+        labelUpdatesTrigger.tryEmit(Unit)
+        notifyTasksChanged()
+    }
+
+    suspend fun markTaskUnsynced(taskId: String) = withContext(Dispatchers.IO) {
+        dbHelper.writableDatabase.update(
+            TodoDbHelper.TABLE_TASKS,
+            ContentValues().apply { put(TodoDbHelper.COL_TASK_IS_SYNCED, 0) },
+            "${TodoDbHelper.COL_TASK_ID} = ?",
+            arrayOf(taskId)
+        )
+        notifyTasksChanged()
+    }
+
+    // ------------------------------------------------- pending (offline) operations
+
+    private val opsTrigger = MutableSharedFlow<Unit>(replay = 1).apply { tryEmit(Unit) }
+
+    fun observePendingOpCount(): Flow<Int> = flow {
+        opsTrigger.collect { emit(countPendingOps()) }
+    }.flowOn(Dispatchers.IO).distinctUntilChanged()
+
+    private fun countPendingOps(): Int =
+        dbHelper.readableDatabase.rawQuery("SELECT COUNT(*) FROM ${TodoDbHelper.TABLE_PENDING_OPS}", null)
+            .use { if (it.moveToFirst()) it.getInt(0) else 0 }
+
+    suspend fun enqueueOp(type: String, entityId: String, parentId: String?, payload: String): Long =
+        withContext(Dispatchers.IO) {
+            val id = dbHelper.writableDatabase.insert(
+                TodoDbHelper.TABLE_PENDING_OPS,
+                null,
+                ContentValues().apply {
+                    put(TodoDbHelper.COL_OP_TYPE, type)
+                    put(TodoDbHelper.COL_OP_ENTITY_ID, entityId)
+                    put(TodoDbHelper.COL_OP_PARENT_ID, parentId)
+                    put(TodoDbHelper.COL_OP_PAYLOAD, payload)
+                }
+            )
+            opsTrigger.tryEmit(Unit)
+            id
+        }
+
+    suspend fun getPendingOps(): List<PendingOp> = withContext(Dispatchers.IO) {
+        val ops = mutableListOf<PendingOp>()
+        dbHelper.readableDatabase.query(
+            TodoDbHelper.TABLE_PENDING_OPS, null, null, null, null, null,
+            "${TodoDbHelper.COL_OP_ID} ASC"
+        ).use {
+            while (it.moveToNext()) {
+                ops.add(
+                    PendingOp(
+                        id = it.getLong(it.getColumnIndexOrThrow(TodoDbHelper.COL_OP_ID)),
+                        type = it.getString(it.getColumnIndexOrThrow(TodoDbHelper.COL_OP_TYPE)),
+                        entityId = it.getString(it.getColumnIndexOrThrow(TodoDbHelper.COL_OP_ENTITY_ID)),
+                        parentId = it.getString(it.getColumnIndexOrThrow(TodoDbHelper.COL_OP_PARENT_ID)),
+                        payload = it.getString(it.getColumnIndexOrThrow(TodoDbHelper.COL_OP_PAYLOAD)),
+                        attempts = it.getInt(it.getColumnIndexOrThrow(TodoDbHelper.COL_OP_ATTEMPTS))
+                    )
+                )
+            }
+        }
+        ops
+    }
+
+    suspend fun deleteOp(opId: Long) = withContext(Dispatchers.IO) {
+        dbHelper.writableDatabase.delete(
+            TodoDbHelper.TABLE_PENDING_OPS, "${TodoDbHelper.COL_OP_ID} = ?", arrayOf(opId.toString())
+        )
+        opsTrigger.tryEmit(Unit)
+    }
+
+    suspend fun incrementOpAttempts(opId: Long) = withContext(Dispatchers.IO) {
+        dbHelper.writableDatabase.execSQL(
+            "UPDATE ${TodoDbHelper.TABLE_PENDING_OPS} SET ${TodoDbHelper.COL_OP_ATTEMPTS} = ${TodoDbHelper.COL_OP_ATTEMPTS} + 1 " +
+                "WHERE ${TodoDbHelper.COL_OP_ID} = ?",
+            arrayOf(opId)
+        )
+    }
+
+    /** True if any queued operation still refers to [id] (as the entity or as its parent). */
+    suspend fun hasPendingOps(id: String): Boolean = withContext(Dispatchers.IO) {
+        dbHelper.readableDatabase.rawQuery(
+            "SELECT 1 FROM ${TodoDbHelper.TABLE_PENDING_OPS} WHERE ${TodoDbHelper.COL_OP_ENTITY_ID} = ? " +
+                "OR ${TodoDbHelper.COL_OP_PARENT_ID} = ? LIMIT 1",
+            arrayOf(id, id)
+        ).use { it.moveToFirst() }
+    }
+
+    /** Drops every queued operation about [id] (used when an item that was never uploaded is deleted). */
+    suspend fun removeOpsFor(id: String) = withContext(Dispatchers.IO) {
+        dbHelper.writableDatabase.delete(
+            TodoDbHelper.TABLE_PENDING_OPS,
+            "${TodoDbHelper.COL_OP_ENTITY_ID} = ? OR ${TodoDbHelper.COL_OP_PARENT_ID} = ?",
+            arrayOf(id, id)
+        )
+        opsTrigger.tryEmit(Unit)
+    }
+
+    suspend fun pendingDeletedTaskIds(): Set<String> = withContext(Dispatchers.IO) {
+        val ids = mutableSetOf<String>()
+        dbHelper.readableDatabase.query(
+            TodoDbHelper.TABLE_PENDING_OPS,
+            arrayOf(TodoDbHelper.COL_OP_ENTITY_ID),
+            "${TodoDbHelper.COL_OP_TYPE} = ?",
+            arrayOf("DELETE_TASK"),
+            null, null, null
+        ).use { while (it.moveToNext()) ids.add(it.getString(0)) }
+        ids
+    }
+
+    /**
+     * After the server created something that was first stored under a temporary id, point every
+     * remaining queued operation (entity, parent and payload) at the real id.
+     */
+    suspend fun remapPendingIds(tempId: String, realId: String) = withContext(Dispatchers.IO) {
+        val db = dbHelper.writableDatabase
+        db.execSQL(
+            "UPDATE ${TodoDbHelper.TABLE_PENDING_OPS} SET " +
+                "${TodoDbHelper.COL_OP_ENTITY_ID} = REPLACE(${TodoDbHelper.COL_OP_ENTITY_ID}, ?, ?), " +
+                "${TodoDbHelper.COL_OP_PARENT_ID} = REPLACE(${TodoDbHelper.COL_OP_PARENT_ID}, ?, ?), " +
+                "${TodoDbHelper.COL_OP_PAYLOAD} = REPLACE(${TodoDbHelper.COL_OP_PAYLOAD}, ?, ?)",
+            arrayOf(tempId, realId, tempId, realId, tempId, realId)
+        )
+        // Cached rows that point at the temporary project
+        db.execSQL(
+            "UPDATE ${TodoDbHelper.TABLE_TASKS} SET ${TodoDbHelper.COL_TASK_PROJECT_ID} = ? " +
+                "WHERE ${TodoDbHelper.COL_TASK_PROJECT_ID} = ?",
+            arrayOf(realId, tempId)
+        )
+        db.execSQL(
+            "UPDATE ${TodoDbHelper.TABLE_SUBTASKS} SET ${TodoDbHelper.COL_SUBTASK_TASK_ID} = ? " +
+                "WHERE ${TodoDbHelper.COL_SUBTASK_TASK_ID} = ?",
+            arrayOf(realId, tempId)
+        )
+        opsTrigger.tryEmit(Unit)
+        notifyTasksChanged()
+    }
+
     suspend fun clearAll() = withContext(Dispatchers.IO) {
         val db = dbHelper.writableDatabase
         db.delete(TodoDbHelper.TABLE_SUBTASKS, null, null)
         db.delete(TodoDbHelper.TABLE_TASKS, null, null)
         db.delete(TodoDbHelper.TABLE_PROJECTS, null, null)
+        db.delete(TodoDbHelper.TABLE_LABELS, null, null)
+        db.delete(TodoDbHelper.TABLE_TASK_LABELS, null, null)
+        db.delete(TodoDbHelper.TABLE_PENDING_OPS, null, null)
         notifyTasksChanged()
         notifyProjectsChanged()
+        labelUpdatesTrigger.tryEmit(Unit)
+        opsTrigger.tryEmit(Unit)
     }
 
     private fun cursorToTask(cursor: Cursor): TaskEntity {

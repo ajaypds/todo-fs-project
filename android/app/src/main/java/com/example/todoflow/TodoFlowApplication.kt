@@ -6,8 +6,15 @@ import com.example.todoflow.data.local.TodoDbHelper
 import com.example.todoflow.data.local.TodoLocalDataSource
 import com.example.todoflow.data.remote.ApiClient
 import com.example.todoflow.data.repository.TaskRepository
+import com.example.todoflow.sync.SyncWorker
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 
 class TodoFlowApplication : Application() {
+
+    val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     lateinit var sessionManager: SessionManager
         private set
@@ -30,6 +37,18 @@ class TodoFlowApplication : Application() {
         dbHelper = TodoDbHelper(this)
         localDataSource = TodoLocalDataSource(dbHelper)
         apiClient = ApiClient(sessionManager)
-        taskRepository = TaskRepository(localDataSource, apiClient)
+        taskRepository = TaskRepository(
+            localDataSource = localDataSource,
+            apiClient = apiClient,
+            scope = appScope,
+            onOpsQueued = { SyncWorker.schedule(this) }
+        )
+
+        // Changes queued in a previous run (e.g. the app was closed while offline)
+        appScope.launch {
+            if (sessionManager.isLoggedIn.value && localDataSource.getPendingOps().isNotEmpty()) {
+                SyncWorker.schedule(this@TodoFlowApplication)
+            }
+        }
     }
 }
