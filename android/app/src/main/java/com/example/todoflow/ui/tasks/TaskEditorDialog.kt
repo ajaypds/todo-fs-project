@@ -9,7 +9,10 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
@@ -18,6 +21,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CalendarToday
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Flag
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
@@ -33,6 +37,8 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDatePickerState
@@ -52,6 +58,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import com.example.todoflow.data.local.LabelEntity
 import com.example.todoflow.data.local.ProjectEntity
 import com.example.todoflow.data.local.TaskEntity
@@ -108,206 +116,242 @@ fun TaskEditorDialog(
     val dueDatePart = dueDate?.substringBefore("T")
     val today = LocalDate.now()
 
-    AlertDialog(
+    // Full-screen editor: roomy fields, grouped sections and a big primary button
+    Dialog(
         onDismissRequest = onDismiss,
-        title = { Text(if (isEditing) "Edit Task" else "New Task", style = MaterialTheme.typography.titleLarge) },
-        text = {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .verticalScroll(rememberScrollState())
-                    .padding(vertical = 4.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                OutlinedTextField(
-                    value = title,
-                    onValueChange = { title = it },
-                    label = { Text("What needs to be done?") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                OutlinedTextField(
-                    value = description,
-                    onValueChange = { description = it },
-                    label = { Text("Description (optional)") },
-                    maxLines = 3,
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                Text("Priority", style = MaterialTheme.typography.labelMedium)
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Surface(
+            modifier = Modifier.fillMaxSize(),
+            color = MaterialTheme.colorScheme.background
+        ) {
+            Column(modifier = Modifier.fillMaxSize()) {
+                // Header
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    val priorities = listOf(
-                        Triple(0, "None", MaterialTheme.colorScheme.outline),
-                        Triple(3, "P3", Color(0xFF2196F3)),
-                        Triple(2, "P2", Color(0xFFFF9800)),
-                        Triple(1, "P1", Color(0xFFF44336))
-                    )
-                    priorities.forEach { (p, label, color) ->
-                        FilterChip(
-                            selected = priority == p,
-                            onClick = { priority = p },
-                            label = { Text(label) },
-                            leadingIcon = if (p > 0) {
-                                {
-                                    Icon(
-                                        Icons.Default.Flag,
-                                        contentDescription = null,
-                                        tint = color,
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                }
-                            } else null
-                        )
+                    IconButton(onClick = onDismiss) {
+                        Icon(Icons.Default.Close, contentDescription = "Close")
                     }
+                    Text(
+                        if (isEditing) "Edit Task" else "New Task",
+                        style = MaterialTheme.typography.titleLarge,
+                        modifier = Modifier.padding(start = 4.dp)
+                    )
                 }
 
-                Text("Due Date", style = MaterialTheme.typography.labelMedium)
-                FlowRow(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = 20.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    FilterChip(
-                        selected = dueDate == null,
-                        onClick = { dueDate = null },
-                        label = { Text("No date") }
+                    OutlinedTextField(
+                        value = title,
+                        onValueChange = { title = it },
+                        label = { Text("What needs to be done?") },
+                        textStyle = MaterialTheme.typography.titleMedium,
+                        shape = RoundedCornerShape(16.dp),
+                        modifier = Modifier.fillMaxWidth()
                     )
-                    FilterChip(
-                        selected = dueDatePart == today.toString(),
-                        onClick = { dueDate = dueDateFor(today) },
-                        label = { Text("Today") }
-                    )
-                    FilterChip(
-                        selected = dueDatePart == today.plusDays(1).toString(),
-                        onClick = { dueDate = dueDateFor(today.plusDays(1)) },
-                        label = { Text("Tomorrow") }
-                    )
-                    val isCustom = dueDatePart != null &&
-                        dueDatePart != today.toString() && dueDatePart != today.plusDays(1).toString()
-                    FilterChip(
-                        selected = isCustom,
-                        onClick = { showDatePicker = true },
-                        label = { Text(if (isCustom) formatDueDate(dueDate.orEmpty()) else "Pick date") },
-                        leadingIcon = {
-                            Icon(Icons.Default.CalendarToday, contentDescription = null, modifier = Modifier.size(16.dp))
-                        }
-                    )
-                }
 
-                if (projects.isNotEmpty()) {
-                    Text("Project", style = MaterialTheme.typography.labelMedium)
-                    ExposedDropdownMenuBox(
-                        expanded = isProjectDropdownExpanded,
-                        onExpandedChange = { isProjectDropdownExpanded = !isProjectDropdownExpanded }
-                    ) {
-                        OutlinedTextField(
-                            value = chosenProject?.name ?: "Inbox (No Project)",
-                            onValueChange = {},
-                            readOnly = true,
-                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isProjectDropdownExpanded) },
-                            modifier = Modifier
-                                .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable)
-                                .fillMaxWidth()
-                        )
-                        ExposedDropdownMenu(
-                            expanded = isProjectDropdownExpanded,
-                            onDismissRequest = { isProjectDropdownExpanded = false }
+                    OutlinedTextField(
+                        value = description,
+                        onValueChange = { description = it },
+                        label = { Text("Description (optional)") },
+                        minLines = 3,
+                        maxLines = 6,
+                        shape = RoundedCornerShape(16.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    EditorSection("Priority") {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            DropdownMenuItem(
-                                text = { Text("Inbox (No Project)") },
-                                onClick = {
-                                    chosenProjectId = null
-                                    isProjectDropdownExpanded = false
+                            val priorities = listOf(
+                                Triple(0, "None", MaterialTheme.colorScheme.outline),
+                                Triple(3, "P3", Color(0xFF2196F3)),
+                                Triple(2, "P2", Color(0xFFFF9800)),
+                                Triple(1, "P1", Color(0xFFF44336))
+                            )
+                            priorities.forEach { (p, label, color) ->
+                                FilterChip(
+                                    selected = priority == p,
+                                    onClick = { priority = p },
+                                    label = { Text(label) },
+                                    leadingIcon = if (p > 0) {
+                                        {
+                                            Icon(
+                                                Icons.Default.Flag,
+                                                contentDescription = null,
+                                                tint = color,
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                        }
+                                    } else null
+                                )
+                            }
+                        }
+                    }
+
+                    EditorSection("Due Date") {
+                        FlowRow(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            FilterChip(
+                                selected = dueDate == null,
+                                onClick = { dueDate = null },
+                                label = { Text("No date") }
+                            )
+                            FilterChip(
+                                selected = dueDatePart == today.toString(),
+                                onClick = { dueDate = dueDateFor(today) },
+                                label = { Text("Today") }
+                            )
+                            FilterChip(
+                                selected = dueDatePart == today.plusDays(1).toString(),
+                                onClick = { dueDate = dueDateFor(today.plusDays(1)) },
+                                label = { Text("Tomorrow") }
+                            )
+                            val isCustom = dueDatePart != null &&
+                                dueDatePart != today.toString() && dueDatePart != today.plusDays(1).toString()
+                            FilterChip(
+                                selected = isCustom,
+                                onClick = { showDatePicker = true },
+                                label = { Text(if (isCustom) formatDueDate(dueDate.orEmpty()) else "Pick date") },
+                                leadingIcon = {
+                                    Icon(Icons.Default.CalendarToday, contentDescription = null, modifier = Modifier.size(16.dp))
                                 }
                             )
-                            projects.forEach { proj ->
-                                DropdownMenuItem(
-                                    text = {
-                                        Row(
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                        ) {
-                                            Box(
-                                                modifier = Modifier
-                                                    .size(10.dp)
-                                                    .clip(CircleShape)
-                                                    .background(parseHexColor(proj.color))
-                                            )
-                                            Text(proj.name)
+                        }
+                    }
+
+                    if (projects.isNotEmpty()) {
+                        EditorSection("Project") {
+                            ExposedDropdownMenuBox(
+                                expanded = isProjectDropdownExpanded,
+                                onExpandedChange = { isProjectDropdownExpanded = !isProjectDropdownExpanded }
+                            ) {
+                                OutlinedTextField(
+                                    value = chosenProject?.name ?: "Inbox (No Project)",
+                                    onValueChange = {},
+                                    readOnly = true,
+                                    shape = RoundedCornerShape(16.dp),
+                                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isProjectDropdownExpanded) },
+                                    modifier = Modifier
+                                        .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable)
+                                        .fillMaxWidth()
+                                )
+                                ExposedDropdownMenu(
+                                    expanded = isProjectDropdownExpanded,
+                                    onDismissRequest = { isProjectDropdownExpanded = false }
+                                ) {
+                                    DropdownMenuItem(
+                                        text = { Text("Inbox (No Project)") },
+                                        onClick = {
+                                            chosenProjectId = null
+                                            isProjectDropdownExpanded = false
                                         }
-                                    },
+                                    )
+                                    projects.forEach { proj ->
+                                        DropdownMenuItem(
+                                            text = {
+                                                Row(
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                                ) {
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .size(10.dp)
+                                                            .clip(CircleShape)
+                                                            .background(parseHexColor(proj.color))
+                                                    )
+                                                    Text(proj.name)
+                                                }
+                                            },
+                                            onClick = {
+                                                chosenProjectId = proj.id
+                                                isProjectDropdownExpanded = false
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    EditorSection("Labels") {
+                        FlowRow(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            allLabels.forEach { label ->
+                                val selected = label.id in selectedLabelIds
+                                FilterChip(
+                                    selected = selected,
                                     onClick = {
-                                        chosenProjectId = proj.id
-                                        isProjectDropdownExpanded = false
+                                        selectedLabelIds = if (selected) selectedLabelIds - label.id else selectedLabelIds + label.id
+                                    },
+                                    label = { Text(label.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                                    leadingIcon = {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(8.dp)
+                                                .clip(CircleShape)
+                                                .background(parseHexColor(label.color))
+                                        )
                                     }
                                 )
                             }
+                            AssistChip(
+                                onClick = { showNewLabel = true },
+                                label = { Text("New label") },
+                                leadingIcon = {
+                                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                                }
+                            )
                         }
                     }
+                    Spacer(Modifier.height(8.dp))
                 }
 
-                Text("Labels", style = MaterialTheme.typography.labelMedium)
-                FlowRow(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    allLabels.forEach { label ->
-                        val selected = label.id in selectedLabelIds
-                        FilterChip(
-                            selected = selected,
-                            onClick = {
-                                selectedLabelIds = if (selected) selectedLabelIds - label.id else selectedLabelIds + label.id
-                            },
-                            label = { Text(label.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                            leadingIcon = {
-                                Box(
-                                    modifier = Modifier
-                                        .size(8.dp)
-                                        .clip(CircleShape)
-                                        .background(parseHexColor(label.color))
-                                )
-                            }
-                        )
-                    }
-                    AssistChip(
-                        onClick = { showNewLabel = true },
-                        label = { Text("New label") },
-                        leadingIcon = {
-                            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                // Primary action pinned to the bottom
+                Button(
+                    onClick = {
+                        if (title.isNotBlank()) {
+                            onSave(
+                                title.trim(),
+                                description.trim().ifEmpty { null },
+                                priority,
+                                dueDate,
+                                chosenProjectId,
+                                chosenProject?.name,
+                                allLabels.filter { it.id in selectedLabelIds }
+                            )
                         }
-                    )
+                    },
+                    enabled = title.isNotBlank(),
+                    shape = RoundedCornerShape(16.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 12.dp)
+                        .height(54.dp)
+                ) {
+                    Text(if (isEditing) "Save" else "Add Task", fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
                 }
             }
-        },
-        confirmButton = {
-            Button(
-                onClick = {
-                    if (title.isNotBlank()) {
-                        onSave(
-                            title.trim(),
-                            description.trim().ifEmpty { null },
-                            priority,
-                            dueDate,
-                            chosenProjectId,
-                            chosenProject?.name,
-                            allLabels.filter { it.id in selectedLabelIds }
-                        )
-                    }
-                },
-                enabled = title.isNotBlank()
-            ) {
-                Text(if (isEditing) "Save" else "Add Task")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
         }
-    )
+    }
 
     if (showDatePicker) {
         val initialMillis = try {
@@ -346,6 +390,18 @@ fun TaskEditorDialog(
                 }
             }
         )
+    }
+}
+
+@Composable
+private fun EditorSection(title: String, content: @Composable () -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(
+            title,
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        content()
     }
 }
 

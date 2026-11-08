@@ -1,6 +1,8 @@
 package com.example.todoflow
 
 import android.app.Application
+import android.util.Log
+import androidx.work.Configuration
 import com.example.todoflow.data.local.SessionManager
 import com.example.todoflow.data.local.TodoDbHelper
 import com.example.todoflow.data.local.TodoLocalDataSource
@@ -21,7 +23,16 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 
 @OptIn(FlowPreview::class, ExperimentalCoroutinesApi::class)
-class TodoFlowApplication : Application() {
+class TodoFlowApplication : Application(), Configuration.Provider {
+
+    // Scheduling problems (e.g. the system refusing more jobs) must never take the app down: WorkManager
+    // reports them on its own threads, where an uncaught exception would crash the process.
+    override val workManagerConfiguration: Configuration
+        get() = Configuration.Builder()
+            .setSchedulingExceptionHandler { e -> Log.w("TodoFlow", "Could not schedule background work", e) }
+            .setInitializationExceptionHandler { e -> Log.w("TodoFlow", "WorkManager initialisation failed", e) }
+            .setMinimumLoggingLevel(Log.INFO)
+            .build()
 
     val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
