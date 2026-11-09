@@ -291,10 +291,11 @@ class TasksViewModel(
         dueDate: String? = null,
         projectId: String? = null,
         projectName: String? = null,
-        labels: List<LabelEntity> = emptyList()
+        labels: List<LabelEntity> = emptyList(),
+        subtaskTitles: List<String> = emptyList()
     ) {
         viewModelScope.launch {
-            taskRepository.createTask(
+            val created = taskRepository.createTask(
                 title = title,
                 description = description,
                 priority = priority,
@@ -302,7 +303,10 @@ class TasksViewModel(
                 projectId = projectId,
                 projectName = projectName,
                 labels = labels
-            )
+            ).getOrNull()
+            if (created != null) {
+                subtaskTitles.filter { it.isNotBlank() }.forEach { taskRepository.createSubtask(created.id, it.trim()) }
+            }
         }
     }
 

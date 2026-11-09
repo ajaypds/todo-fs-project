@@ -101,7 +101,7 @@ class TasksUiTest {
                     defaultProjectId = null,
                     onDismiss = {},
                     onCreateLabel = { _, _ -> null },
-                    onSave = { title, desc, priority, due, projectId, projectName, labels ->
+                    onSave = { title, desc, priority, due, projectId, projectName, labels, _ ->
                         saved = listOf(title, desc, priority, due, projectId, projectName, labels.map { it.id })
                     }
                 )
@@ -142,7 +142,7 @@ class TasksUiTest {
                     defaultProjectId = null,
                     onDismiss = {},
                     onCreateLabel = { _, _ -> null },
-                    onSave = { _, _, _, _, _, _, _ -> }
+                    onSave = { _, _, _, _, _, _, _, _ -> }
                 )
             }
         }
@@ -279,6 +279,63 @@ class TasksUiTest {
         compose.waitForIdle()
         compose.onNodeWithText("Write report").assertIsDisplayed()
         assertTrue(runBlocking { local.getPendingOps() }.none { it.type == "DELETE_TASK" })
+    }
+
+    @Test
+    fun editorListsSubtasksAndAddsNewOnesToAnExistingTask() {
+        val added = mutableListOf<String>()
+        val toggled = mutableListOf<String>()
+        compose.setContent {
+            MaterialTheme {
+                TaskEditorDialog(
+                    task = TaskEntity(id = "t1", title = "Trip"),
+                    projects = emptyList(),
+                    labels = emptyList(),
+                    defaultProjectId = null,
+                    onDismiss = {},
+                    onCreateLabel = { _, _ -> null },
+                    subtasks = listOf(com.example.todoflow.data.local.SubtaskEntity("s1", "t1", "Book flights")),
+                    onToggleSubtask = { toggled += it.id },
+                    onAddSubtask = { added += it },
+                    onSave = { _, _, _, _, _, _, _, _ -> }
+                )
+            }
+        }
+        compose.waitForIdle()
+
+        compose.onNodeWithText("Book flights").performScrollTo().assertIsDisplayed()
+        compose.onAllNodes(isToggleable())[0].performClick()
+        assertEquals(listOf("s1"), toggled)
+
+        compose.onNodeWithText("Add a subtask").performScrollTo().performTextInput("Pack bags")
+        compose.onNodeWithContentDescription("Add subtask").performClick()
+        assertEquals(listOf("Pack bags"), added)
+    }
+
+    @Test
+    fun newTaskCollectsSubtasksAndReturnsThemOnSave() {
+        var savedSubtasks: List<String>? = null
+        compose.setContent {
+            MaterialTheme {
+                TaskEditorDialog(
+                    task = null,
+                    projects = emptyList(),
+                    labels = emptyList(),
+                    defaultProjectId = null,
+                    onDismiss = {},
+                    onCreateLabel = { _, _ -> null },
+                    onSave = { _, _, _, _, _, _, _, subs -> savedSubtasks = subs }
+                )
+            }
+        }
+        compose.waitForIdle()
+
+        compose.onNodeWithText("What needs to be done?").performTextInput("Plan party")
+        compose.onNodeWithText("Add a subtask").performScrollTo().performTextInput("Invite friends")
+        compose.onNodeWithContentDescription("Add subtask").performClick()
+        compose.onNodeWithText("Invite friends").assertExists()
+        compose.onNodeWithText("Add Task").performClick()
+        assertEquals(listOf("Invite friends"), savedSubtasks)
     }
 
     @Test

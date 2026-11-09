@@ -421,6 +421,8 @@ fun TasksScreen(
 
     if (isCreateDialogOpen || taskBeingEdited != null) {
         val editing = taskBeingEdited
+        // The list updates as subtasks are added, so show the live version of the task
+        val liveSubtasks = tasks.firstOrNull { it.id == editing?.id }?.subtasks ?: editing?.subtasks.orEmpty()
         TaskEditorDialog(
             task = editing,
             projects = projects,
@@ -431,7 +433,11 @@ fun TasksScreen(
                 taskBeingEdited = null
             },
             onCreateLabel = { name, color -> viewModel.createLabel(name, color) },
-            onSave = { title, desc, priority, dueDate, projId, projName, chosenLabels ->
+            subtasks = liveSubtasks,
+            onToggleSubtask = { sub -> editing?.let { viewModel.toggleSubtask(it.id, sub) } },
+            onAddSubtask = { title -> editing?.let { viewModel.createSubtask(it.id, title) } },
+            onDeleteSubtask = { subId -> editing?.let { viewModel.deleteSubtask(it.id, subId) } },
+            onSave = { title, desc, priority, dueDate, projId, projName, chosenLabels, newSubtasks ->
                 if (editing != null) {
                     viewModel.updateTask(editing, title, desc, priority, dueDate, projId, projName, chosenLabels)
                 } else {
@@ -442,7 +448,8 @@ fun TasksScreen(
                         dueDate = dueDate,
                         projectId = projId,
                         projectName = projName,
-                        labels = chosenLabels
+                        labels = chosenLabels,
+                        subtaskTitles = newSubtasks
                     )
                 }
                 isCreateDialogOpen = false

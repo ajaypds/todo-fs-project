@@ -16,6 +16,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -26,6 +28,7 @@ import androidx.compose.material.icons.filled.Flag
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.DropdownMenuItem
@@ -56,12 +59,15 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.example.todoflow.data.local.LabelEntity
 import com.example.todoflow.data.local.ProjectEntity
+import com.example.todoflow.data.local.SubtaskEntity
 import com.example.todoflow.data.local.TaskEntity
 import kotlinx.coroutines.launch
 import java.time.LocalDate
@@ -87,6 +93,11 @@ fun TaskEditorDialog(
     defaultProjectId: String?,
     onDismiss: () -> Unit,
     onCreateLabel: suspend (name: String, color: String) -> LabelEntity?,
+    // Subtasks of the task being edited (live) and what to do with them; applied immediately
+    subtasks: List<SubtaskEntity> = emptyList(),
+    onToggleSubtask: (SubtaskEntity) -> Unit = {},
+    onAddSubtask: (String) -> Unit = {},
+    onDeleteSubtask: (String) -> Unit = {},
     onSave: (
         title: String,
         description: String?,
@@ -94,7 +105,8 @@ fun TaskEditorDialog(
         dueDate: String?,
         projectId: String?,
         projectName: String?,
-        labels: List<LabelEntity>
+        labels: List<LabelEntity>,
+        newSubtasks: List<String>
     ) -> Unit
 ) {
     val isEditing = task != null
@@ -106,6 +118,8 @@ fun TaskEditorDialog(
     var isProjectDropdownExpanded by remember { mutableStateOf(false) }
     var showDatePicker by remember { mutableStateOf(false) }
     var showNewLabel by remember { mutableStateOf(false) }
+    // While creating a task its subtasks are collected here and created together with it
+    var pendingSubtasks by remember { mutableStateOf<List<String>>(emptyList()) }
 
     // Labels created from this dialog are kept locally so they show up immediately
     var extraLabels by remember { mutableStateOf<List<LabelEntity>>(emptyList()) }
@@ -169,6 +183,53 @@ fun TaskEditorDialog(
                         shape = RoundedCornerShape(16.dp),
                         modifier = Modifier.fillMaxWidth()
                     )
+
+                    EditorSection("Subtasks") {
+                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            if (isEditing) {
+                                subtasks.forEach { sub ->
+                                    SubtaskEditRow(
+                                        title = sub.title,
+                                        completed = sub.completed,
+                                        onToggle = { onToggleSubtask(sub) },
+                                        onDelete = { onDeleteSubtask(sub.id) }
+                                    )
+                                }
+                            } else {
+                                pendingSubtasks.forEachIndexed { index, text ->
+                                    SubtaskEditRow(
+                                        title = text,
+                                        completed = false,
+                                        onToggle = {},
+                                        onDelete = { pendingSubtasks = pendingSubtasks.filterIndexed { i, _ -> i != index } }
+                                    )
+                                }
+                            }
+                            var newSubtask by remember { mutableStateOf("") }
+                            val addIt = {
+                                val text = newSubtask.trim()
+                                if (text.isNotEmpty()) {
+                                    if (isEditing) onAddSubtask(text) else pendingSubtasks = pendingSubtasks + text
+                                    newSubtask = ""
+                                }
+                            }
+                            OutlinedTextField(
+                                value = newSubtask,
+                                onValueChange = { newSubtask = it },
+                                placeholder = { Text("Add a subtask") },
+                                singleLine = true,
+                                shape = RoundedCornerShape(16.dp),
+                                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                                keyboardActions = KeyboardActions(onDone = { addIt() }),
+                                trailingIcon = {
+                                    IconButton(onClick = { addIt() }, enabled = newSubtask.isNotBlank()) {
+                                        Icon(Icons.Default.Add, contentDescription = "Add subtask")
+                                    }
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+                    }
 
                     EditorSection("Priority") {
                         Row(
@@ -336,7 +397,8 @@ fun TaskEditorDialog(
                                 dueDate,
                                 chosenProjectId,
                                 chosenProject?.name,
-                                allLabels.filter { it.id in selectedLabelIds }
+                                allLabels.filter { it.id in selectedLabelIds },
+                                pendingSubtasks
                             )
                         }
                     },
@@ -390,6 +452,26 @@ fun TaskEditorDialog(
                 }
             }
         )
+    }
+}
+
+@Composable
+private fun SubtaskEditRow(title: String, completed: Boolean, onToggle: () -> Unit, onDelete: () -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Checkbox(checked = completed, onCheckedChange = { onToggle() })
+        Text(
+            title,
+            modifier = Modifier.weight(1f),
+            style = MaterialTheme.typography.bodyLarge,
+            textDecoration = if (completed) TextDecoration.LineThrough else null,
+            color = if (completed) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface
+        )
+        IconButton(onClick = onDelete) {
+            Icon(Icons.Default.Close, contentDescription = "Remove subtask", modifier = Modifier.size(18.dp))
+        }
     }
 }
 
