@@ -40,6 +40,9 @@ class SessionManager(context: Context) {
         private const val KEY_BASE_URL = "backend_url"
         private const val KEY_THEME_MODE = "theme_mode"
         private const val KEY_APP_LOCK_ENABLED = "app_lock_enabled"
+        private const val KEY_AI_ACTIVE_MODEL = "ai_active_model"
+        private const val KEY_AI_USE_GPU = "ai_use_gpu"
+        private const val KEY_HF_TOKEN = "huggingface_token"
         const val DEFAULT_BASE_URL = "https://todoflow.ddns.net/"
 
         private fun createSecurePrefs(context: Context): SharedPreferences {
@@ -183,6 +186,35 @@ class SessionManager(context: Context) {
         if (expired) prefs.edit().remove(KEY_SESSION_EXPIRED).apply()
         return expired
     }
+
+    // ---- On-device AI assistant settings (kept across logins: the models live on the device) ----
+
+    private val _aiActiveModel = MutableStateFlow(prefs.getString(KEY_AI_ACTIVE_MODEL, null))
+
+    /** File name of the model the assistant uses, or null when none is selected. */
+    val aiActiveModel: StateFlow<String?> = _aiActiveModel.asStateFlow()
+
+    fun setAiActiveModel(fileName: String?) {
+        prefs.edit().apply { if (fileName == null) remove(KEY_AI_ACTIVE_MODEL) else putString(KEY_AI_ACTIVE_MODEL, fileName) }.apply()
+        _aiActiveModel.value = fileName
+    }
+
+    private val _aiUseGpu = MutableStateFlow(prefs.getBoolean(KEY_AI_USE_GPU, false))
+
+    /** Run the model on the GPU (faster on some phones; falls back to the CPU if it can't start). */
+    val aiUseGpu: StateFlow<Boolean> = _aiUseGpu.asStateFlow()
+
+    fun setAiUseGpu(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_AI_USE_GPU, enabled).apply()
+        _aiUseGpu.value = enabled
+    }
+
+    /** Hugging Face access token, needed to download gated models such as Gemma (stored encrypted). */
+    var huggingFaceToken: String
+        get() = securePrefs.getString(KEY_HF_TOKEN, null).orEmpty()
+        set(value) {
+            securePrefs.edit().apply { if (value.isBlank()) remove(KEY_HF_TOKEN) else putString(KEY_HF_TOKEN, value.trim()) }.apply()
+        }
 
     fun clearSession() {
         securePrefs.edit()

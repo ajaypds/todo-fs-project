@@ -467,9 +467,13 @@ class TaskRepository(
         Result.success(Unit)
     }
 
+    private val nextTempSubtaskPosition = java.util.concurrent.atomic.AtomicInteger(1000)
+
     suspend fun createSubtask(taskId: String, title: String): Result<SubtaskEntity> = withContext(Dispatchers.IO) {
         val tempId = "temp_sub_" + UUID.randomUUID().toString()
-        val localSubtask = SubtaskEntity(id = tempId, taskId = taskId, title = title, completed = false, position = 999)
+        // Increasing positions keep subtasks added in quick succession in the order they were typed
+        // (server positions are small numbers, so not-yet-uploaded ones sort after the synced ones)
+        val localSubtask = SubtaskEntity(id = tempId, taskId = taskId, title = title, completed = false, position = nextTempSubtaskPosition.getAndIncrement())
         localDataSource.upsertSubtask(localSubtask)
         localDataSource.markTaskUnsynced(taskId)
         enqueue(
