@@ -28,6 +28,7 @@ class ActionExecutor(private val repository: TaskRepository) {
         }
 
         for (p in proposals) {
+            var reason: String? = null
             val ok: Boolean = try {
                 when (val a = p.action) {
                     is AssistantAction.CreateTask -> {
@@ -91,9 +92,11 @@ class ActionExecutor(private val repository: TaskRepository) {
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (e: Exception) {
+                android.util.Log.w("ActionExecutor", "Could not apply: ${p.summary}", e)
+                reason = e.message ?: e.javaClass.simpleName
                 false
             }
-            if (ok) applied++ else failures += p.summary
+            if (ok) applied++ else failures += p.summary + (reason?.let { " ($it)" } ?: "")
         }
         return ExecutionResult(applied, failures)
     }

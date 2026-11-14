@@ -508,7 +508,11 @@ fun TasksScreen(
             AssistantDialog(
                 viewModel = assistantViewModel,
                 onDismiss = { isAssistantOpen = false },
-                onOpenModels = { isModelsOpen = true }
+                onOpenModels = { isModelsOpen = true },
+                onShowTasks = {
+                    isAssistantOpen = false
+                    viewModel.setFilter(TaskFilterType.ALL)
+                }
             )
         }
         if (isModelsOpen) {

@@ -157,7 +157,9 @@ class AssistantViewModelTest {
         send("make it high priority and due on the 20th")
 
         val second = runtime.calls[1]
-        assertEquals(listOf(Turn("what is my first task?", """{"reply":"Found it","actions":[]}""")), second.second)
+        // The worked examples come first, then the real earlier exchange
+        val examples = PromptBuilder.examples(LocalDate.of(2026, 11, 14))
+        assertEquals(examples + Turn("what is my first task?", """{"reply":"Found it","actions":[]}"""), second.second)
         assertEquals("make it high priority and due on the 20th", second.third)
 
         vm.apply(last().id)
@@ -205,6 +207,39 @@ class AssistantViewModelTest {
         assertTrue(last().text.contains("out of memory"))
         assertFalse(vm.busy.value)
         assertNotNull(vm.messages.value.firstOrNull { it is UserMessage })
+    }
+
+    @Test
+    fun aProseAnswerIsRetriedOnceAndTheSecondTryIsUsed() {
+        installModel()
+        runtime.answers += "I'll help you with that task."
+        runtime.answers += """{"reply":"Added","actions":[{"op":"create_task","title":"Buy milk","due":"2026-11-15"}]}"""
+
+        send("Add buy milk for tomorrow")
+
+        assertEquals(2, runtime.calls.size)
+        assertTrue(runtime.calls[1].third.endsWith("Answer with ONLY the JSON object, starting with {"))
+        assertEquals(1, last().proposals.size)
+        assertEquals("Added", last().text)
+    }
+
+    @Test
+    fun ifTheModelNeverUsesTheFormatTheUserIsToldAndItsProseIsNotReplayed() {
+        installModel()
+        runtime.answers += "I'll help you with that task."
+        runtime.answers += "Sure, happy to help!"
+        send("Add buy milk for tomorrow")
+
+        val reply = last()
+        assertTrue(reply.proposals.isEmpty())
+        assertTrue(reply.text.contains("didn't answer in a form I can use"))
+        assertTrue(reply.text.contains("Sure, happy to help!"))
+        assertEquals("", reply.raw)
+
+        runtime.answers += """{"reply":"ok","actions":[]}"""
+        send("hello")
+        // The earlier prose answer is not part of the history the model sees
+        assertEquals(PromptBuilder.examples(LocalDate.of(2026, 11, 14)), runtime.calls.last().second)
     }
 
     @Test

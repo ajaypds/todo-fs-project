@@ -27,12 +27,12 @@ object ActionParser {
     fun parse(raw: String): ParsedReply {
         val cleaned = raw.replace(thinkBlock, "").replace(fence, "").trim()
         val element = extractJson(cleaned)
-            ?: return ParsedReply(reply = cleaned, actions = emptyList()) // plain conversation, no JSON
+            ?: return ParsedReply(reply = cleaned, actions = emptyList(), hadJson = false) // no JSON at all
 
         val root: JsonObject = when (element) {
             is JsonObject -> if (element.containsKey("op")) JsonObject(mapOf("actions" to JsonArray(listOf(element)))) else element
             is JsonArray -> JsonObject(mapOf("actions" to element))
-            else -> return ParsedReply(reply = cleaned, actions = emptyList())
+            else -> return ParsedReply(reply = cleaned, actions = emptyList(), hadJson = false)
         }
 
         val problems = mutableListOf<String>()

@@ -199,10 +199,19 @@ class AssistantViewModel(
                 val tasks = repository.observeTasks(TaskFilterType.ALL).first()
                 val projects = repository.observeProjects().first()
                 val system = PromptBuilder.system(today(), tasks, projects)
-                val raw = runtime.complete(system, recentTurns(), input)
-                val parsed = ActionParser.parse(raw)
+                val history = PromptBuilder.examples(today()) + recentTurns()
+                var raw = runtime.complete(system, history, input)
+                var parsed = ActionParser.parse(raw)
+                if (!parsed.hadJson) {
+                    // The model answered in prose. Ask once more, insisting on the format.
+                    raw = runtime.complete(system, history, input + RETRY_HINT)
+                    parsed = ActionParser.parse(raw)
+                }
                 val resolution = ActionResolver.resolve(parsed, PromptBuilder.contextTasks(tasks), projects)
-                val reply = parsed.reply.ifBlank {
+                val reply = if (!parsed.hadJson) {
+                    "The model didn't answer in a form I can use, so nothing was changed. " +
+                        "Try rephrasing, or pick a larger model in the model manager.\n\nIt said: " + parsed.reply.take(300)
+                } else parsed.reply.ifBlank {
                     when {
                         resolution.proposals.isNotEmpty() -> "Here is what I would do:"
                         resolution.problems.isNotEmpty() -> "I couldn't work that out."
@@ -216,7 +225,8 @@ class AssistantViewModel(
                         proposals = resolution.proposals,
                         problems = resolution.problems,
                         status = if (resolution.proposals.isEmpty()) ProposalStatus.NONE else ProposalStatus.PENDING,
-                        raw = raw
+                        // A prose answer must not be replayed to the model as if it were the right format
+                        raw = if (parsed.hadJson) raw else ""
                     )
                 )
             } catch (e: CancellationException) {
@@ -279,5 +289,6 @@ class AssistantViewModel(
 
     companion object {
         private const val MAX_HISTORY_TURNS = 4
+        private const val RETRY_HINT = "\n\nAnswer with ONLY the JSON object, starting with {"
     }
 }

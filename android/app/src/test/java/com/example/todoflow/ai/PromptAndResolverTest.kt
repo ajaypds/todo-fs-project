@@ -33,6 +33,17 @@ class PromptAndResolverTest {
     }
 
     @Test
+    fun workedExamplesUseRealDatesAndTheDocumentedFormat() {
+        val ex = PromptBuilder.examples(today)
+        assertTrue(ex[0].assistant.contains(""""due":"2026-11-15""""))   // tomorrow
+        assertTrue(ex[1].assistant.contains(""""due":"2026-11-20""""))   // next Friday
+        // Every example is a valid answer for the parser
+        ex.forEach { assertTrue(it.user, ActionParser.parse(it.assistant).hadJson) }
+        assertEquals(1, ActionParser.parse(ex[0].assistant).actions.size)
+        assertTrue(ActionParser.parse(ex[3].assistant).actions.isEmpty())
+    }
+
+    @Test
     fun numbersInThePromptMapBackToTheSameTasks() {
         val shown = PromptBuilder.contextTasks(tasks)
         val parsed = ParsedReply("", listOf(AssistantAction.DeleteTask(2), AssistantAction.CompleteTask(1)))

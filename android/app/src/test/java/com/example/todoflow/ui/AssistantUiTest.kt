@@ -144,13 +144,19 @@ class AssistantUiTest {
         compose.onNodeWithContentDescription("Send").performClick()
         compose.waitUntil(10_000) { compose.onAllNodesWithText("Apply").fetchSemanticsNodes().isNotEmpty() }
 
-        compose.onNodeWithText("water the plants tomorrow").assertIsDisplayed()
-        compose.onNodeWithText("Sure").assertIsDisplayed()
-        compose.onNodeWithText("Create task “Water plants”", substring = true).assertIsDisplayed()
+        compose.onNodeWithText("water the plants tomorrow").assertExists() // may be scrolled off in the small test window
+        compose.onNodeWithText("Sure").assertExists()
+        compose.onNodeWithText("Create task “Water plants”", substring = true).assertExists()
 
         compose.onNodeWithText("Apply").performClick()
         compose.waitUntil(10_000) { compose.onAllNodesWithText("1 change applied").fetchSemanticsNodes().isNotEmpty() }
         val titles = runBlocking { local.getTasks(TaskFilterType.ALL) }.map { it.title }
         assertEquals(listOf("Water plants"), titles)
+
+        // The result is explained and there is a shortcut to the list; the model's raw answer can be inspected
+        compose.onNodeWithText("Show my tasks").assertExists()
+        compose.onNodeWithText("Show model output").performClick()
+        compose.waitForIdle()
+        compose.onNodeWithText("""{"reply":"Sure"""", substring = true).assertExists()
     }
 }

@@ -44,5 +44,7 @@ sealed interface AssistantAction {
 data class ParsedReply(
     val reply: String,
     val actions: List<AssistantAction>,
-    val problems: List<String> = emptyList()
+    val problems: List<String> = emptyList(),
+    /** False when the model answered in plain prose without any JSON (it ignored the format). */
+    val hadJson: Boolean = true
 )

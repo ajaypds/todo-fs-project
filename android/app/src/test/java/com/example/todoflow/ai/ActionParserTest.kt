@@ -38,6 +38,7 @@ class ActionParserTest {
     fun plainTextWithoutJsonIsJustAConversation() {
         val r = ActionParser.parse("I can help you manage tasks.")
         assertEquals("I can help you manage tasks.", r.reply)
+        assertEquals(false, r.hadJson)
         assertTrue(r.actions.isEmpty())
         assertTrue(r.problems.isEmpty())
     }
