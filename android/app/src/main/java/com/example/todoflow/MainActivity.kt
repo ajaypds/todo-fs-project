@@ -67,15 +67,16 @@ class MainActivity : FragmentActivity() {
             }
 
             val lockEnabled by sessionManager.appLockEnabled.collectAsState()
+            val allowScreenshots by sessionManager.allowScreenshots.collectAsState()
             val locked by isLocked.collectAsState()
 
-            // With the lock on, hide the app in the recents screen and block screenshots
-            DisposableEffect(lockEnabled) {
-                if (lockEnabled) {
+            // With the lock on, hide the app in the recents screen and block screenshots (unless allowed)
+            DisposableEffect(lockEnabled, allowScreenshots) {
+                if (lockEnabled && !allowScreenshots) {
                     window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
                 } else {
                     window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
-                    isLocked.value = false
+                    if (!lockEnabled) isLocked.value = false
                 }
                 onDispose {}
             }

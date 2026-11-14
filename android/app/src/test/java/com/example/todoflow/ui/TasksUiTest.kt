@@ -370,6 +370,24 @@ class TasksUiTest {
     }
 
     @Test
+    fun screenshotsSwitchOnlyAppearsWithAppLock() {
+        var allowed: Boolean? = null
+        compose.setContent {
+            MaterialTheme {
+                DrawerSettings(
+                    themeMode = ThemeMode.SYSTEM, onThemeChange = {},
+                    appLockEnabled = true, appLockAvailable = true, onAppLockChange = {},
+                    allowScreenshots = false, onAllowScreenshotsChange = { allowed = it }
+                )
+            }
+        }
+        compose.waitForIdle()
+        compose.onNodeWithText("Allow screenshots").assertExists()
+        compose.onAllNodes(isToggleable())[1].performClick()
+        assertEquals(true, allowed)
+    }
+
+    @Test
     fun hamburgerOpensTheDrawerWithViewsAndLogout() {
         val viewModel = buildViewModel(FakeTodoFlowApi().apply { offline = true })
         compose.setContent { MaterialTheme { TasksScreen(viewModel = viewModel) } }

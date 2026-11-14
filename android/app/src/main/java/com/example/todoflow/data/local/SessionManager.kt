@@ -40,6 +40,7 @@ class SessionManager(context: Context) {
         private const val KEY_BASE_URL = "backend_url"
         private const val KEY_THEME_MODE = "theme_mode"
         private const val KEY_APP_LOCK_ENABLED = "app_lock_enabled"
+        private const val KEY_ALLOW_SCREENSHOTS = "allow_screenshots"
         private const val KEY_AI_ACTIVE_MODEL = "ai_active_model"
         private const val KEY_AI_USE_GPU = "ai_use_gpu"
         private const val KEY_HF_TOKEN = "huggingface_token"
@@ -185,6 +186,16 @@ class SessionManager(context: Context) {
         val expired = prefs.getBoolean(KEY_SESSION_EXPIRED, false)
         if (expired) prefs.edit().remove(KEY_SESSION_EXPIRED).apply()
         return expired
+    }
+
+    private val _allowScreenshots = MutableStateFlow(prefs.getBoolean(KEY_ALLOW_SCREENSHOTS, false))
+
+    /** With app lock on, screenshots are blocked unless the user allows them here. */
+    val allowScreenshots: StateFlow<Boolean> = _allowScreenshots.asStateFlow()
+
+    fun setAllowScreenshots(allow: Boolean) {
+        prefs.edit().putBoolean(KEY_ALLOW_SCREENSHOTS, allow).apply()
+        _allowScreenshots.value = allow
     }
 
     // ---- On-device AI assistant settings (kept across logins: the models live on the device) ----

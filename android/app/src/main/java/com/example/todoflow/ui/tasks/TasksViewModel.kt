@@ -59,6 +59,10 @@ class TasksViewModel(
 
     fun setAppLockEnabled(enabled: Boolean) = sessionManager.setAppLockEnabled(enabled)
 
+    val allowScreenshots: StateFlow<Boolean> = sessionManager.allowScreenshots
+
+    fun setAllowScreenshots(allow: Boolean) = sessionManager.setAllowScreenshots(allow)
+
     init {
         // Notices from the offline queue (e.g. a change the server rejected)
         viewModelScope.launch {
