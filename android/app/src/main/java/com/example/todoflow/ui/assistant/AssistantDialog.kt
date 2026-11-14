@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -84,7 +85,9 @@ private val SUGGESTIONS = listOf(
 fun AssistantDialog(
     viewModel: AssistantViewModel,
     onDismiss: () -> Unit,
-    onOpenModels: () -> Unit
+    onOpenModels: () -> Unit,
+    /** Closes the chat and shows the full task list, so the result of "Apply" is visible. */
+    onShowTasks: () -> Unit = onDismiss
 ) {
     val messages by viewModel.messages.collectAsState()
     val busy by viewModel.busy.collectAsState()
@@ -144,7 +147,8 @@ fun AssistantDialog(
                                     is AssistantMessage -> AssistantBubble(
                                         message,
                                         onApply = { viewModel.apply(message.id) },
-                                        onDiscard = { viewModel.discard(message.id) }
+                                        onDiscard = { viewModel.discard(message.id) },
+                                        onShowTasks = onShowTasks
                                     )
                                 }
                             }
@@ -245,12 +249,13 @@ private fun UserBubble(text: String) {
             contentColor = MaterialTheme.colorScheme.onPrimary,
             shape = RoundedCornerShape(20.dp, 20.dp, 4.dp, 20.dp),
             modifier = Modifier.widthIn(max = 300.dp)
-        ) { Text(text, modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) }
+        ) { SelectionContainer { Text(text, modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) } }
     }
 }
 
 @Composable
-private fun AssistantBubble(message: AssistantMessage, onApply: () -> Unit, onDiscard: () -> Unit) {
+private fun AssistantBubble(message: AssistantMessage, onApply: () -> Unit, onDiscard: () -> Unit, onShowTasks: () -> Unit) {
+    var showDetails by remember { mutableStateOf(false) }
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Start) {
         Surface(
             color = MaterialTheme.colorScheme.surface,
@@ -259,7 +264,7 @@ private fun AssistantBubble(message: AssistantMessage, onApply: () -> Unit, onDi
             modifier = Modifier.widthIn(max = 340.dp)
         ) {
             Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text(message.text)
+                SelectionContainer { Text(message.text) }
                 message.proposals.forEach { ProposalRow(it) }
                 message.problems.forEach {
                     Text("• $it", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
@@ -279,12 +284,37 @@ private fun AssistantBubble(message: AssistantMessage, onApply: () -> Unit, onDi
                         CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
                         Text("Applying…", style = MaterialTheme.typography.bodySmall)
                     }
-                    ProposalStatus.APPLIED -> Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Icon(Icons.Default.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
-                        Text(message.resultNote.orEmpty(), style = MaterialTheme.typography.bodySmall)
+                    ProposalStatus.APPLIED -> Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        val failed = message.resultNote?.contains("Could not apply") == true
+                        Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Icon(
+                                if (failed) Icons.Default.Close else Icons.Default.Check,
+                                contentDescription = null,
+                                tint = if (failed) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            SelectionContainer {
+                                Text(
+                                    message.resultNote.orEmpty(),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = if (failed) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                        }
+                        TextButton(onClick = onShowTasks) { Text("Show my tasks") }
                     }
                     ProposalStatus.DISCARDED -> Text("Discarded", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     ProposalStatus.NONE -> Unit
+                }
+                if (message.raw.isNotBlank()) {
+                    TextButton(onClick = { showDetails = !showDetails }) {
+                        Text(if (showDetails) "Hide model output" else "Show model output", style = MaterialTheme.typography.labelMedium)
+                    }
+                    if (showDetails) {
+                        SelectionContainer {
+                            Text(message.raw.trim(), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
                 }
             }
         }
