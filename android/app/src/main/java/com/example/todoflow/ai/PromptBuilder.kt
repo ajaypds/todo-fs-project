@@ -29,35 +29,61 @@ object PromptBuilder {
         val shown = contextTasks(tasks)
         val taskLines = if (shown.isEmpty()) "(no tasks yet)" else shown.mapIndexed { i, t -> "#${i + 1} ${describe(t)}" }.joinToString("\n")
         return """
-You are the assistant inside the TodoFlow to-do app. Turn the user's message into changes to their tasks and projects.
+You are the assistant inside the TodoFlow to-do app. You change the user's tasks and projects.
 
-Answer with ONE JSON object and nothing else (no markdown, no explanation):
-{"reply": "<one short friendly sentence>", "actions": [ ... ]}
-Use "actions": [] when the user is only chatting or asking something.
+You MUST answer with exactly one JSON object and nothing else: no greeting, no explanation, no markdown.
+Format: {"reply":"<one short sentence>","actions":[<action>,...]}
+Even when the user only chats, answer in this format with "actions":[].
 
-Allowed actions:
-{"op":"create_task","title":"...","description":"...","due":"YYYY-MM-DD","priority":"high|medium|low","project":"<project name>","subtasks":["..."]}
-{"op":"update_task","task":<number>,"title":"...","description":"...","due":"YYYY-MM-DD or none","priority":"high|medium|low|none","project":"<project name or inbox>","completed":true}
+Actions:
+{"op":"create_task","title":"...","description":"...","due":"YYYY-MM-DD","priority":"high|medium|low","project":"<name>","subtasks":["..."]}
+{"op":"update_task","task":<number>,"title":"...","description":"...","due":"YYYY-MM-DD or none","priority":"high|medium|low|none","project":"<name or inbox>","completed":true}
 {"op":"complete_task","task":<number>,"completed":true}
 {"op":"delete_task","task":<number>}
 {"op":"add_subtasks","task":<number>,"subtasks":["..."]}
 {"op":"create_project","name":"...","color":"#3b82f6"}
-{"op":"update_project","project":"<project name>","name":"<new name>","color":"#3b82f6"}
-{"op":"delete_project","project":"<project name>"}
-Leave out every field the user did not mention.
+{"op":"update_project","project":"<name>","name":"<new name>","color":"#3b82f6"}
+{"op":"delete_project","project":"<name>"}
+Only include the fields the user mentioned. Use several actions when the user asks for several things.
 
 Rules:
-- Refer to existing tasks ONLY by their number in the list below (the digits after #). Never invent a number.
-- Work out dates yourself from today's date and write them as YYYY-MM-DD ("tomorrow", "next Friday", "in 3 days").
-- "urgent" or "important" means priority "high".
-- If the request is unclear or the task is not in the list, ask in "reply" and use no actions.
-- You can do several actions in one answer.
+- Existing tasks are referred to ONLY by their number from the list below (the digits after #).
+- Write dates as YYYY-MM-DD, worked out from today's date ("tomorrow", "next Friday", "in 3 days").
+- "urgent" and "important" mean priority "high".
+- If a request is unclear or the task is not in the list, ask in "reply" and use no actions.
 
 Today is $weekday, $today.
 Projects: $projectLine
 Tasks:
 $taskLines
 """.trim()
+    }
+
+    /**
+     * Worked examples, replayed to the model as earlier chat turns. Small models follow the answer format
+     * far more reliably when they have just "said" it a few times than when it is only described.
+     */
+    fun examples(today: LocalDate): List<Turn> {
+        val tomorrow = today.plusDays(1)
+        val friday = today.with(java.time.temporal.TemporalAdjusters.next(java.time.DayOfWeek.FRIDAY))
+        return listOf(
+            Turn(
+                "Add buy milk for tomorrow",
+                """{"reply":"I'll add Buy milk for tomorrow.","actions":[{"op":"create_task","title":"Buy milk","due":"$tomorrow"}]}"""
+            ),
+            Turn(
+                "urgent task call the bank on Friday with subtasks find card and prepare questions, in project Money",
+                """{"reply":"Added it to Money.","actions":[{"op":"create_task","title":"Call the bank","due":"$friday","priority":"high","project":"Money","subtasks":["Find card","Prepare questions"]}]}"""
+            ),
+            Turn(
+                "delete task 2",
+                """{"reply":"I'll delete task 2.","actions":[{"op":"delete_task","task":2}]}"""
+            ),
+            Turn(
+                "hello",
+                """{"reply":"Hi! Tell me what to add, change or delete.","actions":[]}"""
+            )
+        )
     }
 
     private fun describe(t: TaskEntity): String {
