@@ -50,7 +50,10 @@ Rules:
 - Existing tasks are referred to ONLY by their number from the list below (the digits after #).
 - Write dates as YYYY-MM-DD, worked out from today's date ("tomorrow", "next Friday", "in 3 days").
 - "urgent" and "important" mean priority "high".
-- If a request is unclear or the task is not in the list, ask in "reply" and use no actions.
+- Use only task titles, project names and dates the user actually gave. Never make up tasks.
+- Everything your "reply" says you did MUST appear in "actions". If you say you created a project, include create_project.
+- If the user did not say which tasks to add, still do what is clear (for example create the project) and ask for the missing details in "reply".
+- If the task they mean is not in the list below, ask in "reply" and use no actions for it.
 
 Today is $weekday, $today.
 Projects: $projectLine
@@ -68,12 +71,16 @@ $taskLines
         val friday = today.with(java.time.temporal.TemporalAdjusters.next(java.time.DayOfWeek.FRIDAY))
         return listOf(
             Turn(
-                "Add buy milk for tomorrow",
-                """{"reply":"I'll add Buy milk for tomorrow.","actions":[{"op":"create_task","title":"Buy milk","due":"$tomorrow"}]}"""
+                "Add pay electricity bill for tomorrow",
+                """{"reply":"I'll add Pay electricity bill for tomorrow.","actions":[{"op":"create_task","title":"Pay electricity bill","due":"$tomorrow"}]}"""
             ),
             Turn(
-                "urgent task call the bank on Friday with subtasks find card and prepare questions, in project Money",
-                """{"reply":"Added it to Money.","actions":[{"op":"create_task","title":"Call the bank","due":"$friday","priority":"high","project":"Money","subtasks":["Find card","Prepare questions"]}]}"""
+                "Create project Garden with tasks mow lawn and buy seeds, both urgent and due Friday",
+                """{"reply":"I'll create the Garden project with both tasks.","actions":[{"op":"create_project","name":"Garden"},{"op":"create_task","title":"Mow lawn","due":"$friday","priority":"high","project":"Garden"},{"op":"create_task","title":"Buy seeds","due":"$friday","priority":"high","project":"Garden"}]}"""
+            ),
+            Turn(
+                "Create project Holiday and add some tasks to it",
+                """{"reply":"I'll create the Holiday project. Which tasks should I add to it?","actions":[{"op":"create_project","name":"Holiday"}]}"""
             ),
             Turn(
                 "delete task 2",

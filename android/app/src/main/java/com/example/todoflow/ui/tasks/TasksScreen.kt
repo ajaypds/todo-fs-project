@@ -64,6 +64,7 @@ fun TasksScreen(
     val statusMessage by viewModel.statusMessage.collectAsState()
     val themeMode by viewModel.themeMode.collectAsState()
     val appLockEnabled by viewModel.appLockEnabled.collectAsState()
+    val allowScreenshots by viewModel.allowScreenshots.collectAsState()
 
     val context = LocalContext.current
     var isAssistantOpen by remember { mutableStateOf(false) }
@@ -202,6 +203,8 @@ fun TasksScreen(
                 appLockEnabled = appLockEnabled,
                 appLockAvailable = AppLock.isAvailable(LocalContext.current),
                 onAppLockChange = { viewModel.setAppLockEnabled(it) },
+                allowScreenshots = allowScreenshots,
+                onAllowScreenshotsChange = { viewModel.setAllowScreenshots(it) },
                 onLogout = { isLogoutDialogOpen = true; closeDrawer() },
                 onOpenAssistant = assistantViewModel?.let { { isAssistantOpen = true; closeDrawer() } },
                 onOpenModels = assistantViewModel?.let { { isModelsOpen = true; closeDrawer() } },

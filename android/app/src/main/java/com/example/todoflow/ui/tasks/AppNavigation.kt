@@ -68,6 +68,8 @@ fun AppDrawerContent(
     appLockAvailable: Boolean,
     onAppLockChange: (Boolean) -> Unit,
     onLogout: () -> Unit,
+    allowScreenshots: Boolean = false,
+    onAllowScreenshotsChange: (Boolean) -> Unit = {},
     onOpenAssistant: (() -> Unit)? = null,
     onOpenModels: (() -> Unit)? = null,
 ) {
@@ -160,6 +162,8 @@ fun AppDrawerContent(
                 appLockEnabled = appLockEnabled,
                 appLockAvailable = appLockAvailable,
                 onAppLockChange = onAppLockChange,
+                allowScreenshots = allowScreenshots,
+                onAllowScreenshotsChange = onAllowScreenshotsChange,
             )
             if (onOpenModels != null) {
                 DrawerRow("On-device AI models", Icons.Default.Memory, false) { onOpenModels() }
@@ -397,6 +401,8 @@ fun DrawerSettings(
     appLockAvailable: Boolean,
     onAppLockChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
+    allowScreenshots: Boolean = false,
+    onAllowScreenshotsChange: (Boolean) -> Unit = {},
 ) {
     Column(
         modifier = modifier
@@ -427,6 +433,15 @@ fun DrawerSettings(
             enabled = appLockAvailable || appLockEnabled,
             onCheckedChange = onAppLockChange
         )
+        if (appLockEnabled) {
+            SettingSwitch(
+                title = "Allow screenshots",
+                description = "App lock hides the app from screenshots and the recent apps screen. Turn this on to take screenshots.",
+                checked = allowScreenshots,
+                enabled = true,
+                onCheckedChange = onAllowScreenshotsChange
+            )
+        }
     }
 }
 
