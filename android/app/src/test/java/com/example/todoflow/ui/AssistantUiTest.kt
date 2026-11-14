@@ -81,7 +81,10 @@ class AssistantUiTest {
     }
 
     @After
-    fun tearDown() = db.close()
+    fun tearDown() {
+        compose.activityRule.scenario.close() // dispose the screen before closing the database
+        db.close()
+    }
 
     @Test
     fun modelManagerOffersTheCatalogueAndRecommendsGemmaOnA16GbPhone() {

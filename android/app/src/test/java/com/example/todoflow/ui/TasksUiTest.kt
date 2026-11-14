@@ -82,8 +82,16 @@ class TasksUiTest {
         local = TodoLocalDataSource(dbHelper)
     }
 
+    // View models made by the tests live here, so they can be cleared (their coroutines stopped)
+    // before the database is closed: otherwise a still-running flow can hit the closed database
+    private val viewModels = androidx.lifecycle.ViewModelStore()
+
     @After
-    fun tearDown() = dbHelper.close()
+    fun tearDown() {
+        compose.activityRule.scenario.close() // dispose the screen first
+        viewModels.clear()
+        dbHelper.close()
+    }
 
     private fun task(id: String, title: String, labels: List<LabelEntity> = emptyList(), comments: Int = 0) =
         TaskEntity(id = id, title = title, labels = labels, commentCount = comments)
@@ -241,7 +249,11 @@ class TasksUiTest {
         val deadScope = CoroutineScope(Job().apply { cancel() }) // never auto-flush the queue
         val repository = TaskRepository(local, ApiProvider { api }, deadScope)
         val session = SessionManager(context)
-        return TasksViewModel(repository, session, RealtimeClient(session, ApiClient(session)))
+        return androidx.lifecycle.ViewModelProvider(viewModels, object : androidx.lifecycle.ViewModelProvider.Factory {
+            @Suppress("UNCHECKED_CAST")
+            override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T =
+                TasksViewModel(repository, session, RealtimeClient(session, ApiClient(session))) as T
+        })[TasksViewModel::class.java]
     }
 
     @Test
