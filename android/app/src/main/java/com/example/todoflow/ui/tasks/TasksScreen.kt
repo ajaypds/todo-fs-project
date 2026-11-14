@@ -29,7 +29,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.todoflow.ai.AssistantViewModel
 import com.example.todoflow.data.local.ProjectEntity
+import com.example.todoflow.ui.assistant.AssistantDialog
+import com.example.todoflow.ui.assistant.ModelManagerDialog
 import com.example.todoflow.data.local.TaskEntity
 import com.example.todoflow.data.local.TaskFilterType
 import com.example.todoflow.data.local.ThemeMode
@@ -43,7 +46,9 @@ import kotlinx.coroutines.flow.collectLatest
 @Composable
 fun TasksScreen(
     viewModel: TasksViewModel,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    // The on-device AI assistant; its entry points are hidden when this is null
+    assistantViewModel: AssistantViewModel? = null
 ) {
     val tasks by viewModel.tasks.collectAsState()
     val projects by viewModel.projects.collectAsState()
@@ -61,6 +66,8 @@ fun TasksScreen(
     val appLockEnabled by viewModel.appLockEnabled.collectAsState()
 
     val context = LocalContext.current
+    var isAssistantOpen by remember { mutableStateOf(false) }
+    var isModelsOpen by remember { mutableStateOf(false) }
 
     var isSearchVisible by remember { mutableStateOf(false) }
     var isCreateDialogOpen by remember { mutableStateOf(false) }
@@ -196,6 +203,8 @@ fun TasksScreen(
                 appLockAvailable = AppLock.isAvailable(LocalContext.current),
                 onAppLockChange = { viewModel.setAppLockEnabled(it) },
                 onLogout = { isLogoutDialogOpen = true; closeDrawer() },
+                onOpenAssistant = assistantViewModel?.let { { isAssistantOpen = true; closeDrawer() } },
+                onOpenModels = assistantViewModel?.let { { isModelsOpen = true; closeDrawer() } },
             )
         }
     ) {
@@ -237,6 +246,11 @@ fun TasksScreen(
                         }
                     },
                     actions = {
+                        if (assistantViewModel != null) {
+                            IconButton(onClick = { isAssistantOpen = true }) {
+                                Icon(Icons.Default.AutoAwesome, contentDescription = "AI assistant")
+                            }
+                        }
                         IconButton(onClick = {
                             isSearchVisible = !isSearchVisible
                             if (!isSearchVisible) viewModel.setSearchQuery("")
@@ -487,6 +501,19 @@ fun TasksScreen(
                 }
             } else null
         )
+    }
+
+    if (assistantViewModel != null) {
+        if (isAssistantOpen) {
+            AssistantDialog(
+                viewModel = assistantViewModel,
+                onDismiss = { isAssistantOpen = false },
+                onOpenModels = { isModelsOpen = true }
+            )
+        }
+        if (isModelsOpen) {
+            ModelManagerDialog(viewModel = assistantViewModel, onDismiss = { isModelsOpen = false })
+        }
     }
 
     if (isLogoutDialogOpen) {

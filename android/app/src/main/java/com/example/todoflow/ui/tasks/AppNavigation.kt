@@ -68,6 +68,8 @@ fun AppDrawerContent(
     appLockAvailable: Boolean,
     onAppLockChange: (Boolean) -> Unit,
     onLogout: () -> Unit,
+    onOpenAssistant: (() -> Unit)? = null,
+    onOpenModels: (() -> Unit)? = null,
 ) {
     ModalDrawerSheet(
         drawerContainerColor = MaterialTheme.colorScheme.surface,
@@ -103,6 +105,10 @@ fun AppDrawerContent(
             DrawerRow("Today", Icons.Default.Today, isView(TaskFilterType.TODAY)) { onSelectFilter(TaskFilterType.TODAY) }
             DrawerRow("Upcoming", Icons.Default.CalendarMonth, isView(TaskFilterType.UPCOMING)) { onSelectFilter(TaskFilterType.UPCOMING) }
             DrawerRow("Completed", Icons.Default.CheckCircle, isView(TaskFilterType.COMPLETED)) { onSelectFilter(TaskFilterType.COMPLETED) }
+
+            if (onOpenAssistant != null) {
+                DrawerRow("AI assistant", Icons.Default.AutoAwesome, false) { onOpenAssistant() }
+            }
 
             SectionHeader("Projects", action = { IconButton(onClick = onAddProject) { Icon(Icons.Default.Add, contentDescription = "Add Project") } })
             if (projects.isEmpty()) {
@@ -155,6 +161,9 @@ fun AppDrawerContent(
                 appLockAvailable = appLockAvailable,
                 onAppLockChange = onAppLockChange,
             )
+            if (onOpenModels != null) {
+                DrawerRow("On-device AI models", Icons.Default.Memory, false) { onOpenModels() }
+            }
             Spacer(Modifier.height(8.dp))
             DrawerRow("Log out", Icons.AutoMirrored.Filled.ExitToApp, false, tint = MaterialTheme.colorScheme.error) { onLogout() }
             Spacer(Modifier.navigationBarsPadding().height(16.dp))

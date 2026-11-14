@@ -3,6 +3,10 @@ package com.example.todoflow
 import android.app.Application
 import android.util.Log
 import androidx.work.Configuration
+import com.example.todoflow.ai.LiteRtRuntime
+import com.example.todoflow.ai.LlmRuntime
+import com.example.todoflow.ai.ModelDownloader
+import com.example.todoflow.ai.ModelStore
 import com.example.todoflow.data.local.SessionManager
 import com.example.todoflow.data.local.TodoDbHelper
 import com.example.todoflow.data.local.TodoLocalDataSource
@@ -15,6 +19,9 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import okhttp3.OkHttpClient
+import java.io.File
+import java.util.concurrent.TimeUnit
 
 class TodoFlowApplication : Application(), Configuration.Provider {
 
@@ -47,6 +54,16 @@ class TodoFlowApplication : Application(), Configuration.Provider {
     lateinit var realtimeClient: RealtimeClient
         private set
 
+    // On-device AI assistant: downloaded models, their downloader and the model runner
+    lateinit var modelStore: ModelStore
+        private set
+
+    lateinit var modelDownloader: ModelDownloader
+        private set
+
+    lateinit var llmRuntime: LlmRuntime
+        private set
+
     override fun onCreate() {
         super.onCreate()
         sessionManager = SessionManager(this)
@@ -61,6 +78,18 @@ class TodoFlowApplication : Application(), Configuration.Provider {
         )
 
         realtimeClient = RealtimeClient(sessionManager, apiClient)
+
+        modelStore = ModelStore(File(filesDir, "models"))
+        modelDownloader = ModelDownloader(
+            client = OkHttpClient.Builder()
+                .connectTimeout(30, TimeUnit.SECONDS)
+                .readTimeout(60, TimeUnit.SECONDS)
+                .build(),
+            store = modelStore,
+            scope = appScope,
+            tokenProvider = { sessionManager.huggingFaceToken }
+        )
+        llmRuntime = LiteRtRuntime(this)
 
         // Due-date reminders were removed: drop any reminder jobs an earlier version scheduled
         appScope.launch { runCatching { WorkManager.getInstance(this@TodoFlowApplication).cancelAllWorkByTag("due_reminder") } }

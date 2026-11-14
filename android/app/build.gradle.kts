@@ -13,6 +13,8 @@ android {
         targetSdk = 36
         versionCode = (System.getenv("ANDROID_VERSION_CODE") ?: "1").toInt()
         versionName = "1.0"
+        // The on-device AI runtime ships native libraries (about 22 MB per CPU type): phones are arm64
+        ndk { abiFilters += "arm64-v8a" }
     }
 
     // Release signing is configured from environment variables (set by GitHub Actions secrets).
@@ -125,6 +127,9 @@ dependencies {
   // Secure token storage & biometric app lock
   implementation(libs.androidx.security.crypto)
   implementation(libs.androidx.biometric)
+
+  // On-device LLM runtime (LiteRT-LM): runs downloaded .litertlm models for the AI assistant
+  implementation(libs.litertlm.android)
 
   // Networking & Serialization
   implementation(libs.retrofit.core)

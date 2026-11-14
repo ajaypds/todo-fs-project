@@ -1,5 +1,6 @@
 package com.example.todoflow
 
+import android.app.ActivityManager
 import android.os.Bundle
 import android.os.SystemClock
 import android.view.WindowManager
@@ -23,6 +24,7 @@ import androidx.core.view.WindowCompat
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.todoflow.ai.AssistantViewModel
 import com.example.todoflow.data.local.ThemeMode
 import com.example.todoflow.theme.TodoFlowTheme
 import com.example.todoflow.ui.auth.AuthViewModel
@@ -120,7 +122,22 @@ class MainActivity : FragmentActivity() {
                                     }
                                 }
                             )
-                            TasksScreen(viewModel = tasksViewModel)
+                            val assistantViewModel: AssistantViewModel = viewModel(
+                                factory = object : ViewModelProvider.Factory {
+                                    @Suppress("UNCHECKED_CAST")
+                                    override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                                        return AssistantViewModel(
+                                            repository = taskRepository,
+                                            session = sessionManager,
+                                            store = app.modelStore,
+                                            downloader = app.modelDownloader,
+                                            runtime = app.llmRuntime,
+                                            deviceRamGb = deviceRamGb()
+                                        ) as T
+                                    }
+                                }
+                            )
+                            TasksScreen(viewModel = tasksViewModel, assistantViewModel = assistantViewModel)
                         } else {
                             val authViewModel: AuthViewModel = viewModel(
                                 factory = object : ViewModelProvider.Factory {
@@ -137,6 +154,13 @@ class MainActivity : FragmentActivity() {
                 }
             }
         }
+    }
+
+    /** Total RAM in GB (rounded), used to recommend a model size. */
+    private fun deviceRamGb(): Int {
+        val info = ActivityManager.MemoryInfo()
+        (getSystemService(ACTIVITY_SERVICE) as ActivityManager).getMemoryInfo(info)
+        return Math.round(info.totalMem / 1_000_000_000.0).toInt()
     }
 
     override fun onStart() {
