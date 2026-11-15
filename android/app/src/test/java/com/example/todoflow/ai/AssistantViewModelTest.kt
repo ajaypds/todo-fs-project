@@ -440,13 +440,26 @@ class AssistantViewModelTest {
     }
 
     @Test
-    fun aBareNumberIsNotGuessedIntoATask() {
+    fun aBareNumberFromTheModelFindsTheTaskNumberedLikeThat() {
+        installModel()
+        runBlocking {
+            local.upsertTasks(listOf(TaskEntity("m", "Buy milk"), TaskEntity("t1", "Task 1"), TaskEntity("t2", "Task 2"), TaskEntity("t3", "Task 3")))
+        }
+        // Exactly what Gemma wrote on the phone for "Move Task 1, Task 2 and Task 3 to the Test project"
+        runtime.answers += """{"reply":"I'll move tasks 1, 2, and 3 to the Test project.","actions":[{"op":"update_task","task":"1","project":"Test"},{"op":"update_task","task":"2","project":"Test"},{"op":"update_task","task":"3","project":"Test"}]}"""
+        send("Move Task 1, Task 2 and Task 3 to the Test project")
+        assertEquals(listOf("Task 1", "Task 2", "Task 3"), last().proposals.map { it.task!!.title })
+        assertTrue(last().problems.isEmpty())
+    }
+
+    @Test
+    fun aNumberThatMatchesNothingIsReportedNotGuessed() {
         installModel()
         runBlocking { local.upsertTasks(listOf(TaskEntity("t1", "Task 1"), TaskEntity("t2", "Task 2"))) }
-        runtime.answers += """{"reply":"ok","actions":[{"op":"update_task","task":"1","project":"Test"}]}"""
-        send("Move Task 1 to Test")
+        runtime.answers += """{"reply":"ok","actions":[{"op":"update_task","task":"7","project":"Test"}]}"""
+        send("Move Task 7 to Test")
         assertTrue(last().proposals.isEmpty())
-        assertTrue(last().problems.single().contains("couldn't find a task called “1”"))
+        assertTrue(last().problems.single().contains("couldn't find a task called “7”"))
     }
 
     @Test

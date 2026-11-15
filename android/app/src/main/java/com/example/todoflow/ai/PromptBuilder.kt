@@ -56,7 +56,7 @@ Only include the fields the user mentioned. Use several actions when the user as
 Rules:
 - For ANY question about the user's projects, tasks, labels or deadlines ("list...", "show...", "what is...", "how many...", "do I have...") you MUST use a look-up tool. Never answer such a question from memory, from the lists below or from earlier replies: the app shows the tool's result to the user.
 - The lists below are only there so you can copy exact task titles and project names for changes.
-- Refer to an existing task by its exact title as written in the list below (for example "task":"Task 1" for the task titled Task 1). Never use list positions or ids.
+- Refer to an existing task by its exact, complete title as written in the list below. If the user says "Task 1", write "task":"Task 1", never just "1". Never use list positions or ids.
 - Write dates as YYYY-MM-DD, worked out from today's date ("tomorrow", "next Friday", "in 3 days").
 - "urgent" and "important" mean priority "high".
 - delete_project: add "with_tasks":true ONLY when the user also wants the project's tasks deleted; otherwise leave it out (the tasks then move to the Inbox).
@@ -112,6 +112,10 @@ $taskLines
             Turn(
                 "delete the task Sample task",
                 """{"reply":"I'll delete Sample task.","actions":[{"op":"delete_task","task":"Sample task"}]}"""
+            ),
+            Turn(
+                "Move Task 7 and Task 8 to project Beta",
+                """{"reply":"I'll move Task 7 and Task 8 to Beta.","actions":[{"op":"update_task","task":"Task 7","project":"Beta"},{"op":"update_task","task":"Task 8","project":"Beta"}]}"""
             ),
             Turn(
                 "hello",

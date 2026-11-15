@@ -102,7 +102,8 @@ object ActionResolver {
     data class TaskMatch(val task: TaskEntity?, val problem: String? = null)
 
     /**
-     * Exact title first (case-insensitive); with duplicates an open task wins over finished ones; as a last
+     * Exact title first (case-insensitive); with duplicates an open task wins over finished ones; a bare number
+     * ("1") means the one task whose title ends with that number; as a last
      * resort a title that contains the words. Anything ambiguous or unknown is explained, never guessed.
      */
     fun findTask(tasks: List<TaskEntity>, name: String): TaskMatch {
@@ -113,6 +114,18 @@ object ActionResolver {
             exact.size == 1 -> TaskMatch(exact.first())
             exact.size > 1 && open.size == 1 -> TaskMatch(open.first())
             exact.size > 1 -> TaskMatch(null, "More than one task is called “$wanted”. Say which one (for example its project or due date).")
+            wanted.all { it.isDigit() } && wanted.isNotEmpty() -> {
+                // The model often drops the word: the user said "Task 1" and it wrote "1". Accept that only when
+                // exactly one task title ends with that number as a separate word ("Task 1", not "Task 11").
+                val numbered = tasks.filter { Regex("(^|\\s)$wanted$").containsMatchIn(it.title.trim()) }
+                val numberedOpen = numbered.filter { !it.completed }
+                when {
+                    numbered.size == 1 -> TaskMatch(numbered.first())
+                    numbered.size > 1 && numberedOpen.size == 1 -> TaskMatch(numberedOpen.first())
+                    numbered.isEmpty() -> TaskMatch(null, "I couldn't find a task called “$wanted”.")
+                    else -> TaskMatch(null, "More than one task ends with “$wanted”: " + numbered.take(4).joinToString(", ") { "“${it.title}”" })
+                }
+            }
             else -> {
                 val partial = if (wanted.length < 3) emptyList() else tasks.filter { it.title.contains(wanted, ignoreCase = true) }
                 when {
