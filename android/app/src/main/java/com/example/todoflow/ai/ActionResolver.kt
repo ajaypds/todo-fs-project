@@ -31,13 +31,14 @@ object ActionResolver {
         val proposals = mutableListOf<Proposal>()
 
         fun taskFor(ref: Int): TaskEntity? =
-            promptTasks.getOrNull(ref - 1).also { if (it == null) problems += "There is no task #$ref" }
+            promptTasks.getOrNull(ref - 1).also { if (it == null) problems += "There is no task with code ${TaskCodes.encode(ref)}" }
 
         // Projects created earlier in the same answer count as known
         val knownProjects = projects.map { it.name.lowercase() }.toMutableSet()
 
         for (action in parsed.actions) {
             when (action) {
+                is AssistantQuery -> Unit // answered by the app before this point
                 is AssistantAction.CreateTask -> {
                     val bits = mutableListOf<String>()
                     action.due?.let { bits += it.date?.format(dateFormat)?.let { d -> "due $d" } ?: "no due date" }

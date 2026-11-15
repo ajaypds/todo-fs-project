@@ -41,6 +41,55 @@ sealed interface AssistantAction {
     data class DeleteProject(val project: String, val withTasks: Boolean = false) : AssistantAction
 }
 
+/**
+ * Read-only requests (the tools the model may use to look things up). The app answers them with real
+ * data and sends the result back to the model; they never change anything and need no confirmation.
+ */
+sealed interface AssistantQuery : AssistantAction
+
+data object ListProjects : AssistantQuery
+
+data class ListTasks(
+    val project: String? = null,
+    /** all | inbox | today | upcoming | overdue */
+    val view: String? = null,
+    val completed: Boolean? = null,
+    val search: String? = null
+) : AssistantQuery
+
+data class GetTask(val ref: Int) : AssistantQuery
+
+data object ListLabels : AssistantQuery
+
+data object DailyBriefing : AssistantQuery
+
+/**
+ * Tasks are shown to the model with a letter code ([A], [B], ... [AA]) and referred to by it. Letters can't
+ * be confused with the user's own wording ("Task 1") the way list positions can.
+ */
+object TaskCodes {
+    fun encode(position: Int): String {
+        require(position >= 1)
+        var n = position
+        val sb = StringBuilder()
+        while (n > 0) {
+            n--
+            sb.append('A' + n % 26)
+            n /= 26
+        }
+        return sb.reverse().toString()
+    }
+
+    /** "A" → 1, "z" → 26, "AA" → 27; null for anything that isn't a plain letter code. */
+    fun decode(text: String): Int? {
+        val t = text.trim()
+        if (t.isEmpty() || t.length > 3 || !t.all { it.isLetter() && it.code < 128 }) return null
+        var n = 0
+        for (c in t.uppercase()) n = n * 26 + (c - 'A' + 1)
+        return n
+    }
+}
+
 /** The model's answer after parsing: a short message, the requested changes, and anything it got wrong. */
 data class ParsedReply(
     val reply: String,

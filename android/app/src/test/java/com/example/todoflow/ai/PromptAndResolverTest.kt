@@ -25,11 +25,11 @@ class PromptAndResolverTest {
         assertTrue(prompt.contains("Today is Saturday, 2026-11-14"))
         assertTrue(prompt.contains("Projects: Home, Work"))
         // Open tasks by due date, undated after, completed last
-        val lines = prompt.lines().filter { it.startsWith("#") }
-        assertEquals("#1 Call mum | due 2026-11-15", lines[0])
-        assertEquals("#2 Pay rent | due 2026-11-20 | priority high | project Home", lines[1])
-        assertEquals("#3 Read a book", lines[2])
-        assertEquals("#4 Old thing | done", lines[3])
+        val lines = prompt.lines().filter { Regex("^\\[[A-Z]{1,3}\\] ").containsMatchIn(it) }
+        assertEquals("[A] Call mum | due 2026-11-15", lines[0])
+        assertEquals("[B] Pay rent | due 2026-11-20 | priority high | project Home", lines[1])
+        assertEquals("[C] Read a book", lines[2])
+        assertEquals("[D] Old thing | done", lines[3])
     }
 
     @Test
@@ -44,7 +44,26 @@ class PromptAndResolverTest {
         // Every example is a valid answer for the parser
         ex.forEach { assertTrue(it.user, ActionParser.parse(it.assistant).hadJson) }
         assertEquals(1, ActionParser.parse(ex[0].assistant).actions.size)
-        assertTrue(ActionParser.parse(ex[5].assistant).actions.isEmpty())
+        assertTrue(ActionParser.parse(ex[6].assistant).actions.isEmpty())
+    }
+
+    @Test
+    fun promptListsTheToolsAndTellsTheModelItMayAnswerFromTheLists() {
+        val prompt = PromptBuilder.system(today, tasks, projects)
+        listOf("list_projects", "list_tasks", "get_task", "list_labels", "daily_briefing",
+            "create_task", "update_task", "complete_task", "delete_task", "add_subtasks",
+            "create_project", "update_project", "delete_project").forEach { assertTrue(it, prompt.contains(""""op":"$it""""))}
+        assertTrue(prompt.contains("Answer questions about them directly from the lists"))
+        assertTrue(prompt.contains("is not code 1"))
+        assertTrue(prompt.contains("NOT done until the user applies"))
+    }
+
+    @Test
+    fun theListProjectsExampleUsesTheUsersRealProjects() {
+        val withProjects = PromptBuilder.examples(today, projects)[3]
+        assertEquals("list my projects", withProjects.user)
+        assertTrue(withProjects.assistant.contains("Your projects: Home, Work."))
+        assertTrue(PromptBuilder.examples(today, emptyList())[3].assistant.contains("You have no projects yet."))
     }
 
     @Test

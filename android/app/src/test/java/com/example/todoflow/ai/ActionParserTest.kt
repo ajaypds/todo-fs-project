@@ -26,7 +26,7 @@ class ActionParserTest {
             <think>The user wants a task. {"not":"this"}</think>
             Sure! Here you go:
             ```json
-            {"reply":"ok","actions":[{"op":"delete_task","task":"#2"}]}
+            {"reply":"ok","actions":[{"op":"delete_task","task":"#B"}]}
             ```
             Hope that helps.
         """.trimIndent()
@@ -47,7 +47,7 @@ class ActionParserTest {
     fun acceptsABareActionOrAnArrayOfActions() {
         assertEquals(
             AssistantAction.CompleteTask(1, true),
-            ActionParser.parse("""{"op":"complete_task","task":1}""").actions.single()
+            ActionParser.parse("""{"op":"complete_task","task":"A"}""").actions.single()
         )
         val two = ActionParser.parse("""[{"op":"create_project","name":"Home","color":"#112233"},{"op":"delete_project","project":"Old"}]""")
         assertEquals(2, two.actions.size)
@@ -56,7 +56,7 @@ class ActionParserTest {
 
     @Test
     fun updateTaskSeparatesUnchangedClearedAndNewValues() {
-        val r = ActionParser.parse("""{"actions":[{"op":"update_task","task":3,"due":"none","priority":"low","project":"inbox","completed":true}]}""")
+        val r = ActionParser.parse("""{"actions":[{"op":"update_task","task":"c","due":"none","priority":"low","project":"inbox","completed":true}]}""")
         val a = r.actions.single() as AssistantAction.UpdateTask
         assertEquals(3, a.ref)
         assertEquals(DueSpec(null), a.due)          // clear the due date
@@ -90,8 +90,40 @@ class ActionParserTest {
         assertEquals(4, r.problems.size)
         assertTrue(r.problems.any { it.contains("title") })
         assertTrue(r.problems.any { it.contains("explode") })
-        assertTrue(r.problems.any { it.contains("task number") })
+        assertTrue(r.problems.any { it.contains("task code") })
         assertTrue(r.problems.any { it.contains("someday") })
+    }
+
+    @Test
+    fun taskCodesAreLettersAndPlainNumbersAreRefused() {
+        fun ref(code: String) = ActionParser.parse("""{"actions":[{"op":"delete_task","task":$code}]}""")
+        assertEquals(AssistantAction.DeleteTask(1), ref("\"A\"").actions.single())
+        assertEquals(AssistantAction.DeleteTask(2), ref("\"[b]\"").actions.single())
+        assertEquals(AssistantAction.DeleteTask(27), ref("\"AA\"").actions.single())
+        // "Task 1" in the user's words is not position 1: a number is never guessed into a task
+        val numeric = ref("3")
+        assertTrue(numeric.actions.isEmpty())
+        assertTrue(numeric.problems.single().contains("not a task code"))
+    }
+
+    @Test
+    fun taskCodesRoundTrip() {
+        (1..800).forEach { assertEquals(it, TaskCodes.decode(TaskCodes.encode(it))) }
+        assertEquals("A", TaskCodes.encode(1))
+        assertEquals("Z", TaskCodes.encode(26))
+        assertEquals("AA", TaskCodes.encode(27))
+    }
+
+    @Test
+    fun readOnlyLookUpsAreParsedAsQueries() {
+        val r = ActionParser.parse("""{"reply":"Checking","actions":[{"op":"list_projects"},{"op":"list_tasks","project":"Home","view":"today","completed":false,"search":"milk"},{"op":"get_task","task":"C"},{"op":"list_labels"},{"op":"daily_briefing"}]}""")
+        assertEquals(
+            listOf(ListProjects, ListTasks("Home", "today", false, "milk"), GetTask(3), ListLabels, DailyBriefing),
+            r.actions
+        )
+        assertTrue(r.actions.all { it is AssistantQuery })
+        // an unknown view is dropped, not guessed
+        assertEquals(null, (ActionParser.parse("""{"actions":[{"op":"list_tasks","view":"someday"}]}""").actions.single() as ListTasks).view)
     }
 
     @Test
