@@ -139,6 +139,40 @@ class AssistantUiTest {
     }
 
     @Test
+    fun theEmptyChatShowsEverythingTheAssistantCanDo() {
+        store.import(ByteArrayInputStream(ByteArray(10)), "Qwen3-0.6B.litertlm")
+        vm.refreshInstalled()
+        compose.setContent { MaterialTheme { AssistantDialog(vm, onDismiss = {}, onOpenModels = {}) } }
+        compose.waitForIdle()
+
+        compose.onNodeWithText("Manage your tasks by chatting").assertIsDisplayed()
+        listOf("LOOK THINGS UP", "ADD", "CHANGE", "DELETE").forEach { compose.onNodeWithText(it).assertExists() }
+        compose.onNodeWithText("list projects").assertExists()
+        compose.onNodeWithText("list tasks in inbox").assertExists()
+        compose.onNodeWithText("Delete project <name> with its tasks").assertExists()
+    }
+
+    @Test
+    fun theHelpButtonListsWhatCanBeAskedAndPicksAnExample() {
+        store.import(ByteArrayInputStream(ByteArray(10)), "Qwen3-0.6B.litertlm")
+        vm.refreshInstalled()
+        runtime.answer = """{"reply":"Let me look that up.","actions":[{"op":"list_projects"}]}"""
+        compose.setContent { MaterialTheme { AssistantDialog(vm, onDismiss = {}, onOpenModels = {}) } }
+        compose.waitForIdle()
+        // start a chat so the empty-state list is gone and only the help button offers the examples
+        compose.onNodeWithText("Tell me what to do…").performTextInput("list projects")
+        compose.onNodeWithContentDescription("Send").performClick()
+        compose.waitUntil(10_000) { compose.onAllNodesWithText("Here's what I found in your data:").fetchSemanticsNodes().isNotEmpty() }
+
+        compose.onNodeWithContentDescription("What can I ask?").performClick()
+        compose.waitForIdle()
+        compose.onNodeWithText("What can I ask?").assertIsDisplayed()
+        compose.onNodeWithText("show overdue tasks").performClick()
+        compose.waitForIdle()
+        compose.onAllNodesWithText("What can I ask?").assertCountEquals(0) // the help closed after picking
+    }
+
+    @Test
     fun historyListsPastChatsAndReopensOne() {
         history.save(
             com.example.todoflow.ai.StoredChat(
