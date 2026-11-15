@@ -23,6 +23,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -33,6 +35,7 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.HelpOutline
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Memory
 import androidx.compose.material.icons.filled.Add
@@ -75,12 +78,80 @@ import com.example.todoflow.ai.StoredChat
 import com.example.todoflow.ai.RuntimeState
 import com.example.todoflow.ai.UserMessage
 
-private val SUGGESTIONS = listOf(
-    "Add “buy milk” for tomorrow",
-    "Create a project Home with three chores",
-    "Make my first task high priority",
-    "Delete the completed tasks"
+/** What the assistant can do, as tappable examples. Words in <angle brackets> are for you to fill in. */
+private val CAPABILITIES: List<Pair<String, List<String>>> = listOf(
+    "Look things up" to listOf(
+        "list projects",
+        "list tasks in inbox",
+        "what is due today?",
+        "show overdue tasks",
+        "list tasks in project <name>",
+        "give me my daily briefing"
+    ),
+    "Add" to listOf(
+        "Add buy milk for tomorrow, high priority",
+        "Create project <name> with tasks <task one> and <task two>",
+        "Add subtasks <one> and <two> to <task title>"
+    ),
+    "Change" to listOf(
+        "Move <task title> to project <name>",
+        "Make <task title> high priority and due Friday",
+        "Mark <task title> as done",
+        "Rename <task title> to <new title>"
+    ),
+    "Delete" to listOf(
+        "Delete task <task title>",
+        "Delete project <name> with its tasks"
+    )
 )
+
+/** The capability groups as chips; tapping one puts the example into the message box. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun CapabilityGroups(onPick: (String) -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        CAPABILITIES.forEach { (title, examples) ->
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(title.uppercase(), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    examples.forEach { e -> AssistChip(onClick = { onPick(e) }, label = { Text(e) }) }
+                }
+            }
+        }
+        Text(
+            "Tips: use a task's exact title. Every change is shown first, nothing happens until you tap Apply. Look-ups always show your real data.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+
+/** "What can I ask?": everything the assistant can do. */
+@Composable
+private fun CapabilitiesDialog(onPick: (String) -> Unit, onDismiss: () -> Unit) {
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+            Column(modifier = Modifier.fillMaxSize()) {
+                Row(modifier = Modifier.fillMaxWidth().padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = onDismiss) { Icon(Icons.Default.Close, contentDescription = "Close help") }
+                    Text("What can I ask?", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(start = 4.dp))
+                }
+                HorizontalDivider()
+                Column(
+                    modifier = Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(20.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text(
+                        "Tap an example to put it in the message box, then fill in the parts in <angle brackets>.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    CapabilityGroups(onPick = { onPick(it); onDismiss() })
+                }
+            }
+        }
+    }
+}
 
 /** Full-screen chat with the on-device model: describe what you want, review the changes, apply them. */
 @OptIn(ExperimentalLayoutApi::class)
@@ -99,6 +170,7 @@ fun AssistantDialog(
     val installed by viewModel.installed.collectAsState()
     var input by remember { mutableStateOf("") }
     var showHistory by remember { mutableStateOf(false) }
+    var showHelp by remember { mutableStateOf(false) }
     val chats by viewModel.chats.collectAsState()
     val listState = rememberLazyListState()
     val hasModel = active != null && installed.any { it.fileName == active }
@@ -127,6 +199,9 @@ fun AssistantDialog(
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
+                    }
+                    IconButton(onClick = { showHelp = true }) {
+                        Icon(Icons.Default.HelpOutline, contentDescription = "What can I ask?")
                     }
                     IconButton(onClick = { viewModel.refreshChats(); showHistory = true }) {
                         Icon(Icons.Default.History, contentDescription = "Chat history")
@@ -217,6 +292,10 @@ fun AssistantDialog(
                 }
             }
         }
+    }
+
+    if (showHelp) {
+        CapabilitiesDialog(onPick = { input = it }, onDismiss = { showHelp = false })
     }
 
     if (showHistory) {
@@ -311,27 +390,25 @@ private fun statusLine(hasModel: Boolean, active: String?, runtime: RuntimeState
     else -> "${ModelCatalog.displayName(active.orEmpty())} · on this device"
 }
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun EmptyState(hasModel: Boolean, onChooseModel: () -> Unit, onSuggestion: (String) -> Unit, modifier: Modifier = Modifier) {
     Column(
-        modifier = modifier.padding(24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(44.dp), tint = MaterialTheme.colorScheme.primary)
-        Text("Manage your tasks by chatting", style = MaterialTheme.typography.titleMedium)
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(36.dp), tint = MaterialTheme.colorScheme.primary)
+            Text("Manage your tasks by chatting", style = MaterialTheme.typography.titleMedium)
+        }
         Text(
-            "Create, edit and delete tasks and projects in plain words. The model runs on your phone: your messages never leave it.",
+            "Look things up, add, change and delete tasks and projects in plain words. The model runs on your phone: your messages never leave it.",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         if (!hasModel) {
             Button(onClick = onChooseModel) { Text("Set up a model") }
         } else {
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                SUGGESTIONS.forEach { s -> AssistChip(onClick = { onSuggestion(s) }, label = { Text(s) }) }
-            }
+            CapabilityGroups(onPick = onSuggestion)
         }
     }
 }

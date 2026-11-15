@@ -44,7 +44,7 @@ class PromptAndResolverTest {
         // Every example is a valid answer for the parser
         ex.forEach { assertTrue(it.user, ActionParser.parse(it.assistant).hadJson) }
         assertEquals(1, ActionParser.parse(ex[0].assistant).actions.size)
-        assertTrue(ActionParser.parse(ex[8].assistant).actions.isEmpty())
+        assertTrue(ActionParser.parse(ex[9].assistant).actions.isEmpty())
     }
 
     @Test
@@ -55,7 +55,8 @@ class PromptAndResolverTest {
             "create_project", "update_project", "delete_project").forEach { assertTrue(it, prompt.contains(""""op":"$it""""))}
         assertTrue(prompt.contains("you MUST use a look-up tool"))
         assertTrue(prompt.contains("Never answer such a question from memory"))
-        assertTrue(prompt.contains("exact title"))
+        assertTrue(prompt.contains("exact, complete title"))
+        assertTrue(prompt.contains("never just \"1\""))
         assertTrue(prompt.contains("NOT done until the user applies"))
     }
 
@@ -101,7 +102,20 @@ class PromptAndResolverTest {
         assertEquals("e", ActionResolver.findTask(list, "garden plants").task?.id)               // unique partial match
         assertTrue(ActionResolver.findTask(list, "Water").problem!!.contains("More than one task matches"))
         assertTrue(ActionResolver.findTask(list, "Nonexistent").problem!!.contains("couldn't find a task called"))
-        assertTrue(ActionResolver.findTask(list, "1").problem!!.contains("couldn't find"))        // bare numbers are never guessed into a task
+        assertTrue(ActionResolver.findTask(list, "1").problem!!.contains("couldn't find"))        // no title ends with 1
+    }
+
+    @Test
+    fun aBareNumberMeansTheOneTaskWhoseTitleEndsWithIt() {
+        val list = listOf(
+            TaskEntity("1", "Task 1"), TaskEntity("11", "Task 11"), TaskEntity("2", "Task 2"),
+            TaskEntity("c1", "Chapter 2"), TaskEntity("done", "Old 3", completed = true), TaskEntity("open", "Open 3")
+        )
+        assertEquals("1", ActionResolver.findTask(list, "1").task?.id)          // "Task 1", not "Task 11"
+        assertEquals("11", ActionResolver.findTask(list, "11").task?.id)
+        assertEquals("open", ActionResolver.findTask(list, "3").task?.id)       // the open one wins over the finished one
+        assertTrue(ActionResolver.findTask(list, "2").problem!!.contains("More than one task ends with"))
+        assertTrue(ActionResolver.findTask(list, "9").problem!!.contains("couldn't find"))
     }
 
     @Test
