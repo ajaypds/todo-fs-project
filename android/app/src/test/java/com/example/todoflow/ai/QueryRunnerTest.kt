@@ -106,6 +106,25 @@ class QueryRunnerTest {
     }
 
     @Test
+    fun resultsAreShownToTheUserWithoutCodesOrToolNames() {
+        assertEquals("Projects:\n• Garden (2 tasks)\n• Work (1 task)", QueryRunner.forDisplay(run(ListProjects)))
+        assertEquals("You have no labels.", QueryRunner.forDisplay("list_labels: there are no labels."))
+        val shown = QueryRunner.forDisplay(run(ListTasks(project = "Garden"), index = TaskIndex(emptyList())))
+        assertTrue(shown.startsWith("Tasks (2):\n• "))
+        assertFalse(shown.contains("["))
+        assertTrue(shown.contains("Mow lawn · due 2026-11-14"))
+        assertEquals("No tasks match.", QueryRunner.forDisplay("list_tasks: no tasks match."))
+    }
+
+    @Test
+    fun recognisesQuestionsAboutTheUsersData() {
+        listOf("list projects", "list tasks in inbox", "what is due today?", "How many tasks do I have", "show me my overdue tasks", "any tasks tomorrow")
+            .forEach { assertTrue(it, DataQuestions.looksLikeDataQuestion(it)) }
+        listOf("add buy milk", "delete the Test project with its tasks", "move Task 1 to Test", "create a project and add some tasks", "hello", "mark task A as done")
+            .forEach { assertFalse(it, DataQuestions.looksLikeDataQuestion(it)) }
+    }
+
+    @Test
     fun dailyBriefingGroupsOpenTasksByDueDate() {
         val out = run(DailyBriefing)
         assertTrue(out.startsWith("daily_briefing: 4 open tasks."))
