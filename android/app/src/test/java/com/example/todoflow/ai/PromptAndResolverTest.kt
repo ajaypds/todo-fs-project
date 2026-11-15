@@ -44,7 +44,7 @@ class PromptAndResolverTest {
         // Every example is a valid answer for the parser
         ex.forEach { assertTrue(it.user, ActionParser.parse(it.assistant).hadJson) }
         assertEquals(1, ActionParser.parse(ex[0].assistant).actions.size)
-        assertTrue(ActionParser.parse(ex[4].assistant).actions.isEmpty())
+        assertTrue(ActionParser.parse(ex[5].assistant).actions.isEmpty())
     }
 
     @Test
@@ -85,6 +85,17 @@ class PromptAndResolverTest {
         assertEquals("Create task “Buy milk” · due Sun 15 Nov · high priority · project Garden (new) · 2 subtasks", res.proposals[0].summary)
         assertEquals("Create project “Garden”", res.proposals[1].summary)
         assertEquals("Update “Call mum”: remove due date, mark done", res.proposals[2].summary)
+    }
+
+    @Test
+    fun deletingAProjectSaysWhatHappensToItsTasks() {
+        val inHome = listOf(TaskEntity("a", "One", projectId = "p1"), TaskEntity("b", "Two", projectId = "p1"), TaskEntity("c", "Other", projectId = "p2"))
+        fun summary(withTasks: Boolean, project: String = "Home") = ActionResolver.resolve(
+            ParsedReply("", listOf(AssistantAction.DeleteProject(project, withTasks))), emptyList(), projects, inHome
+        ).proposals.single().summary
+        assertEquals("Delete project “Home” and its 2 tasks", summary(true))
+        assertEquals("Delete project “Home” (its 2 tasks move to the Inbox)", summary(false))
+        assertEquals("Delete project “Work” (its 1 task moves to the Inbox)", summary(false, "Work"))
     }
 
     @Test

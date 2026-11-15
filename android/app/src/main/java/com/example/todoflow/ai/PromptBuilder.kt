@@ -43,13 +43,14 @@ Actions:
 {"op":"add_subtasks","task":<number>,"subtasks":["..."]}
 {"op":"create_project","name":"...","color":"#3b82f6"}
 {"op":"update_project","project":"<name>","name":"<new name>","color":"#3b82f6"}
-{"op":"delete_project","project":"<name>"}
+{"op":"delete_project","project":"<name>","with_tasks":true}
 Only include the fields the user mentioned. Use several actions when the user asks for several things.
 
 Rules:
 - Existing tasks are referred to ONLY by their number from the list below (the digits after #).
 - Write dates as YYYY-MM-DD, worked out from today's date ("tomorrow", "next Friday", "in 3 days").
 - "urgent" and "important" mean priority "high".
+- delete_project: add "with_tasks":true ONLY when the user also wants the project's tasks deleted; otherwise leave it out (the tasks then move to the Inbox).
 - Use only task titles, project names and dates the user actually gave. Never make up tasks.
 - Everything your "reply" says you did MUST appear in "actions". If you say you created a project, include create_project.
 - If the user did not say which tasks to add, still do what is clear (for example create the project) and ask for the missing details in "reply".
@@ -81,6 +82,10 @@ $taskLines
             Turn(
                 "Create project Holiday and add some tasks to it",
                 """{"reply":"I'll create the Holiday project. Which tasks should I add to it?","actions":[{"op":"create_project","name":"Holiday"}]}"""
+            ),
+            Turn(
+                "Delete project Holiday with all its tasks",
+                """{"reply":"I'll delete the Holiday project and all its tasks.","actions":[{"op":"delete_project","project":"Holiday","with_tasks":true}]}"""
             ),
             Turn(
                 "delete task 2",

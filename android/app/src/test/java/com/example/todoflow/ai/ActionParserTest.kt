@@ -67,6 +67,13 @@ class ActionParserTest {
     }
 
     @Test
+    fun deleteProjectCanAskForItsTasksToGoToo() {
+        fun del(json: String) = ActionParser.parse(json).actions.single() as AssistantAction.DeleteProject
+        assertEquals(true, del("""{"actions":[{"op":"delete_project","project":"Test","with_tasks":true}]}""").withTasks)
+        assertEquals(false, del("""{"actions":[{"op":"delete_project","project":"Test"}]}""").withTasks)
+    }
+
+    @Test
     fun priorityWordsMapOntoAppLevels() {
         fun p(word: String) = (ActionParser.parse("""{"actions":[{"op":"create_task","title":"x","priority":"$word"}]}""").actions.single() as AssistantAction.CreateTask).priority
         assertEquals(1, p("urgent"))

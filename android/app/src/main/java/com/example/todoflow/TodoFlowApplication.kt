@@ -3,6 +3,7 @@ package com.example.todoflow
 import android.app.Application
 import android.util.Log
 import androidx.work.Configuration
+import com.example.todoflow.ai.ChatHistoryStore
 import com.example.todoflow.ai.LiteRtRuntime
 import com.example.todoflow.ai.LlmRuntime
 import com.example.todoflow.ai.ModelDownloader
@@ -64,6 +65,9 @@ class TodoFlowApplication : Application(), Configuration.Provider {
     lateinit var llmRuntime: LlmRuntime
         private set
 
+    lateinit var chatHistory: ChatHistoryStore
+        private set
+
     override fun onCreate() {
         super.onCreate()
         sessionManager = SessionManager(this)
@@ -90,6 +94,7 @@ class TodoFlowApplication : Application(), Configuration.Provider {
             tokenProvider = { sessionManager.huggingFaceToken }
         )
         llmRuntime = LiteRtRuntime(this)
+        chatHistory = ChatHistoryStore(File(filesDir, "assistant_chats.json"))
 
         // Due-date reminders were removed: drop any reminder jobs an earlier version scheduled
         appScope.launch { runCatching { WorkManager.getInstance(this@TodoFlowApplication).cancelAllWorkByTag("due_reminder") } }

@@ -86,7 +86,15 @@ class ActionExecutor(private val repository: TaskRepository) {
                     is AssistantAction.DeleteProject -> {
                         val existing = project(a.project)
                         if (existing == null) false
-                        else repository.deleteProject(existing.id).isSuccess.also { if (it) projects.remove(existing) }
+                        else {
+                            if (a.withTasks) {
+                                // Deleting a project only moves its tasks to the Inbox, so delete them first
+                                repository.observeTasks(com.example.todoflow.data.local.TaskFilterType.ALL).first()
+                                    .filter { it.projectId == existing.id }
+                                    .forEach { repository.deleteTask(it.id) }
+                            }
+                            repository.deleteProject(existing.id).isSuccess.also { if (it) projects.remove(existing) }
+                        }
                     }
                 }
             } catch (e: kotlinx.coroutines.CancellationException) {
