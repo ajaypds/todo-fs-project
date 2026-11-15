@@ -110,7 +110,7 @@ object ActionParser {
             "delete_project" -> {
                 val project = o.str("project")?.trim()
                 if (project.isNullOrEmpty()) return missing("a project name")
-                AssistantAction.DeleteProject(project)
+                AssistantAction.DeleteProject(project, withTasks = o.bool("with_tasks") ?: o.bool("withTasks") ?: o.bool("delete_tasks") ?: false)
             }
             else -> {
                 problems += "Unknown action \"${op ?: "?"}\""

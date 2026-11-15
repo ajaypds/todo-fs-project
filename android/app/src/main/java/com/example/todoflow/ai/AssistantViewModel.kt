@@ -17,7 +17,8 @@ import kotlinx.coroutines.withContext
 import java.io.InputStream
 import java.time.LocalDate
 
-enum class ProposalStatus { NONE, PENDING, APPLYING, APPLIED, DISCARDED }
+/** EXPIRED: a change that was never applied and whose chat was closed (can't be applied any more). */
+enum class ProposalStatus { NONE, PENDING, APPLYING, APPLIED, DISCARDED, EXPIRED }
 
 sealed interface ChatMessage {
     val id: Long
@@ -33,7 +34,9 @@ data class AssistantMessage(
     val status: ProposalStatus = ProposalStatus.NONE,
     /** What the model actually wrote; replayed to it on the next turn so follow-ups make sense. */
     val raw: String = "",
-    val resultNote: String? = null
+    val resultNote: String? = null,
+    /** Changes of a chat restored from the history (shown as text only). */
+    val changes: List<StoredChange> = emptyList()
 ) : ChatMessage
 
 /**
@@ -48,7 +51,9 @@ class AssistantViewModel(
     private val runtime: LlmRuntime,
     private val executor: ActionExecutor = ActionExecutor(repository),
     private val today: () -> LocalDate = { LocalDate.now() },
-    val deviceRamGb: Int = 0
+    val deviceRamGb: Int = 0,
+    /** Where past chats are kept; null disables the history. */
+    private val chatHistory: ChatHistoryStore? = null
 ) : ViewModel() {
 
     // ---- models -------------------------------------------------------------------------------------
@@ -174,6 +179,98 @@ class AssistantViewModel(
     val busy: StateFlow<Boolean> = _busy.asStateFlow()
 
     private var nextId = 1L
+    private var currentChatId = System.currentTimeMillis()
+
+    // ---- history ---------------------------------------------------------------------------------
+
+    private val _chats = MutableStateFlow<List<StoredChat>>(emptyList())
+    val chats: StateFlow<List<StoredChat>> = _chats.asStateFlow()
+
+    /** Asks for the current chat to be saved; bursts of changes are merged into one write. */
+    private val saveRequests = kotlinx.coroutines.channels.Channel<Unit>(kotlinx.coroutines.channels.Channel.CONFLATED)
+
+    init {
+        if (chatHistory != null) {
+            viewModelScope.launch(Dispatchers.IO) {
+                for (ignored in saveRequests) {
+                    val snapshot = snapshotChat()
+                    if (snapshot != null) {
+                        try {
+                            chatHistory.save(snapshot)
+                        } catch (e: Exception) {
+                            android.util.Log.w("AssistantViewModel", "Could not save the chat", e)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private fun snapshotChat(): StoredChat? {
+        val msgs = _messages.value
+        val first = msgs.firstOrNull { it is UserMessage } as? UserMessage ?: return null
+        val stored = msgs.map { m ->
+            when (m) {
+                is UserMessage -> StoredMessage("user", m.text)
+                is AssistantMessage -> StoredMessage(
+                    role = "assistant",
+                    text = m.text,
+                    changes = if (m.proposals.isNotEmpty()) m.proposals.map { StoredChange(it.summary, it.destructive) } else m.changes,
+                    problems = m.problems,
+                    status = m.status.name,
+                    raw = m.raw,
+                    note = m.resultNote
+                )
+            }
+        }
+        return StoredChat(currentChatId, first.text.replace('\n', ' ').take(48), System.currentTimeMillis(), stored)
+    }
+
+    private fun save() {
+        if (chatHistory != null) saveRequests.trySend(Unit)
+    }
+
+    /** Reloads the list of past chats (call when the history screen opens). */
+    fun refreshChats() {
+        val store = chatHistory ?: return
+        viewModelScope.launch {
+            _chats.value = withContext(Dispatchers.IO) { runCatching { store.load() }.getOrDefault(emptyList()) }
+        }
+    }
+
+    /** Continue a past chat. Changes it had proposed but not applied can no longer be applied. */
+    fun openChat(id: Long) {
+        if (_busy.value) return
+        val chat = _chats.value.firstOrNull { it.id == id } ?: return
+        currentChatId = chat.id
+        _messages.value = chat.messages.map { m ->
+            if (m.role == "user") UserMessage(nextId++, m.text)
+            else AssistantMessage(
+                id = nextId++,
+                text = m.text,
+                problems = m.problems,
+                status = when (val st = runCatching { ProposalStatus.valueOf(m.status) }.getOrDefault(ProposalStatus.NONE)) {
+                    ProposalStatus.PENDING, ProposalStatus.APPLYING -> ProposalStatus.EXPIRED
+                    else -> st
+                },
+                raw = m.raw,
+                resultNote = m.note,
+                changes = m.changes
+            )
+        }
+    }
+
+    fun deleteChat(id: Long) {
+        val store = chatHistory ?: return
+        if (id == currentChatId) {
+            _messages.value = emptyList()
+            currentChatId = System.currentTimeMillis()
+        }
+        viewModelScope.launch {
+            withContext(Dispatchers.IO) { runCatching { store.delete(id) } }
+            refreshChats()
+        }
+    }
 
     val hasUsableModel: Boolean
         get() = session.aiActiveModel.value?.let { store.isInstalled(it) } == true
@@ -181,6 +278,7 @@ class AssistantViewModel(
     fun newChat() {
         if (_busy.value) return
         _messages.value = emptyList()
+        currentChatId = System.currentTimeMillis()
     }
 
     fun send(text: String) {
@@ -207,7 +305,7 @@ class AssistantViewModel(
                     raw = runtime.complete(system, history, input + RETRY_HINT)
                     parsed = ActionParser.parse(raw)
                 }
-                val resolution = ActionResolver.resolve(parsed, PromptBuilder.contextTasks(tasks), projects)
+                val resolution = ActionResolver.resolve(parsed, PromptBuilder.contextTasks(tasks), projects, tasks)
                 val reply = if (!parsed.hadJson) {
                     "The model didn't answer in a form I can use, so nothing was changed. " +
                         "Try rephrasing, or pick a larger model in the model manager.\n\nIt said: " + parsed.reply.take(300)
@@ -281,10 +379,14 @@ class AssistantViewModel(
         replace(messageId) { if (it.status == ProposalStatus.PENDING) it.copy(status = ProposalStatus.DISCARDED) else it }
     }
 
-    private fun add(m: ChatMessage) = _messages.update { it + m }
+    private fun add(m: ChatMessage) {
+        _messages.update { it + m }
+        save()
+    }
 
-    private fun replace(id: Long, f: (AssistantMessage) -> AssistantMessage) = _messages.update { list ->
-        list.map { if (it.id == id && it is AssistantMessage) f(it) else it }
+    private fun replace(id: Long, f: (AssistantMessage) -> AssistantMessage) {
+        _messages.update { list -> list.map { if (it.id == id && it is AssistantMessage) f(it) else it } }
+        save()
     }
 
     companion object {

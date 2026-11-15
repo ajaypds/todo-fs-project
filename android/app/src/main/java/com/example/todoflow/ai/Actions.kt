@@ -37,7 +37,8 @@ sealed interface AssistantAction {
     data class AddSubtasks(val ref: Int, val titles: List<String>) : AssistantAction
     data class CreateProject(val name: String, val color: String? = null) : AssistantAction
     data class UpdateProject(val project: String, val name: String? = null, val color: String? = null) : AssistantAction
-    data class DeleteProject(val project: String) : AssistantAction
+    /** [withTasks]: also delete the project's tasks (otherwise they move to the Inbox). */
+    data class DeleteProject(val project: String, val withTasks: Boolean = false) : AssistantAction
 }
 
 /** The model's answer after parsing: a short message, the requested changes, and anything it got wrong. */

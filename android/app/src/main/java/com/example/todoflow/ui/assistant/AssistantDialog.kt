@@ -33,6 +33,7 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Memory
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.AssistChip
@@ -70,6 +71,7 @@ import com.example.todoflow.ai.ChatMessage
 import com.example.todoflow.ai.ModelCatalog
 import com.example.todoflow.ai.Proposal
 import com.example.todoflow.ai.ProposalStatus
+import com.example.todoflow.ai.StoredChat
 import com.example.todoflow.ai.RuntimeState
 import com.example.todoflow.ai.UserMessage
 
@@ -96,6 +98,8 @@ fun AssistantDialog(
     val active by viewModel.activeModel.collectAsState()
     val installed by viewModel.installed.collectAsState()
     var input by remember { mutableStateOf("") }
+    var showHistory by remember { mutableStateOf(false) }
+    val chats by viewModel.chats.collectAsState()
     val listState = rememberLazyListState()
     val hasModel = active != null && installed.any { it.fileName == active }
 
@@ -123,6 +127,9 @@ fun AssistantDialog(
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
+                    }
+                    IconButton(onClick = { viewModel.refreshChats(); showHistory = true }) {
+                        Icon(Icons.Default.History, contentDescription = "Chat history")
                     }
                     IconButton(onClick = { viewModel.newChat() }, enabled = !busy && messages.isNotEmpty()) {
                         Icon(Icons.Default.AddComment, contentDescription = "New chat")
@@ -211,6 +218,89 @@ fun AssistantDialog(
             }
         }
     }
+
+    if (showHistory) {
+        ChatHistoryDialog(
+            chats = chats,
+            onOpen = { id -> viewModel.openChat(id); showHistory = false },
+            onDelete = { id -> viewModel.deleteChat(id) },
+            onDismiss = { showHistory = false }
+        )
+    }
+}
+
+@Composable
+private fun ChatHistoryDialog(
+    chats: List<StoredChat>,
+    onOpen: (Long) -> Unit,
+    onDelete: (Long) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var confirmDelete by remember { mutableStateOf<StoredChat?>(null) }
+    val format = remember { java.time.format.DateTimeFormatter.ofPattern("d MMM, HH:mm", java.util.Locale.getDefault()) }
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+            Column(modifier = Modifier.fillMaxSize()) {
+                Row(modifier = Modifier.fillMaxWidth().padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = onDismiss) { Icon(Icons.Default.Close, contentDescription = "Close history") }
+                    Text("Chat history", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(start = 4.dp))
+                }
+                HorizontalDivider()
+                if (chats.isEmpty()) {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text("No saved chats yet.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(chats, key = { it.id }) { chat ->
+                            Surface(
+                                shape = RoundedCornerShape(16.dp),
+                                color = MaterialTheme.colorScheme.surface,
+                                tonalElevation = 1.dp,
+                                modifier = Modifier.fillMaxWidth().clickable { onOpen(chat.id) }
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().padding(start = 16.dp, top = 8.dp, bottom = 8.dp, end = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(chat.title, fontWeight = FontWeight.SemiBold, maxLines = 2)
+                                        Text(
+                                            java.time.Instant.ofEpochMilli(chat.updatedAt).atZone(java.time.ZoneId.systemDefault()).format(format) +
+                                                " · ${chat.messages.count { it.role == "user" }} message${if (chat.messages.count { it.role == "user" } == 1) "" else "s"}",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                    IconButton(onClick = { confirmDelete = chat }) {
+                                        Icon(Icons.Default.Delete, contentDescription = "Delete chat")
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    confirmDelete?.let { chat ->
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { confirmDelete = null },
+            title = { Text("Delete this chat?") },
+            text = { Text("“${chat.title}” will be removed from this phone. Tasks it changed stay as they are.") },
+            confirmButton = {
+                Button(
+                    onClick = { onDelete(chat.id); confirmDelete = null },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) { Text("Delete") }
+            },
+            dismissButton = { TextButton(onClick = { confirmDelete = null }) { Text("Cancel") } }
+        )
+    }
 }
 
 private fun statusLine(hasModel: Boolean, active: String?, runtime: RuntimeState, busy: Boolean): String = when {
@@ -271,6 +361,7 @@ private fun AssistantBubble(message: AssistantMessage, onApply: () -> Unit, onDi
             Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 SelectionContainer { Text(message.text) }
                 message.proposals.forEach { ProposalRow(it) }
+                message.changes.forEach { ChangeRow(it.summary, it.destructive, Icons.Default.Edit) }
                 message.problems.forEach {
                     Text("• $it", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
                 }
@@ -309,6 +400,7 @@ private fun AssistantBubble(message: AssistantMessage, onApply: () -> Unit, onDi
                         TextButton(onClick = onShowTasks) { Text("Show my tasks") }
                     }
                     ProposalStatus.DISCARDED -> Text("Discarded", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    ProposalStatus.EXPIRED -> Text("Not applied", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     ProposalStatus.NONE -> Unit
                 }
                 if (message.raw.isNotBlank()) {
@@ -322,6 +414,24 @@ private fun AssistantBubble(message: AssistantMessage, onApply: () -> Unit, onDi
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun ChangeRow(summary: String, destructive: Boolean, icon: ImageVector) {
+    val tint = if (destructive) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f), RoundedCornerShape(12.dp))
+            .padding(10.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalAlignment = Alignment.Top
+    ) {
+        Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(18.dp))
+        SelectionContainer {
+            Text(summary, style = MaterialTheme.typography.bodyMedium, fontWeight = if (destructive) FontWeight.SemiBold else FontWeight.Normal)
         }
     }
 }

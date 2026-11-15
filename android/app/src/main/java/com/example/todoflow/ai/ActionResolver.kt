@@ -20,7 +20,13 @@ object ActionResolver {
 
     private val dateFormat = DateTimeFormatter.ofPattern("EEE d MMM", Locale.ENGLISH)
 
-    fun resolve(parsed: ParsedReply, promptTasks: List<TaskEntity>, projects: List<ProjectEntity>): Resolution {
+    fun resolve(
+        parsed: ParsedReply,
+        promptTasks: List<TaskEntity>,
+        projects: List<ProjectEntity>,
+        /** Every task (the prompt only lists some), used to count a project's tasks. */
+        allTasks: List<TaskEntity> = promptTasks
+    ): Resolution {
         val problems = parsed.problems.toMutableList()
         val proposals = mutableListOf<Proposal>()
 
@@ -80,7 +86,18 @@ object ActionResolver {
                 }
                 is AssistantAction.DeleteProject -> {
                     if (action.project.lowercase() !in knownProjects) problems += "There is no project “${action.project}”"
-                    else proposals += Proposal(action, null, "Delete project “${action.project}”", true)
+                    else {
+                        val id = projects.firstOrNull { it.name.equals(action.project, ignoreCase = true) }?.id
+                        val count = if (id == null) 0 else allTasks.count { it.projectId == id }
+                        val plural = if (count == 1) "task" else "tasks"
+                        val verb = if (count == 1) "moves" else "move"
+                        val text = when {
+                            action.withTasks -> "Delete project “${action.project}” and its $count $plural"
+                            count > 0 -> "Delete project “${action.project}” (its $count $plural $verb to the Inbox)"
+                            else -> "Delete project “${action.project}”"
+                        }
+                        proposals += Proposal(action, null, text, true)
+                    }
                 }
             }
         }

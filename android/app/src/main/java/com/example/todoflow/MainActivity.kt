@@ -133,7 +133,8 @@ class MainActivity : FragmentActivity() {
                                             store = app.modelStore,
                                             downloader = app.modelDownloader,
                                             runtime = app.llmRuntime,
-                                            deviceRamGb = deviceRamGb()
+                                            deviceRamGb = deviceRamGb(),
+                                            chatHistory = app.chatHistory
                                         ) as T
                                     }
                                 }

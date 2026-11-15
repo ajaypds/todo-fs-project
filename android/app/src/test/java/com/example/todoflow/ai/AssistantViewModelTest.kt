@@ -69,6 +69,7 @@ class AssistantViewModelTest {
     private lateinit var runtime: FakeRuntime
     private lateinit var store: ModelStore
     private lateinit var vm: AssistantViewModel
+    private lateinit var history: ChatHistoryStore
 
     @Before
     fun setUp() {
@@ -81,7 +82,8 @@ class AssistantViewModelTest {
         store = ModelStore(tmp.newFolder("models"))
         val session = SessionManager(context).apply { setAiActiveModel(null) }
         val downloader = ModelDownloader(OkHttpClient(), store, CoroutineScope(Job()), { "" })
-        vm = AssistantViewModel(repo, session, store, downloader, runtime, today = { LocalDate.of(2026, 11, 14) }, deviceRamGb = 16)
+        history = ChatHistoryStore(java.io.File(tmp.newFolder("hist"), "chats.json"))
+        vm = AssistantViewModel(repo, session, store, downloader, runtime, today = { LocalDate.of(2026, 11, 14) }, deviceRamGb = 16, chatHistory = history)
     }
 
     @After
@@ -240,6 +242,81 @@ class AssistantViewModelTest {
         send("hello")
         // The earlier prose answer is not part of the history the model sees
         assertEquals(PromptBuilder.examples(LocalDate.of(2026, 11, 14)), runtime.calls.last().second)
+    }
+
+    @Test
+    fun deletingAProjectWithItsTasksDeletesTheTasksToo() {
+        installModel()
+        runBlocking {
+            local.upsertProjects(listOf(com.example.todoflow.data.local.ProjectEntity("p1", "Test")))
+            local.upsertTasks(listOf(
+                TaskEntity("t1", "In test", projectId = "p1", projectName = "Test"),
+                TaskEntity("t2", "Also in test", projectId = "p1", projectName = "Test"),
+                TaskEntity("t3", "Elsewhere")
+            ))
+        }
+        runtime.answers += """{"reply":"Deleting","actions":[{"op":"delete_project","project":"Test","with_tasks":true}]}"""
+        send("delete test project with its tasks")
+        assertEquals("Delete project “Test” and its 2 tasks", last().proposals.single().summary)
+
+        vm.apply(last().id)
+        runBlocking { withTimeout(10_000) { while (last().status != ProposalStatus.APPLIED) kotlinx.coroutines.delay(20) } }
+        assertEquals(listOf("t3"), tasks().map { it.id })
+        assertTrue(runBlocking { repo.observeProjects().first() }.none { it.name == "Test" })
+    }
+
+    @Test
+    fun withoutTheOptionTheProjectsTasksMoveToTheInbox() {
+        installModel()
+        runBlocking {
+            local.upsertProjects(listOf(com.example.todoflow.data.local.ProjectEntity("p1", "Test")))
+            local.upsertTasks(listOf(TaskEntity("t1", "In test", projectId = "p1", projectName = "Test")))
+        }
+        runtime.answers += """{"reply":"ok","actions":[{"op":"delete_project","project":"Test"}]}"""
+        send("delete test project")
+        vm.apply(last().id)
+        runBlocking { withTimeout(10_000) { while (last().status != ProposalStatus.APPLIED) kotlinx.coroutines.delay(20) } }
+        val t = tasks().single()
+        assertEquals(null, t.projectId)
+    }
+
+    @Test
+    fun chatsAreSavedAndCanBeReopenedFromTheHistory() {
+        installModel()
+        runtime.answers += """{"reply":"Added","actions":[{"op":"create_task","title":"Buy milk"}]}"""
+        send("add buy milk")
+        runBlocking { withTimeout(10_000) { while (history.load().isEmpty()) kotlinx.coroutines.delay(20) } }
+        runBlocking {
+            withTimeout(10_000) { while (history.load().single().messages.size < 2) kotlinx.coroutines.delay(20) }
+        }
+
+        vm.newChat()
+        assertTrue(vm.messages.value.isEmpty())
+        vm.refreshChats()
+        runBlocking { withTimeout(10_000) { vm.chats.first { it.isNotEmpty() } } }
+        val saved = vm.chats.value.single()
+        assertEquals("add buy milk", saved.title)
+
+        vm.openChat(saved.id)
+        val restored = vm.messages.value
+        assertEquals("add buy milk", (restored[0] as UserMessage).text)
+        val reply = restored[1] as AssistantMessage
+        assertEquals("Added", reply.text)
+        // What was only proposed can't be applied from a restored chat
+        assertEquals(ProposalStatus.EXPIRED, reply.status)
+        assertEquals(listOf("Create task “Buy milk”"), reply.changes.map { it.summary })
+
+        // A restored chat continues: the model gets its earlier turn
+        runtime.answers += """{"reply":"ok","actions":[]}"""
+        send("thanks")
+        assertEquals(
+            Turn("add buy milk", """{"reply":"Added","actions":[{"op":"create_task","title":"Buy milk"}]}"""),
+            runtime.calls.last().second.last()
+        )
+
+        vm.deleteChat(saved.id)
+        runBlocking { withTimeout(10_000) { vm.chats.first { it.isEmpty() } } }
+        assertTrue(vm.messages.value.isEmpty())
     }
 
     @Test

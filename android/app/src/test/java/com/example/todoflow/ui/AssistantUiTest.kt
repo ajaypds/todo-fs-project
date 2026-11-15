@@ -3,6 +3,7 @@ package com.example.todoflow.ui
 import android.app.Application
 import androidx.activity.ComponentActivity
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
@@ -67,6 +68,7 @@ class AssistantUiTest {
     private lateinit var store: ModelStore
     private lateinit var runtime: ScriptedRuntime
     private lateinit var vm: AssistantViewModel
+    private lateinit var history: com.example.todoflow.ai.ChatHistoryStore
 
     @Before
     fun setUp() {
@@ -77,7 +79,8 @@ class AssistantUiTest {
         store = ModelStore(tmp.newFolder("models"))
         runtime = ScriptedRuntime()
         val session = SessionManager(context).apply { setAiActiveModel(null); huggingFaceToken = "" }
-        vm = AssistantViewModel(repo, session, store, ModelDownloader(OkHttpClient(), store, CoroutineScope(Job()), { "" }), runtime, deviceRamGb = 16)
+        history = com.example.todoflow.ai.ChatHistoryStore(File(tmp.newFolder("hist"), "chats.json"))
+        vm = AssistantViewModel(repo, session, store, ModelDownloader(OkHttpClient(), store, CoroutineScope(Job()), { "" }), runtime, deviceRamGb = 16, chatHistory = history)
     }
 
     @After
@@ -133,6 +136,31 @@ class AssistantUiTest {
         compose.onNodeWithText("No model installed").assertIsDisplayed()
         compose.onNodeWithText("Set up a model").performClick()
         assertEquals(1, opened)
+    }
+
+    @Test
+    fun historyListsPastChatsAndReopensOne() {
+        history.save(
+            com.example.todoflow.ai.StoredChat(
+                1, "buy oat milk", 1_700_000_000_000,
+                listOf(
+                    com.example.todoflow.ai.StoredMessage("user", "buy oat milk"),
+                    com.example.todoflow.ai.StoredMessage("assistant", "Added it", changes = listOf(com.example.todoflow.ai.StoredChange("Create task “Oat milk”")), status = "PENDING")
+                )
+            )
+        )
+        compose.setContent { MaterialTheme { AssistantDialog(vm, onDismiss = {}, onOpenModels = {}) } }
+        compose.waitForIdle()
+
+        compose.onNodeWithContentDescription("Chat history").performClick()
+        compose.waitUntil(5_000) { compose.onAllNodesWithText("buy oat milk").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithText("Chat history").assertIsDisplayed()
+
+        compose.onNodeWithText("buy oat milk").performClick()
+        compose.waitUntil(5_000) { compose.onAllNodesWithText("Added it").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithText("Create task “Oat milk”").assertExists()
+        compose.onNodeWithText("Not applied").assertExists()
+        compose.onAllNodesWithText("Apply").assertCountEquals(0)
     }
 
     @Test
