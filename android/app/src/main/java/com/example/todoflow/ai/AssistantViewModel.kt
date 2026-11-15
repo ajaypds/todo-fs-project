@@ -302,7 +302,6 @@ class AssistantViewModel(
                 val projects = repository.observeProjects().first()
                 val system = PromptBuilder.system(today(), tasks, projects)
                 val history = PromptBuilder.examples(today()) + recentTurns()
-                val index = TaskIndex(PromptBuilder.contextTasks(tasks))
                 val queries = QueryRunner(repository, today)
 
                 // One model call; if it ignores the JSON format, ask once more insisting on it
@@ -335,7 +334,7 @@ class AssistantViewModel(
                 while (parsed.hadJson && rounds < MAX_LOOKUP_ROUNDS) {
                     val lookups = parsed.actions.filterIsInstance<AssistantQuery>()
                     if (lookups.isEmpty()) break
-                    val results = queries.run(lookups, index)
+                    val results = queries.run(lookups)
                     lookupResults += results
                     if (DataQuestions.looksLikeDataQuestion(input)) {
                         // A plain question: the app's data is the answer, no need to ask the model to retell it
@@ -355,7 +354,7 @@ class AssistantViewModel(
                         problems = parsed.problems + "I couldn't finish looking that up"
                     )
                 }
-                val resolution = ActionResolver.resolve(parsed, index.tasks, projects, tasks)
+                val resolution = ActionResolver.resolve(parsed, projects, tasks)
                 val reply = if (!parsed.hadJson) {
                     "The model didn't answer in a form I can use, so nothing was changed. " +
                         "Try rephrasing, or pick a larger model in the model manager.\n\nIt said: " + parsed.reply.take(300)

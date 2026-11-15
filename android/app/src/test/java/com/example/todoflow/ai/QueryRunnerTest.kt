@@ -58,7 +58,7 @@ class QueryRunnerTest {
     @After
     fun tearDown() = db.close()
 
-    private fun run(vararg q: AssistantQuery, index: TaskIndex = TaskIndex(emptyList())) = runBlocking { runner.run(q.toList(), index) }
+    private fun run(vararg q: AssistantQuery) = runBlocking { runner.run(q.toList()) }
 
     @Test
     fun listsProjectsWithTheirTaskCounts() {
@@ -72,7 +72,7 @@ class QueryRunnerTest {
 
     @Test
     fun filtersTasksByProjectViewSearchAndStatus() {
-        fun titles(q: ListTasks): List<String> = run(q).lines().drop(1).filter { it.startsWith("[") }.map { it.substringAfter("] ").substringBefore(" |") }
+        fun titles(q: ListTasks): List<String> = run(q).lines().drop(1).filter { it.startsWith("• ") }.map { it.removePrefix("• ").substringBefore(" |") }
         assertEquals(setOf("Mow lawn", "Buy seeds"), titles(ListTasks(project = "garden")).toSet())
         assertEquals(listOf("Mow lawn"), titles(ListTasks(view = "today")))
         assertEquals(listOf("Buy seeds"), titles(ListTasks(view = "upcoming")))
@@ -85,31 +85,18 @@ class QueryRunnerTest {
     }
 
     @Test
-    fun everyListedTaskGetsACodeThatMapsBackToIt() {
-        val index = TaskIndex(emptyList())
-        val out = run(ListTasks(project = "Garden"), index = index)
-        assertTrue(out.startsWith("list_tasks (2):"))
-        // codes were handed out in the order shown and can be resolved again
-        val first = out.lines()[1].substringAfter("[").substringBefore("]")
-        assertEquals("A", first)
-        assertEquals(index.tasks[0].title, out.lines()[1].substringAfter("] ").substringBefore(" |"))
-        assertEquals(2, index.tasks.size)
-    }
-
-    @Test
-    fun getTaskShowsDetailsForAKnownCode() {
-        val buySeeds = runBlocking { local.getTasks(com.example.todoflow.data.local.TaskFilterType.ALL) }.first { it.id == "b" }
-        val out = run(GetTask(1), index = TaskIndex(listOf(buySeeds)))
-        assertTrue(out.startsWith("get_task [A]: Buy seeds"))
+    fun getTaskShowsDetailsForATitle() {
+        val out = run(GetTask("buy seeds"))
+        assertTrue(out.startsWith("get_task: Buy seeds"))
         assertTrue(out.contains("Subtasks: [ ] Pick shop; [x] Pay"))
-        assertTrue(run(GetTask(9)).contains("there is no task with code I"))
+        assertTrue(run(GetTask("Nonexistent")).contains("couldn't find a task called"))
     }
 
     @Test
-    fun resultsAreShownToTheUserWithoutCodesOrToolNames() {
+    fun resultsAreShownToTheUserWithoutToolNames() {
         assertEquals("Projects:\n• Garden (2 tasks)\n• Work (1 task)", QueryRunner.forDisplay(run(ListProjects)))
         assertEquals("You have no labels.", QueryRunner.forDisplay("list_labels: there are no labels."))
-        val shown = QueryRunner.forDisplay(run(ListTasks(project = "Garden"), index = TaskIndex(emptyList())))
+        val shown = QueryRunner.forDisplay(run(ListTasks(project = "Garden")))
         assertTrue(shown.startsWith("Tasks (2):\n• "))
         assertFalse(shown.contains("["))
         assertTrue(shown.contains("Mow lawn · due 2026-11-14"))
