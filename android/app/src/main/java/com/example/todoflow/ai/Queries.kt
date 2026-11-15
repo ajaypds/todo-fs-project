@@ -7,25 +7,6 @@ import kotlinx.coroutines.flow.first
 import java.time.LocalDate
 
 /**
- * The tasks the model can refer to, each by a letter code. It starts with the tasks listed in the prompt
- * and grows when a look-up returns tasks that weren't listed there, so every code the model sees can be
- * mapped back to a real task.
- */
-class TaskIndex(initial: List<TaskEntity>) {
-    private val list = initial.toMutableList()
-    val tasks: List<TaskEntity> get() = list
-
-    fun codeFor(task: TaskEntity): String {
-        var i = list.indexOfFirst { it.id == task.id }
-        if (i < 0) {
-            list += task
-            i = list.size - 1
-        }
-        return TaskCodes.encode(i + 1)
-    }
-}
-
-/**
  * Answers the model's read-only look-ups ("list_projects", "list_tasks", ...) from the app's own data: the
  * same data the screens show, so it works offline and is never out of date. The text goes back to the model.
  */
@@ -34,7 +15,7 @@ class QueryRunner(
     private val today: () -> LocalDate = { LocalDate.now() }
 ) {
 
-    suspend fun run(queries: List<AssistantQuery>, index: TaskIndex): String {
+    suspend fun run(queries: List<AssistantQuery>): String {
         val sb = StringBuilder()
         for (q in queries) {
             if (sb.isNotEmpty()) sb.append("\n\n")
@@ -42,9 +23,9 @@ class QueryRunner(
                 when (q) {
                     ListProjects -> listProjects()
                     ListLabels -> listLabels()
-                    DailyBriefing -> briefing(index)
-                    is ListTasks -> listTasks(q, index)
-                    is GetTask -> getTask(q, index)
+                    DailyBriefing -> briefing()
+                    is ListTasks -> listTasks(q)
+                    is GetTask -> getTask(q)
                 }
             )
         }
@@ -66,7 +47,7 @@ class QueryRunner(
         return if (labels.isEmpty()) "list_labels: there are no labels." else "list_labels: " + labels.joinToString(", ") { it.name }
     }
 
-    private suspend fun listTasks(q: ListTasks, index: TaskIndex): String {
+    private suspend fun listTasks(q: ListTasks): String {
         val projects = repository.observeProjects().first()
         var tasks = repository.observeTasks(TaskFilterType.ALL).first()
         q.project?.let { name ->
@@ -86,14 +67,15 @@ class QueryRunner(
         q.search?.lowercase()?.let { s -> tasks = tasks.filter { it.title.lowercase().contains(s) || it.description.orEmpty().lowercase().contains(s) } }
         if (tasks.isEmpty()) return "list_tasks: no tasks match."
         val shown = tasks.take(MAX_LISTED)
-        val lines = shown.joinToString("\n") { "[${index.codeFor(it)}] ${PromptBuilder.describe(it)}" }
+        val lines = shown.joinToString("\n") { "• ${PromptBuilder.describe(it)}" }
         val more = if (tasks.size > shown.size) "\n(${tasks.size - shown.size} more not shown)" else ""
         return "list_tasks (${tasks.size}):\n$lines$more"
     }
 
-    private suspend fun getTask(q: GetTask, index: TaskIndex): String {
-        val task = index.tasks.getOrNull(q.ref - 1) ?: return "get_task: there is no task with code ${TaskCodes.encode(q.ref)}."
-        val sb = StringBuilder("get_task [${TaskCodes.encode(q.ref)}]: ${PromptBuilder.describe(task)}")
+    private suspend fun getTask(q: GetTask): String {
+        val match = ActionResolver.findTask(repository.observeTasks(TaskFilterType.ALL).first(), q.task)
+        val task = match.task ?: return "get_task: " + (match.problem ?: "no such task.")
+        val sb = StringBuilder("get_task: ${PromptBuilder.describe(task)}")
         task.description?.takeIf { it.isNotBlank() }?.let { sb.append("\nDescription: ${it.take(300)}") }
         if (task.subtasks.isNotEmpty()) {
             sb.append("\nSubtasks: " + task.subtasks.joinToString("; ") { (if (it.completed) "[x] " else "[ ] ") + it.title })
@@ -102,11 +84,11 @@ class QueryRunner(
         return sb.toString()
     }
 
-    private suspend fun briefing(index: TaskIndex): String {
+    private suspend fun briefing(): String {
         val now = today()
         val open = repository.observeTasks(TaskFilterType.ALL).first().filter { !it.completed }
         fun block(title: String, list: List<TaskEntity>) =
-            "$title (${list.size})" + if (list.isEmpty()) "" else ":\n" + list.take(10).joinToString("\n") { "[${index.codeFor(it)}] ${PromptBuilder.describe(it)}" }
+            "$title (${list.size})" + if (list.isEmpty()) "" else ":\n" + list.take(10).joinToString("\n") { "• ${PromptBuilder.describe(it)}" }
         val overdue = open.filter { dueOf(it)?.isBefore(now) == true }
         val dueToday = open.filter { dueOf(it) == now }
         val week = open.filter { d -> dueOf(d)?.let { it.isAfter(now) && !it.isAfter(now.plusDays(7)) } == true }
@@ -122,8 +104,6 @@ class QueryRunner(
     companion object {
         const val MAX_LISTED = 40
 
-        private val codePrefix = Regex("^\\[[A-Z]{1,3}\\] ")
-
         /** The look-up result as the user sees it: no codes or tool names, one bullet per item. */
         fun forDisplay(text: String): String = text.lines().flatMap { raw ->
             var line = raw
@@ -135,10 +115,8 @@ class QueryRunner(
                 line.startsWith("list_labels: ") -> line = "You have no labels."
                 line.startsWith("list_tasks (") -> line = "Tasks (" + line.removePrefix("list_tasks (")
                 line.startsWith("list_tasks: ") -> line = line.removePrefix("list_tasks: ").replaceFirstChar { it.uppercase() }
-                line.startsWith("get_task [") -> line = "• " + line.substringAfter("]: ")
-                line.startsWith("get_task: ") -> line = line.removePrefix("get_task: ").replaceFirstChar { it.uppercase() }
+                line.startsWith("get_task: ") -> line = line.removePrefix("get_task: ").let { if (it.startsWith("I couldn't") || it.startsWith("More than")) it else "• $it" }
                 line.startsWith("daily_briefing: ") -> line = "Daily briefing: " + line.removePrefix("daily_briefing: ")
-                codePrefix.containsMatchIn(line) -> line = "• " + line.replace(codePrefix, "")
             }
             listOf(line.replace(" | ", " · "))
         }.joinToString("\n")

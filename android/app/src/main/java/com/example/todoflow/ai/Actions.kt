@@ -10,7 +10,7 @@ data class ProjectSpec(val name: String?)
 
 /**
  * What the model asked for, already checked for shape. Tasks are referenced by the number they had in
- * the prompt (never by id); projects by name. [ActionResolver] maps both to real entities.
+ * the title (never by id); projects by name. [ActionResolver] maps both to real entities.
  */
 sealed interface AssistantAction {
     data class CreateTask(
@@ -23,7 +23,7 @@ sealed interface AssistantAction {
     ) : AssistantAction
 
     data class UpdateTask(
-        val ref: Int,
+        val task: String,
         val title: String? = null,
         val description: String? = null,
         val priority: Int? = null,
@@ -32,9 +32,9 @@ sealed interface AssistantAction {
         val completed: Boolean? = null
     ) : AssistantAction
 
-    data class CompleteTask(val ref: Int, val completed: Boolean = true) : AssistantAction
-    data class DeleteTask(val ref: Int) : AssistantAction
-    data class AddSubtasks(val ref: Int, val titles: List<String>) : AssistantAction
+    data class CompleteTask(val task: String, val completed: Boolean = true) : AssistantAction
+    data class DeleteTask(val task: String) : AssistantAction
+    data class AddSubtasks(val task: String, val titles: List<String>) : AssistantAction
     data class CreateProject(val name: String, val color: String? = null) : AssistantAction
     data class UpdateProject(val project: String, val name: String? = null, val color: String? = null) : AssistantAction
     /** [withTasks]: also delete the project's tasks (otherwise they move to the Inbox). */
@@ -57,38 +57,11 @@ data class ListTasks(
     val search: String? = null
 ) : AssistantQuery
 
-data class GetTask(val ref: Int) : AssistantQuery
+data class GetTask(val task: String) : AssistantQuery
 
 data object ListLabels : AssistantQuery
 
 data object DailyBriefing : AssistantQuery
-
-/**
- * Tasks are shown to the model with a letter code ([A], [B], ... [AA]) and referred to by it. Letters can't
- * be confused with the user's own wording ("Task 1") the way list positions can.
- */
-object TaskCodes {
-    fun encode(position: Int): String {
-        require(position >= 1)
-        var n = position
-        val sb = StringBuilder()
-        while (n > 0) {
-            n--
-            sb.append('A' + n % 26)
-            n /= 26
-        }
-        return sb.reverse().toString()
-    }
-
-    /** "A" → 1, "z" → 26, "AA" → 27; null for anything that isn't a plain letter code. */
-    fun decode(text: String): Int? {
-        val t = text.trim()
-        if (t.isEmpty() || t.length > 3 || !t.all { it.isLetter() && it.code < 128 }) return null
-        var n = 0
-        for (c in t.uppercase()) n = n * 26 + (c - 'A' + 1)
-        return n
-    }
-}
 
 /** The model's answer after parsing: a short message, the requested changes, and anything it got wrong. */
 data class ParsedReply(

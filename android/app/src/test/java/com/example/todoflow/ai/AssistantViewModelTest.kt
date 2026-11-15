@@ -153,7 +153,7 @@ class AssistantViewModelTest {
         installModel()
         runBlocking { local.upsertTasks(listOf(TaskEntity("t1", "Pay rent"))) }
         runtime.answers += """{"reply":"Found it","actions":[]}"""
-        runtime.answers += """{"reply":"Done","actions":[{"op":"update_task","task":"A","priority":"high","due":"2026-11-20"}]}"""
+        runtime.answers += """{"reply":"Done","actions":[{"op":"update_task","task":"Pay rent","priority":"high","due":"2026-11-20"}]}"""
 
         send("hello there")
         send("make it high priority and due on the 20th")
@@ -176,7 +176,7 @@ class AssistantViewModelTest {
     fun deletesNeedApplyAndDiscardChangesNothing() {
         installModel()
         runBlocking { local.upsertTasks(listOf(TaskEntity("t1", "Old"), TaskEntity("t2", "Keep"))) }
-        runtime.answers += """{"reply":"Deleting","actions":[{"op":"delete_task","task":"A"}]}"""
+        runtime.answers += """{"reply":"Deleting","actions":[{"op":"delete_task","task":"Old"}]}"""
         send("delete old")
         val reply = last()
         assertTrue(reply.proposals.single().destructive)
@@ -194,10 +194,10 @@ class AssistantViewModelTest {
     @Test
     fun aMistakeByTheModelIsExplainedNotApplied() {
         installModel()
-        runtime.answers += """{"reply":"Hmm","actions":[{"op":"delete_task","task":"ZZ"}]}"""
+        runtime.answers += """{"reply":"Hmm","actions":[{"op":"delete_task","task":"Nonexistent"}]}"""
         send("delete task 42")
         assertTrue(last().proposals.isEmpty())
-        assertTrue(last().problems.single().contains("code ZZ"))
+        assertTrue(last().problems.single().contains("Nonexistent"))
         assertEquals(ProposalStatus.NONE, last().status)
     }
 
@@ -386,7 +386,7 @@ class AssistantViewModelTest {
             local.upsertTasks(listOf(TaskEntity("t1", "Inbox one"), TaskEntity("t2", "Inbox two")))
         }
         runtime.answers += """{"reply":"Checking.","actions":[{"op":"list_tasks","view":"inbox"}]}"""
-        runtime.answers += """{"reply":"I'll move them.","actions":[{"op":"create_project","name":"Test"},{"op":"update_task","task":"A","project":"Test"},{"op":"update_task","task":"B","project":"Test"}]}"""
+        runtime.answers += """{"reply":"I'll move them.","actions":[{"op":"create_project","name":"Test"},{"op":"update_task","task":"Inbox one","project":"Test"},{"op":"update_task","task":"Inbox two","project":"Test"}]}"""
 
         send("move everything in my inbox to a Test project")
 
@@ -396,7 +396,7 @@ class AssistantViewModelTest {
         assertTrue(followUp.contains("Inbox one") && followUp.contains("Inbox two"))
         assertEquals("I'll move them.", last().text)
         assertEquals(3, last().proposals.size)
-        assertEquals(listOf("Inbox one", "Inbox two"), last().proposals.drop(1).map { it.task!!.title }.sorted().let { listOf("Inbox one", "Inbox two") })
+        assertEquals(listOf("Inbox one", "Inbox two"), last().proposals.drop(1).map { it.task!!.title })
         assertTrue(last().lookups!!.contains("Inbox one"))
     }
 
@@ -411,10 +411,10 @@ class AssistantViewModelTest {
     }
 
     @Test
-    fun tasksNamedLikeCodesAreFoundByTitleThroughTheirLetters() {
+    fun tasksNamedTask1To3AreMovedByTitleNotByPosition() {
         installModel()
-        // "Buy milk" is due first so it gets code A; "Task 1" is therefore B, not 1
         runBlocking {
+            local.upsertProjects(listOf(com.example.todoflow.data.local.ProjectEntity("p1", "Test")))
             local.upsertTasks(listOf(
                 TaskEntity("m", "Buy milk", dueDate = "2026-11-15T23:59:59Z"),
                 TaskEntity("t1", "Task 1", dueDate = "2026-11-16T23:59:59Z"),
@@ -422,19 +422,31 @@ class AssistantViewModelTest {
                 TaskEntity("t3", "Task 3", dueDate = "2026-11-16T23:59:59Z")
             ))
         }
-        runtime.answers += """{"reply":"I'll move them.","actions":[{"op":"create_project","name":"Test"},
-            {"op":"update_task","task":"B","project":"Test"},{"op":"update_task","task":"C","project":"Test"},{"op":"update_task","task":"D","project":"Test"}]}"""
-        send("Create a Test project and move Task 1, Task 2 and Task 3 to it")
+        runtime.answers += """{"reply":"I'll move them.","actions":[
+            {"op":"update_task","task":"Task 1","project":"Test"},{"op":"update_task","task":"Task 2","project":"Test"},{"op":"update_task","task":"Task 3","project":"Test"}]}"""
+        send("Move Task 1, Task 2 and Task 3 to the Test project")
 
-        val system = runtime.calls.single().first
-        assertTrue(system.contains("[A] Buy milk"))
-        assertTrue(system.contains("[B] Task 1"))
+        assertTrue(runtime.calls.single().first.contains("- Task 1 | due 2026-11-16"))
         assertEquals(
-            listOf("Create project “Test”", "Update “Task 1”: move to Test", "Update “Task 2”: move to Test", "Update “Task 3”: move to Test"),
+            listOf("Update “Task 1”: move to Test", "Update “Task 2”: move to Test", "Update “Task 3”: move to Test"),
             last().proposals.map { it.summary }
         )
-        // And the untouched Buy milk really isn't among them
-        assertTrue(last().proposals.none { it.summary.contains("Buy milk") })
+        vm.apply(last().id)
+        runBlocking { withTimeout(10_000) { while (last().status != ProposalStatus.APPLIED) kotlinx.coroutines.delay(20) } }
+        val byId = tasks().associateBy { it.id }
+        assertEquals("Test", byId.getValue("t1").projectName)
+        assertEquals("Test", byId.getValue("t3").projectName)
+        assertEquals(null, byId.getValue("m").projectId) // Buy milk stays in the inbox
+    }
+
+    @Test
+    fun aBareNumberIsNotGuessedIntoATask() {
+        installModel()
+        runBlocking { local.upsertTasks(listOf(TaskEntity("t1", "Task 1"), TaskEntity("t2", "Task 2"))) }
+        runtime.answers += """{"reply":"ok","actions":[{"op":"update_task","task":"1","project":"Test"}]}"""
+        send("Move Task 1 to Test")
+        assertTrue(last().proposals.isEmpty())
+        assertTrue(last().problems.single().contains("couldn't find a task called “1”"))
     }
 
     @Test
