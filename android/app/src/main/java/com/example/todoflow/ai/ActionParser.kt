@@ -71,7 +71,7 @@ object ActionParser {
                 )
             }
             "update_task" -> {
-                val ref = o.ref() ?: return missing("a task number")
+                val ref = o.ref(problems, op) ?: return null
                 AssistantAction.UpdateTask(
                     ref = ref,
                     title = o.str("title")?.trim()?.ifEmpty { null },
@@ -83,12 +83,12 @@ object ActionParser {
                 )
             }
             "complete_task" -> {
-                val ref = o.ref() ?: return missing("a task number")
+                val ref = o.ref(problems, op) ?: return null
                 AssistantAction.CompleteTask(ref, o.bool("completed") ?: true)
             }
-            "delete_task" -> AssistantAction.DeleteTask(o.ref() ?: return missing("a task number"))
+            "delete_task" -> AssistantAction.DeleteTask(o.ref(problems, op) ?: return null)
             "add_subtasks" -> {
-                val ref = o.ref() ?: return missing("a task number")
+                val ref = o.ref(problems, op) ?: return null
                 val titles = o.strings("subtasks")
                 if (titles.isEmpty()) return missing("subtasks")
                 AssistantAction.AddSubtasks(ref, titles)
@@ -112,6 +112,16 @@ object ActionParser {
                 if (project.isNullOrEmpty()) return missing("a project name")
                 AssistantAction.DeleteProject(project, withTasks = o.bool("with_tasks") ?: o.bool("withTasks") ?: o.bool("delete_tasks") ?: false)
             }
+            "list_projects" -> ListProjects
+            "list_labels" -> ListLabels
+            "daily_briefing" -> DailyBriefing
+            "list_tasks" -> ListTasks(
+                project = o.str("project")?.trim()?.takeIf { it.isNotEmpty() },
+                view = o.str("view")?.trim()?.lowercase()?.takeIf { it in setOf("all", "inbox", "today", "upcoming", "overdue") },
+                completed = o.bool("completed"),
+                search = o.str("search")?.trim()?.takeIf { it.isNotEmpty() }
+            )
+            "get_task" -> GetTask(o.ref(problems, op) ?: return null)
             else -> {
                 problems += "Unknown action \"${op ?: "?"}\""
                 null
@@ -146,10 +156,22 @@ object ActionParser {
         }
     }
 
-    /** Task numbers as the model writes them: 3, "3", "#3". */
-    private fun JsonObject.ref(): Int? {
-        val v = (this["task"] ?: this["ref"] ?: this["id"]) as? JsonPrimitive ?: return null
-        return v.intOrNull ?: v.contentOrNull?.trim()?.removePrefix("#")?.toIntOrNull()
+    /**
+     * The task code the model wrote ("A", "[B]", "#C"). Plain numbers are refused on purpose: the user's own
+     * "Task 1" is not list position 1, and guessing would change the wrong task.
+     */
+    private fun JsonObject.ref(problems: MutableList<String>, op: String?): Int? {
+        val v = (this["task"] ?: this["ref"] ?: this["id"]) as? JsonPrimitive
+        if (v == null || v is JsonNull) {
+            problems += "\"$op\" needs a task code"
+            return null
+        }
+        val text = v.contentOrNull?.trim()?.removePrefix("#")?.removePrefix("[")?.removeSuffix("]")?.trim().orEmpty()
+        val code = TaskCodes.decode(text)
+        if (code == null) {
+            problems += "\"$text\" is not a task code (use the letter in brackets, like A)"
+        }
+        return code
     }
 
     /** Priority words map onto the app's levels: high = 1 (P1), medium = 2, low = 3, none = 0. */

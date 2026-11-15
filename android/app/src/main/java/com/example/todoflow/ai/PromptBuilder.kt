@@ -27,34 +27,42 @@ object PromptBuilder {
         val weekday = today.dayOfWeek.getDisplayName(TextStyle.FULL, Locale.ENGLISH)
         val projectLine = if (projects.isEmpty()) "(none)" else projects.joinToString(", ") { it.name }
         val shown = contextTasks(tasks)
-        val taskLines = if (shown.isEmpty()) "(no tasks yet)" else shown.mapIndexed { i, t -> "#${i + 1} ${describe(t)}" }.joinToString("\n")
+        val taskLines = if (shown.isEmpty()) "(no tasks yet)" else shown.mapIndexed { i, t -> "[${TaskCodes.encode(i + 1)}] ${describe(t)}" }.joinToString("\n")
         return """
-You are the assistant inside the TodoFlow to-do app. You change the user's tasks and projects.
+You are the assistant inside the TodoFlow to-do app. You look things up and change the user's tasks and projects using the tools below. You can do nothing else (no labels, comments, settings or anything outside the app); if asked, say you can't.
 
 You MUST answer with exactly one JSON object and nothing else: no greeting, no explanation, no markdown.
 Format: {"reply":"<one short sentence>","actions":[<action>,...]}
-Even when the user only chats, answer in this format with "actions":[].
+Even when the user only chats or asks a question, answer in this format.
 
-Actions:
+LOOK-UP tools (the app runs them at once and sends you the result; use them when the lists below are not enough):
+{"op":"list_projects"}
+{"op":"list_tasks","project":"<name>","view":"all|inbox|today|upcoming|overdue","completed":false,"search":"<text>"}
+{"op":"get_task","task":"<code>"}
+{"op":"list_labels"}
+{"op":"daily_briefing"}
+
+CHANGE tools (the user reviews them before anything happens):
 {"op":"create_task","title":"...","description":"...","due":"YYYY-MM-DD","priority":"high|medium|low","project":"<name>","subtasks":["..."]}
-{"op":"update_task","task":<number>,"title":"...","description":"...","due":"YYYY-MM-DD or none","priority":"high|medium|low|none","project":"<name or inbox>","completed":true}
-{"op":"complete_task","task":<number>,"completed":true}
-{"op":"delete_task","task":<number>}
-{"op":"add_subtasks","task":<number>,"subtasks":["..."]}
+{"op":"update_task","task":"<code>","title":"...","description":"...","due":"YYYY-MM-DD or none","priority":"high|medium|low|none","project":"<name or inbox>","completed":true}
+{"op":"complete_task","task":"<code>","completed":true}
+{"op":"delete_task","task":"<code>"}
+{"op":"add_subtasks","task":"<code>","subtasks":["..."]}
 {"op":"create_project","name":"...","color":"#3b82f6"}
 {"op":"update_project","project":"<name>","name":"<new name>","color":"#3b82f6"}
 {"op":"delete_project","project":"<name>","with_tasks":true}
 Only include the fields the user mentioned. Use several actions when the user asks for several things.
 
 Rules:
-- Existing tasks are referred to ONLY by their number from the list below (the digits after #).
+- The Projects and Tasks lists below are the real, current data. Answer questions about them directly from the lists. Trust them, not your earlier replies.
+- Tasks are referred to ONLY by the letter code in square brackets, like [A]. A task whose title is "Task 1" is not code 1: find it by its title and use its letter.
 - Write dates as YYYY-MM-DD, worked out from today's date ("tomorrow", "next Friday", "in 3 days").
 - "urgent" and "important" mean priority "high".
 - delete_project: add "with_tasks":true ONLY when the user also wants the project's tasks deleted; otherwise leave it out (the tasks then move to the Inbox).
 - Use only task titles, project names and dates the user actually gave. Never make up tasks.
-- Everything your "reply" says you did MUST appear in "actions". If you say you created a project, include create_project.
+- Your "reply" may only say something was done if the matching action is in "actions". Changes are NOT done until the user applies them, so say "I'll ..." not "I have ...".
 - If the user did not say which tasks to add, still do what is clear (for example create the project) and ask for the missing details in "reply".
-- If the task they mean is not in the list below, ask in "reply" and use no actions for it.
+- If the task they mean is not in the list below, use a look-up tool or ask in "reply".
 
 Today is $weekday, $today.
 Projects: $projectLine
@@ -67,9 +75,11 @@ $taskLines
      * Worked examples, replayed to the model as earlier chat turns. Small models follow the answer format
      * far more reliably when they have just "said" it a few times than when it is only described.
      */
-    fun examples(today: LocalDate): List<Turn> {
+    fun examples(today: LocalDate, projects: List<ProjectEntity> = emptyList()): List<Turn> {
         val tomorrow = today.plusDays(1)
         val friday = today.with(java.time.temporal.TemporalAdjusters.next(java.time.DayOfWeek.FRIDAY))
+        // Built from the user's real projects, so the example teaches "answer from the lists" with true facts
+        val projectAnswer = if (projects.isEmpty()) "You have no projects yet." else "Your projects: " + projects.joinToString(", ") { it.name } + "."
         return listOf(
             Turn(
                 "Add pay electricity bill for tomorrow",
@@ -84,21 +94,27 @@ $taskLines
                 """{"reply":"I'll create the Holiday project. Which tasks should I add to it?","actions":[{"op":"create_project","name":"Holiday"}]}"""
             ),
             Turn(
+                "list my projects",
+                """{"reply":${jsonString(projectAnswer)},"actions":[]}"""
+            ),
+            Turn(
                 "Delete project Holiday with all its tasks",
                 """{"reply":"I'll delete the Holiday project and all its tasks.","actions":[{"op":"delete_project","project":"Holiday","with_tasks":true}]}"""
             ),
             Turn(
-                "delete task 2",
-                """{"reply":"I'll delete task 2.","actions":[{"op":"delete_task","task":2}]}"""
+                "delete the task with code B",
+                """{"reply":"I'll delete task B.","actions":[{"op":"delete_task","task":"B"}]}"""
             ),
             Turn(
                 "hello",
-                """{"reply":"Hi! Tell me what to add, change or delete.","actions":[]}"""
+                """{"reply":"Hi! Tell me what to add, change or delete, or ask about your tasks and projects.","actions":[]}"""
             )
         )
     }
 
-    private fun describe(t: TaskEntity): String {
+    private fun jsonString(s: String): String = kotlinx.serialization.json.JsonPrimitive(s).toString()
+
+    internal fun describe(t: TaskEntity): String {
         val parts = mutableListOf(t.title.replace('\n', ' ').take(MAX_TITLE))
         t.dueDate?.substringBefore("T")?.takeIf { it.isNotBlank() }?.let { parts += "due $it" }
         when (t.priority) {

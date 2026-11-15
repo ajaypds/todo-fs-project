@@ -443,6 +443,7 @@ private fun ProposalRow(p: Proposal) {
         is AssistantAction.DeleteTask, is AssistantAction.DeleteProject -> Icons.Default.Delete
         is AssistantAction.CompleteTask -> Icons.Default.Check
         is AssistantAction.UpdateTask, is AssistantAction.UpdateProject -> Icons.Default.Edit
+        is com.example.todoflow.ai.AssistantQuery -> Icons.Default.Edit
     }
     val tint = if (p.destructive) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
     Row(

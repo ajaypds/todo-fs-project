@@ -297,15 +297,44 @@ class AssistantViewModel(
                 val tasks = repository.observeTasks(TaskFilterType.ALL).first()
                 val projects = repository.observeProjects().first()
                 val system = PromptBuilder.system(today(), tasks, projects)
-                val history = PromptBuilder.examples(today()) + recentTurns()
-                var raw = runtime.complete(system, history, input)
-                var parsed = ActionParser.parse(raw)
-                if (!parsed.hadJson) {
-                    // The model answered in prose. Ask once more, insisting on the format.
-                    raw = runtime.complete(system, history, input + RETRY_HINT)
-                    parsed = ActionParser.parse(raw)
+                val history = PromptBuilder.examples(today(), projects) + recentTurns()
+                val index = TaskIndex(PromptBuilder.contextTasks(tasks))
+                val queries = QueryRunner(repository, today)
+
+                // One model call; if it ignores the JSON format, ask once more insisting on it
+                suspend fun ask(turns: List<Turn>, message: String): Pair<String, ParsedReply> {
+                    var out = runtime.complete(system, turns, message)
+                    var p = ActionParser.parse(out)
+                    if (!p.hadJson) {
+                        out = runtime.complete(system, turns, message + RETRY_HINT)
+                        p = ActionParser.parse(out)
+                    }
+                    return out to p
                 }
-                val resolution = ActionResolver.resolve(parsed, PromptBuilder.contextTasks(tasks), projects, tasks)
+
+                var (raw, parsed) = ask(history, input)
+
+                // Look-ups: run them in the app, give the model the real result and let it continue
+                val conversation = history.toMutableList()
+                var rounds = 0
+                while (parsed.hadJson && rounds < MAX_LOOKUP_ROUNDS) {
+                    val lookups = parsed.actions.filterIsInstance<AssistantQuery>()
+                    if (lookups.isEmpty()) break
+                    val results = queries.run(lookups, index)
+                    conversation += Turn(if (rounds == 0) input else LOOKUP_FOLLOW_UP, raw)
+                    val follow = "Results from the app (real data):\n$results\n\nNow answer my request: $input"
+                    val next = ask(conversation, follow)
+                    raw = next.first
+                    parsed = next.second
+                    rounds++
+                }
+                if (parsed.actions.any { it is AssistantQuery }) {
+                    parsed = parsed.copy(
+                        actions = parsed.actions.filter { it !is AssistantQuery },
+                        problems = parsed.problems + "I couldn't finish looking that up"
+                    )
+                }
+                val resolution = ActionResolver.resolve(parsed, index.tasks, projects, tasks)
                 val reply = if (!parsed.hadJson) {
                     "The model didn't answer in a form I can use, so nothing was changed. " +
                         "Try rephrasing, or pick a larger model in the model manager.\n\nIt said: " + parsed.reply.take(300)
@@ -347,12 +376,28 @@ class AssistantViewModel(
                 is UserMessage -> pendingUser = m.text
                 is AssistantMessage -> {
                     val user = pendingUser
-                    if (user != null && m.raw.isNotBlank()) turns += Turn(user, m.raw)
+                    if (user != null && m.raw.isNotBlank()) turns += Turn(user, replayedAnswer(m))
                     pendingUser = null
                 }
             }
         }
         return turns.takeLast(MAX_HISTORY_TURNS)
+    }
+
+    /**
+     * What the model is shown for one of its earlier answers. Its words ("I've created the project") are only
+     * true if the user applied the change, so an answer that was discarded, ignored or only partly applied is
+     * replaced by a note saying so. Otherwise the model believes it did things that never happened.
+     */
+    private fun replayedAnswer(m: AssistantMessage): String {
+        val hadChanges = m.proposals.isNotEmpty() || m.changes.isNotEmpty()
+        return when {
+            hadChanges && m.status != ProposalStatus.APPLIED ->
+                """{"reply":"[The user did not apply this, so nothing was changed.]","actions":[]}"""
+            hadChanges && m.resultNote?.contains("Could not apply") == true ->
+                """{"reply":${kotlinx.serialization.json.JsonPrimitive("[Only partly applied: " + m.resultNote + "]")},"actions":[]}"""
+            else -> m.raw
+        }
     }
 
     fun apply(messageId: Long) {
@@ -391,6 +436,8 @@ class AssistantViewModel(
 
     companion object {
         private const val MAX_HISTORY_TURNS = 4
+        private const val MAX_LOOKUP_ROUNDS = 3
+        private const val LOOKUP_FOLLOW_UP = "(looking things up)"
         private const val RETRY_HINT = "\n\nAnswer with ONLY the JSON object, starting with {"
     }
 }

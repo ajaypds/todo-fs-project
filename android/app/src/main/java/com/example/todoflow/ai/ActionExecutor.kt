@@ -31,6 +31,7 @@ class ActionExecutor(private val repository: TaskRepository) {
             var reason: String? = null
             val ok: Boolean = try {
                 when (val a = p.action) {
+                    is AssistantQuery -> true // never proposed; nothing to do
                     is AssistantAction.CreateTask -> {
                         val target = a.project?.let { projectIdFor(it) }
                         val created = repository.createTask(

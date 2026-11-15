@@ -153,7 +153,7 @@ class AssistantViewModelTest {
         installModel()
         runBlocking { local.upsertTasks(listOf(TaskEntity("t1", "Pay rent"))) }
         runtime.answers += """{"reply":"Found it","actions":[]}"""
-        runtime.answers += """{"reply":"Done","actions":[{"op":"update_task","task":1,"priority":"high","due":"2026-11-20"}]}"""
+        runtime.answers += """{"reply":"Done","actions":[{"op":"update_task","task":"A","priority":"high","due":"2026-11-20"}]}"""
 
         send("what is my first task?")
         send("make it high priority and due on the 20th")
@@ -176,7 +176,7 @@ class AssistantViewModelTest {
     fun deletesNeedApplyAndDiscardChangesNothing() {
         installModel()
         runBlocking { local.upsertTasks(listOf(TaskEntity("t1", "Old"), TaskEntity("t2", "Keep"))) }
-        runtime.answers += """{"reply":"Deleting","actions":[{"op":"delete_task","task":1}]}"""
+        runtime.answers += """{"reply":"Deleting","actions":[{"op":"delete_task","task":"A"}]}"""
         send("delete old")
         val reply = last()
         assertTrue(reply.proposals.single().destructive)
@@ -194,10 +194,10 @@ class AssistantViewModelTest {
     @Test
     fun aMistakeByTheModelIsExplainedNotApplied() {
         installModel()
-        runtime.answers += """{"reply":"Hmm","actions":[{"op":"delete_task","task":42}]}"""
+        runtime.answers += """{"reply":"Hmm","actions":[{"op":"delete_task","task":"ZZ"}]}"""
         send("delete task 42")
         assertTrue(last().proposals.isEmpty())
-        assertTrue(last().problems.single().contains("#42"))
+        assertTrue(last().problems.single().contains("code ZZ"))
         assertEquals(ProposalStatus.NONE, last().status)
     }
 
@@ -309,14 +309,93 @@ class AssistantViewModelTest {
         // A restored chat continues: the model gets its earlier turn
         runtime.answers += """{"reply":"ok","actions":[]}"""
         send("thanks")
+        // ...but its answer was never applied, so the model is told that instead of its own claim
         assertEquals(
-            Turn("add buy milk", """{"reply":"Added","actions":[{"op":"create_task","title":"Buy milk"}]}"""),
+            Turn("add buy milk", """{"reply":"[The user did not apply this, so nothing was changed.]","actions":[]}"""),
             runtime.calls.last().second.last()
         )
 
         vm.deleteChat(saved.id)
         runBlocking { withTimeout(10_000) { vm.chats.first { it.isEmpty() } } }
         assertTrue(vm.messages.value.isEmpty())
+    }
+
+    @Test
+    fun aDiscardedAnswerIsNotReplayedAsIfItHadHappened() {
+        installModel()
+        runtime.answers += """{"reply":"I've created the Test project.","actions":[{"op":"create_project","name":"Test"}]}"""
+        send("create a Test project")
+        vm.discard(last().id)
+
+        runtime.answers += """{"reply":"I'll create it.","actions":[{"op":"create_project","name":"Test"}]}"""
+        send("create a Test project")
+
+        val replayed = runtime.calls.last().second.last()
+        assertEquals("create a Test project", replayed.user)
+        assertTrue(replayed.assistant.contains("did not apply"))
+        assertFalse(replayed.assistant.contains("I've created"))
+        assertEquals("Create project “Test”", last().proposals.single().summary)
+    }
+
+    @Test
+    fun theModelCanLookThingsUpAndThenAnswerWithTheRealData() {
+        installModel()
+        runBlocking {
+            local.upsertProjects(listOf(com.example.todoflow.data.local.ProjectEntity("p1", "Garden")))
+            local.upsertTasks(listOf(TaskEntity("t1", "Mow lawn", projectId = "p1", projectName = "Garden")))
+        }
+        runtime.answers += """{"reply":"Let me check.","actions":[{"op":"list_projects"}]}"""
+        runtime.answers += """{"reply":"You have one project: Garden (1 task).","actions":[]}"""
+
+        send("which projects do I have?")
+
+        assertEquals(2, runtime.calls.size)
+        val second = runtime.calls[1]
+        assertTrue(second.third.contains("Results from the app"))
+        assertTrue(second.third.contains("Garden (1 task)"))
+        assertTrue(second.third.endsWith("Now answer my request: which projects do I have?"))
+        // the model sees its own look-up request as the previous turn
+        assertEquals("which projects do I have?", second.second.last().user)
+        assertTrue(second.second.last().assistant.contains("list_projects"))
+        assertEquals("You have one project: Garden (1 task).", last().text)
+        assertTrue(last().proposals.isEmpty())
+    }
+
+    @Test
+    fun aModelThatKeepsLookingThingsUpIsStopped() {
+        installModel()
+        repeat(6) { runtime.answers += """{"reply":"checking","actions":[{"op":"list_labels"}]}""" }
+        send("loop forever")
+        assertEquals(4, runtime.calls.size) // the first answer + 3 look-up rounds
+        assertTrue(last().problems.any { it.contains("couldn't finish looking") })
+        assertTrue(last().proposals.isEmpty())
+    }
+
+    @Test
+    fun tasksNamedLikeCodesAreFoundByTitleThroughTheirLetters() {
+        installModel()
+        // "Buy milk" is due first so it gets code A; "Task 1" is therefore B, not 1
+        runBlocking {
+            local.upsertTasks(listOf(
+                TaskEntity("m", "Buy milk", dueDate = "2026-11-15T23:59:59Z"),
+                TaskEntity("t1", "Task 1", dueDate = "2026-11-16T23:59:59Z"),
+                TaskEntity("t2", "Task 2", dueDate = "2026-11-16T23:59:59Z"),
+                TaskEntity("t3", "Task 3", dueDate = "2026-11-16T23:59:59Z")
+            ))
+        }
+        runtime.answers += """{"reply":"I'll move them.","actions":[{"op":"create_project","name":"Test"},
+            {"op":"update_task","task":"B","project":"Test"},{"op":"update_task","task":"C","project":"Test"},{"op":"update_task","task":"D","project":"Test"}]}"""
+        send("Create a Test project and move Task 1, Task 2 and Task 3 to it")
+
+        val system = runtime.calls.single().first
+        assertTrue(system.contains("[A] Buy milk"))
+        assertTrue(system.contains("[B] Task 1"))
+        assertEquals(
+            listOf("Create project “Test”", "Update “Task 1”: move to Test", "Update “Task 2”: move to Test", "Update “Task 3”: move to Test"),
+            last().proposals.map { it.summary }
+        )
+        // And the untouched Buy milk really isn't among them
+        assertTrue(last().proposals.none { it.summary.contains("Buy milk") })
     }
 
     @Test
