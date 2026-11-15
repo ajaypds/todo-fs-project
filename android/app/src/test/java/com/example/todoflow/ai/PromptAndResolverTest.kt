@@ -39,12 +39,12 @@ class PromptAndResolverTest {
         assertTrue(ex[1].assistant.contains(""""due":"2026-11-20""""))   // next Friday
         // A vague "add some tasks" request creates the project and asks, instead of inventing tasks
         val vague = ActionParser.parse(ex[2].assistant)
-        assertEquals(listOf(AssistantAction.CreateProject("Holiday")), vague.actions)
+        assertEquals(listOf(AssistantAction.CreateProject("Beta")), vague.actions)
         assertTrue(vague.reply.contains("Which tasks"))
         // Every example is a valid answer for the parser
         ex.forEach { assertTrue(it.user, ActionParser.parse(it.assistant).hadJson) }
         assertEquals(1, ActionParser.parse(ex[0].assistant).actions.size)
-        assertTrue(ActionParser.parse(ex[6].assistant).actions.isEmpty())
+        assertTrue(ActionParser.parse(ex[8].assistant).actions.isEmpty())
     }
 
     @Test
@@ -53,17 +53,20 @@ class PromptAndResolverTest {
         listOf("list_projects", "list_tasks", "get_task", "list_labels", "daily_briefing",
             "create_task", "update_task", "complete_task", "delete_task", "add_subtasks",
             "create_project", "update_project", "delete_project").forEach { assertTrue(it, prompt.contains(""""op":"$it""""))}
-        assertTrue(prompt.contains("Answer questions about them directly from the lists"))
+        assertTrue(prompt.contains("you MUST use a look-up tool"))
+        assertTrue(prompt.contains("Never answer such a question from memory"))
         assertTrue(prompt.contains("is not code 1"))
         assertTrue(prompt.contains("NOT done until the user applies"))
     }
 
     @Test
-    fun theListProjectsExampleUsesTheUsersRealProjects() {
-        val withProjects = PromptBuilder.examples(today, projects)[3]
-        assertEquals("list my projects", withProjects.user)
-        assertTrue(withProjects.assistant.contains("Your projects: Home, Work."))
-        assertTrue(PromptBuilder.examples(today, emptyList())[3].assistant.contains("You have no projects yet."))
+    fun dataQuestionExamplesUseLookUpToolsAndNeverContainUserDataLikeNames() {
+        val ex = PromptBuilder.examples(today)
+        assertEquals(listOf(ListProjects), ActionParser.parse(ex[3].assistant).actions)
+        assertEquals(listOf(ListTasks(view = "inbox")), ActionParser.parse(ex[4].assistant).actions)
+        assertEquals(listOf(ListTasks(view = "today")), ActionParser.parse(ex[5].assistant).actions)
+        // the examples never state facts about the user's data, so there is nothing for the model to copy as "data"
+        assertTrue(ex.none { it.assistant.contains("Your projects") })
     }
 
     @Test

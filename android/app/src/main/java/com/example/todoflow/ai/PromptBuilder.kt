@@ -54,7 +54,8 @@ CHANGE tools (the user reviews them before anything happens):
 Only include the fields the user mentioned. Use several actions when the user asks for several things.
 
 Rules:
-- The Projects and Tasks lists below are the real, current data. Answer questions about them directly from the lists. Trust them, not your earlier replies.
+- For ANY question about the user's projects, tasks, labels or deadlines ("list...", "show...", "what is...", "how many...", "do I have...") you MUST use a look-up tool. Never answer such a question from memory, from the lists below or from earlier replies: the app shows the tool's result to the user.
+- The lists below are only there so you can find task codes and project names for changes.
 - Tasks are referred to ONLY by the letter code in square brackets, like [A]. A task whose title is "Task 1" is not code 1: find it by its title and use its letter.
 - Write dates as YYYY-MM-DD, worked out from today's date ("tomorrow", "next Friday", "in 3 days").
 - "urgent" and "important" mean priority "high".
@@ -75,31 +76,38 @@ $taskLines
      * Worked examples, replayed to the model as earlier chat turns. Small models follow the answer format
      * far more reliably when they have just "said" it a few times than when it is only described.
      */
-    fun examples(today: LocalDate, projects: List<ProjectEntity> = emptyList()): List<Turn> {
+    fun examples(today: LocalDate): List<Turn> {
         val tomorrow = today.plusDays(1)
         val friday = today.with(java.time.temporal.TemporalAdjusters.next(java.time.DayOfWeek.FRIDAY))
-        // Built from the user's real projects, so the example teaches "answer from the lists" with true facts
-        val projectAnswer = if (projects.isEmpty()) "You have no projects yet." else "Your projects: " + projects.joinToString(", ") { it.name } + "."
+        // Names are deliberately generic: small models copy example content when they are unsure
         return listOf(
             Turn(
                 "Add pay electricity bill for tomorrow",
                 """{"reply":"I'll add Pay electricity bill for tomorrow.","actions":[{"op":"create_task","title":"Pay electricity bill","due":"$tomorrow"}]}"""
             ),
             Turn(
-                "Create project Garden with tasks mow lawn and buy seeds, both urgent and due Friday",
-                """{"reply":"I'll create the Garden project with both tasks.","actions":[{"op":"create_project","name":"Garden"},{"op":"create_task","title":"Mow lawn","due":"$friday","priority":"high","project":"Garden"},{"op":"create_task","title":"Buy seeds","due":"$friday","priority":"high","project":"Garden"}]}"""
+                "Create project Alpha with tasks first job and second job, both urgent and due Friday",
+                """{"reply":"I'll create the Alpha project with both tasks.","actions":[{"op":"create_project","name":"Alpha"},{"op":"create_task","title":"First job","due":"$friday","priority":"high","project":"Alpha"},{"op":"create_task","title":"Second job","due":"$friday","priority":"high","project":"Alpha"}]}"""
             ),
             Turn(
-                "Create project Holiday and add some tasks to it",
-                """{"reply":"I'll create the Holiday project. Which tasks should I add to it?","actions":[{"op":"create_project","name":"Holiday"}]}"""
+                "Create project Beta and add some tasks to it",
+                """{"reply":"I'll create the Beta project. Which tasks should I add to it?","actions":[{"op":"create_project","name":"Beta"}]}"""
             ),
             Turn(
                 "list my projects",
-                """{"reply":${jsonString(projectAnswer)},"actions":[]}"""
+                """{"reply":"Let me look that up.","actions":[{"op":"list_projects"}]}"""
             ),
             Turn(
-                "Delete project Holiday with all its tasks",
-                """{"reply":"I'll delete the Holiday project and all its tasks.","actions":[{"op":"delete_project","project":"Holiday","with_tasks":true}]}"""
+                "show the tasks in my inbox",
+                """{"reply":"Let me look that up.","actions":[{"op":"list_tasks","view":"inbox"}]}"""
+            ),
+            Turn(
+                "what is due today?",
+                """{"reply":"Let me look that up.","actions":[{"op":"list_tasks","view":"today"}]}"""
+            ),
+            Turn(
+                "Delete project Beta with all its tasks",
+                """{"reply":"I'll delete the Beta project and all its tasks.","actions":[{"op":"delete_project","project":"Beta","with_tasks":true}]}"""
             ),
             Turn(
                 "delete the task with code B",
@@ -112,7 +120,6 @@ $taskLines
         )
     }
 
-    private fun jsonString(s: String): String = kotlinx.serialization.json.JsonPrimitive(s).toString()
 
     internal fun describe(t: TaskEntity): String {
         val parts = mutableListOf(t.title.replace('\n', ' ').take(MAX_TITLE))

@@ -15,7 +15,9 @@ data class StoredMessage(
     val problems: List<String> = emptyList(),
     val status: String = "NONE",
     val raw: String = "",
-    val note: String? = null
+    val note: String? = null,
+    /** What the app looked up for this answer (shown to the user). */
+    val lookups: String? = null
 )
 
 @Serializable

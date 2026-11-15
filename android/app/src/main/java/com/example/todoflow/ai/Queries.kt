@@ -121,5 +121,35 @@ class QueryRunner(
 
     companion object {
         const val MAX_LISTED = 40
+
+        private val codePrefix = Regex("^\\[[A-Z]{1,3}\\] ")
+
+        /** The look-up result as the user sees it: no codes or tool names, one bullet per item. */
+        fun forDisplay(text: String): String = text.lines().flatMap { raw ->
+            var line = raw
+            when {
+                line.startsWith("list_projects: ") && !line.contains("there are no projects") ->
+                    return@flatMap listOf("Projects:") + line.removePrefix("list_projects: ").split("; ").map { "• $it" }
+                line.startsWith("list_projects: ") -> line = "You have no projects."
+                line.startsWith("list_labels: ") && !line.contains("there are no labels") -> line = "Labels: " + line.removePrefix("list_labels: ")
+                line.startsWith("list_labels: ") -> line = "You have no labels."
+                line.startsWith("list_tasks (") -> line = "Tasks (" + line.removePrefix("list_tasks (")
+                line.startsWith("list_tasks: ") -> line = line.removePrefix("list_tasks: ").replaceFirstChar { it.uppercase() }
+                line.startsWith("get_task [") -> line = "• " + line.substringAfter("]: ")
+                line.startsWith("get_task: ") -> line = line.removePrefix("get_task: ").replaceFirstChar { it.uppercase() }
+                line.startsWith("daily_briefing: ") -> line = "Daily briefing: " + line.removePrefix("daily_briefing: ")
+                codePrefix.containsMatchIn(line) -> line = "• " + line.replace(codePrefix, "")
+            }
+            listOf(line.replace(" | ", " · "))
+        }.joinToString("\n")
     }
+}
+
+/** Spots questions about the user's own data, which must be answered from the app's data and never from memory. */
+object DataQuestions {
+    private val asks = Regex("""\b(list|show|display|what|which|how many|how much|do i have|have i got|are there|is there|any|count|tell me|view|see|find|search|give me)\b""", RegexOption.IGNORE_CASE)
+    private val subjects = Regex("""\b(tasks?|projects?|labels?|inbox|due|overdue|today|tomorrow|upcoming|deadlines?|briefing|completed|done|subtasks?)\b""", RegexOption.IGNORE_CASE)
+    private val changes = Regex("""\b(create|add|new|delete|remove|move|rename|make|set|mark|change|update|edit|complete|finish|reopen|put|assign|schedule)\b""", RegexOption.IGNORE_CASE)
+
+    fun looksLikeDataQuestion(text: String): Boolean = asks.containsMatchIn(text) && subjects.containsMatchIn(text) && !changes.containsMatchIn(text)
 }

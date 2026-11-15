@@ -360,6 +360,17 @@ private fun AssistantBubble(message: AssistantMessage, onApply: () -> Unit, onDi
         ) {
             Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 SelectionContainer { Text(message.text) }
+                message.lookups?.let { data ->
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f), RoundedCornerShape(12.dp))
+                            .padding(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(2.dp)
+                    ) {
+                        SelectionContainer { Text(data, style = MaterialTheme.typography.bodyMedium) }
+                    }
+                }
                 message.proposals.forEach { ProposalRow(it) }
                 message.changes.forEach { ChangeRow(it.summary, it.destructive, Icons.Default.Edit) }
                 message.problems.forEach {

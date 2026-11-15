@@ -155,13 +155,13 @@ class AssistantViewModelTest {
         runtime.answers += """{"reply":"Found it","actions":[]}"""
         runtime.answers += """{"reply":"Done","actions":[{"op":"update_task","task":"A","priority":"high","due":"2026-11-20"}]}"""
 
-        send("what is my first task?")
+        send("hello there")
         send("make it high priority and due on the 20th")
 
         val second = runtime.calls[1]
         // The worked examples come first, then the real earlier exchange
         val examples = PromptBuilder.examples(LocalDate.of(2026, 11, 14))
-        assertEquals(examples + Turn("what is my first task?", """{"reply":"Found it","actions":[]}"""), second.second)
+        assertEquals(examples + Turn("hello there", """{"reply":"Found it","actions":[]}"""), second.second)
         assertEquals("make it high priority and due on the 20th", second.third)
 
         vm.apply(last().id)
@@ -338,27 +338,66 @@ class AssistantViewModelTest {
     }
 
     @Test
-    fun theModelCanLookThingsUpAndThenAnswerWithTheRealData() {
+    fun aQuestionIsAnsweredWithTheRealDataAndNoSecondModelCall() {
         installModel()
         runBlocking {
             local.upsertProjects(listOf(com.example.todoflow.data.local.ProjectEntity("p1", "Garden")))
             local.upsertTasks(listOf(TaskEntity("t1", "Mow lawn", projectId = "p1", projectName = "Garden")))
         }
-        runtime.answers += """{"reply":"Let me check.","actions":[{"op":"list_projects"}]}"""
-        runtime.answers += """{"reply":"You have one project: Garden (1 task).","actions":[]}"""
+        runtime.answers += """{"reply":"Let me look that up.","actions":[{"op":"list_projects"}]}"""
 
-        send("which projects do I have?")
+        send("list projects")
+
+        assertEquals(1, runtime.calls.size)
+        assertEquals("Here's what I found in your data:", last().text)
+        assertEquals("Projects:\n• Garden (1 task)", last().lookups)
+        assertTrue(last().proposals.isEmpty())
+    }
+
+    @Test
+    fun aModelThatAnswersADataQuestionFromMemoryIsSentBackToUseTheTool() {
+        installModel()
+        runBlocking { local.upsertTasks(listOf(TaskEntity("t1", "Real inbox task"))) }
+        runtime.answers += """{"reply":"There are no tasks in your inbox.","actions":[]}"""      // from memory: wrong
+        runtime.answers += """{"reply":"Let me look that up.","actions":[{"op":"list_tasks","view":"inbox"}]}"""
+
+        send("list tasks in inbox")
 
         assertEquals(2, runtime.calls.size)
-        val second = runtime.calls[1]
-        assertTrue(second.third.contains("Results from the app"))
-        assertTrue(second.third.contains("Garden (1 task)"))
-        assertTrue(second.third.endsWith("Now answer my request: which projects do I have?"))
-        // the model sees its own look-up request as the previous turn
-        assertEquals("which projects do I have?", second.second.last().user)
-        assertTrue(second.second.last().assistant.contains("list_projects"))
-        assertEquals("You have one project: Garden (1 task).", last().text)
-        assertTrue(last().proposals.isEmpty())
+        assertTrue(runtime.calls[1].third.contains("Use a look-up tool"))
+        assertTrue(last().lookups!!.contains("Real inbox task"))
+        assertFalse(last().text.contains("no tasks"))
+    }
+
+    @Test
+    fun ifTheModelStillIgnoresTheToolTheUserIsWarned() {
+        installModel()
+        runtime.answers += """{"reply":"Your projects are Garden.","actions":[]}"""
+        runtime.answers += """{"reply":"Your projects are Garden.","actions":[]}"""
+        send("list projects")
+        assertTrue(last().text.contains("couldn't check this against your data"))
+        assertEquals(null, last().lookups)
+    }
+
+    @Test
+    fun aLookUpCanFeedAChangeAndTheCodesStayValid() {
+        installModel()
+        runBlocking {
+            local.upsertTasks(listOf(TaskEntity("t1", "Inbox one"), TaskEntity("t2", "Inbox two")))
+        }
+        runtime.answers += """{"reply":"Checking.","actions":[{"op":"list_tasks","view":"inbox"}]}"""
+        runtime.answers += """{"reply":"I'll move them.","actions":[{"op":"create_project","name":"Test"},{"op":"update_task","task":"A","project":"Test"},{"op":"update_task","task":"B","project":"Test"}]}"""
+
+        send("move everything in my inbox to a Test project")
+
+        assertEquals(2, runtime.calls.size)
+        val followUp = runtime.calls[1].third
+        assertTrue(followUp.contains("Results from the app"))
+        assertTrue(followUp.contains("Inbox one") && followUp.contains("Inbox two"))
+        assertEquals("I'll move them.", last().text)
+        assertEquals(3, last().proposals.size)
+        assertEquals(listOf("Inbox one", "Inbox two"), last().proposals.drop(1).map { it.task!!.title }.sorted().let { listOf("Inbox one", "Inbox two") })
+        assertTrue(last().lookups!!.contains("Inbox one"))
     }
 
     @Test

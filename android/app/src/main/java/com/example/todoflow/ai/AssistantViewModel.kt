@@ -36,7 +36,9 @@ data class AssistantMessage(
     val raw: String = "",
     val resultNote: String? = null,
     /** Changes of a chat restored from the history (shown as text only). */
-    val changes: List<StoredChange> = emptyList()
+    val changes: List<StoredChange> = emptyList(),
+    /** What the app looked up in the user's data for this answer: real data, shown instead of the model's words. */
+    val lookups: String? = null
 ) : ChatMessage
 
 /**
@@ -219,7 +221,8 @@ class AssistantViewModel(
                     problems = m.problems,
                     status = m.status.name,
                     raw = m.raw,
-                    note = m.resultNote
+                    note = m.resultNote,
+                    lookups = m.lookups
                 )
             }
         }
@@ -255,7 +258,8 @@ class AssistantViewModel(
                 },
                 raw = m.raw,
                 resultNote = m.note,
-                changes = m.changes
+                changes = m.changes,
+                lookups = m.lookups
             )
         }
     }
@@ -297,7 +301,7 @@ class AssistantViewModel(
                 val tasks = repository.observeTasks(TaskFilterType.ALL).first()
                 val projects = repository.observeProjects().first()
                 val system = PromptBuilder.system(today(), tasks, projects)
-                val history = PromptBuilder.examples(today(), projects) + recentTurns()
+                val history = PromptBuilder.examples(today()) + recentTurns()
                 val index = TaskIndex(PromptBuilder.contextTasks(tasks))
                 val queries = QueryRunner(repository, today)
 
@@ -314,6 +318,17 @@ class AssistantViewModel(
 
                 var (raw, parsed) = ask(history, input)
 
+                // A question about the user's data must be answered from the app's data. If the model tries
+                // to answer from memory instead, send it back once to use a look-up tool.
+                var unchecked = false
+                if (parsed.hadJson && parsed.actions.isEmpty() && DataQuestions.looksLikeDataQuestion(input)) {
+                    val again = ask(history, input + DATA_HINT)
+                    raw = again.first
+                    parsed = again.second
+                    unchecked = parsed.hadJson && parsed.actions.isEmpty()
+                }
+                val lookupResults = mutableListOf<String>()
+
                 // Look-ups: run them in the app, give the model the real result and let it continue
                 val conversation = history.toMutableList()
                 var rounds = 0
@@ -321,6 +336,12 @@ class AssistantViewModel(
                     val lookups = parsed.actions.filterIsInstance<AssistantQuery>()
                     if (lookups.isEmpty()) break
                     val results = queries.run(lookups, index)
+                    lookupResults += results
+                    if (DataQuestions.looksLikeDataQuestion(input)) {
+                        // A plain question: the app's data is the answer, no need to ask the model to retell it
+                        parsed = parsed.copy(actions = parsed.actions.filter { it !is AssistantQuery })
+                        break
+                    }
                     conversation += Turn(if (rounds == 0) input else LOOKUP_FOLLOW_UP, raw)
                     val follow = "Results from the app (real data):\n$results\n\nNow answer my request: $input"
                     val next = ask(conversation, follow)
@@ -338,6 +359,12 @@ class AssistantViewModel(
                 val reply = if (!parsed.hadJson) {
                     "The model didn't answer in a form I can use, so nothing was changed. " +
                         "Try rephrasing, or pick a larger model in the model manager.\n\nIt said: " + parsed.reply.take(300)
+                } else if (lookupResults.isNotEmpty() && resolution.proposals.isEmpty()) {
+                    // The answer is the app's own data, not the model's wording of it
+                    "Here's what I found in your data:"
+                } else if (unchecked) {
+                    parsed.reply.ifBlank { "I'm not sure." } +
+                        "\n\n(I couldn't check this against your data, so it may be wrong. Try asking again, for example “list my projects”.)"
                 } else parsed.reply.ifBlank {
                     when {
                         resolution.proposals.isNotEmpty() -> "Here is what I would do:"
@@ -353,7 +380,8 @@ class AssistantViewModel(
                         problems = resolution.problems,
                         status = if (resolution.proposals.isEmpty()) ProposalStatus.NONE else ProposalStatus.PENDING,
                         // A prose answer must not be replayed to the model as if it were the right format
-                        raw = if (parsed.hadJson) raw else ""
+                        raw = if (parsed.hadJson) raw else "",
+                        lookups = lookupResults.takeIf { it.isNotEmpty() }?.let { QueryRunner.forDisplay(it.joinToString("\n\n")) }
                     )
                 )
             } catch (e: CancellationException) {
@@ -437,6 +465,7 @@ class AssistantViewModel(
     companion object {
         private const val MAX_HISTORY_TURNS = 4
         private const val MAX_LOOKUP_ROUNDS = 3
+        private const val DATA_HINT = "\n\nThis is a question about my own data. Use a look-up tool (list_projects, list_tasks, ...) and do not answer from memory. Answer with ONLY the JSON object, starting with {"
         private const val LOOKUP_FOLLOW_UP = "(looking things up)"
         private const val RETRY_HINT = "\n\nAnswer with ONLY the JSON object, starting with {"
     }
